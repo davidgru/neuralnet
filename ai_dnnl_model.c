@@ -44,7 +44,7 @@ uint32_t ai_dnnl_model_create(ai_dnnl_model_t** model, ai_input_dims_t* input_di
 
     m->layers = (ai_dnnl_layer_t**)malloc(num_layers * sizeof(ai_dnnl_layer_t**));
     m->num_layers = num_layers;
-    m->physical_input_size = input_dims->N * input_dims->C * input_dims->H * input_dims->W;
+    m->physical_input_size = input_dims->C * input_dims->H * input_dims->W;
 
     // Create the input layer
     ai_dnnl_input_layer_create_info_t i_info;
@@ -82,11 +82,14 @@ uint32_t ai_dnnl_model_create(ai_dnnl_model_t** model, ai_input_dims_t* input_di
     CHECK_DNNL(ai_dnnl_layer_bwd_pass_init(m->input_layer, m->layers[0]));
 
     ai_dnnl_layer_t* last_layer = m->layers[m->num_layers - 1];
-    m->physical_output_size = last_layer->N * last_layer->IC * last_layer->IH * last_layer->IW;
+    m->physical_output_size = last_layer->IC * last_layer->IH * last_layer->IW;
 
 
     memcpy(&m->input_shape, input_dims, sizeof(ai_input_dims_t));
-
+    m->input_shape.N = input_dims->N;
+    m->input_shape.C = input_dims->C;
+    m->input_shape.H = input_dims->H;
+    m->input_shape.W = input_dims->W;
 
     return 0;
 dnnl_error:

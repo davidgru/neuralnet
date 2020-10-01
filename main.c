@@ -307,7 +307,7 @@ void train_lenet5()
 void ai_onednn_lenet5()
 {
     size_t num_epochs = 1000;
-    size_t N = 1;
+    size_t N = 16;
     float learning_rate = 0.01f;
 
     ai_dnnl_convolutional_layer_create_info_t c1_info;
@@ -418,7 +418,7 @@ void ai_onednn_lenet5()
     AI_MnistDataset mnist;
 
     uint32_t status = ai_dnnl_model_create(&model, &input_dims, 12, create_infos, ai_dnnl_loss_mse);
-    AI_MnistDatasetLoad(&mnist, "./datasets/mnist", 2);
+    AI_MnistDatasetLoad(&mnist, "./datasets/fashion_mnist", 2);
 
     printf("model created: %d\n", status);
 
