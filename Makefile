@@ -1,5 +1,5 @@
 
-ONEDNN_DIR = D:/dev/tools/oneDNN_vs19
+ONEDNN_DIR = C:/dev/tools/oneDNN_shared
 
 CFLAGS = -Ofast -march=haswell -mavx -mavx2
 INCLUDE = -I$(ONEDNN_DIR)/include
