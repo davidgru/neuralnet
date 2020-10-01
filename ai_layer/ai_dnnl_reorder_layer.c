@@ -3,6 +3,7 @@
 
 #include "../ai_util/ai_dnnl_util.h"
 
+
 #include <malloc.h>
 
 #define CHECK_DNNL(call) if (call) goto error

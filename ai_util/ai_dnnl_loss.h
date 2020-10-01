@@ -1,6 +1,8 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "../ai_layer/ai_dnnl_base_layer.h"
 

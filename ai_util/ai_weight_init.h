@@ -1,6 +1,8 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Definition of weight and bias initialisation functions for linear layers */
 

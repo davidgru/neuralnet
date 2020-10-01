@@ -2,6 +2,8 @@
 
 #include "dnnl.h"
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdbool.h>
 
 typedef struct ai_dnnl_reorder_t {

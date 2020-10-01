@@ -2,7 +2,9 @@
 #include "ai_random.h"
 
 #include <stdlib.h>
+#include <stddef.h>
 #include <stdbool.h>
+
 #include <time.h>
 #include <math.h>
 

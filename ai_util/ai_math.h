@@ -1,7 +1,8 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
-
+#include <stdbool.h>
 
 // Adds a value to every element of v
 void AI_VectorAddScalar(float* v, float s, size_t size);

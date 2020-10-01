@@ -1,6 +1,7 @@
 
 #include "ai_dnnl_util.h"
 
+#include "dnnl.h"
 
 dnnl_status_t ai_dnnl_reorder_primitive_create(dnnl_primitive_t* reorder_primitive, const dnnl_memory_desc_t* src_md, const dnnl_memory_desc_t* dst_md, dnnl_engine_t engine, dnnl_primitive_attr_t attr)
 {
