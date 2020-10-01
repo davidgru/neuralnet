@@ -28,6 +28,7 @@ static uint32_t argmax(float* x, size_t size)
     return max;
 }
 
+
 uint32_t ai_dnnl_model_create(ai_dnnl_model_t** model, ai_input_dims_t* input_dims, size_t num_layers, ai_dnnl_layer_create_info_t* layer_create_infos, ai_dnnl_loss_kind_t loss_kind)
 {
     // Create an engine and a stream
@@ -95,6 +96,12 @@ uint32_t ai_dnnl_model_create(ai_dnnl_model_t** model, ai_input_dims_t* input_di
 dnnl_error:
     return 1;
 }
+
+uint32_t ai_dnnl_model_create_from_desc(ai_dnnl_model_t** model, ai_model_desc_t* desc)
+{
+    return ai_dnnl_model_create(model, &desc->input_shape, desc->num_layers, desc->create_infos, desc->loss);
+}
+
 
 uint32_t ai_dnnl_model_train(ai_dnnl_model_t* model, size_t train_set_size, float* train_data, uint8_t* train_labels, size_t test_set_size, float* test_data, uint8_t* test_labels, size_t num_epochs, ai_dnnl_train_callback_t callback)
 {

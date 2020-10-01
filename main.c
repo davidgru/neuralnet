@@ -427,7 +427,52 @@ void ai_onednn_lenet5()
 
 }
 
+#include "ai_model_desc.h"
+
+void test_model_desc()
+{
+    size_t num_epochs = 1000;
+    float learning_rate = 0.01f;
+
+    ai_input_dims_t input_dims;
+    input_dims.N = 16;
+    input_dims.C = 1;
+    input_dims.H = 32;
+    input_dims.W = 32;
+
+    ai_model_desc_t* desc;
+
+    ai_model_desc_create(&desc, &input_dims, ai_dnnl_loss_mse);
+
+    ai_model_desc_add_convolutional_layer(desc, 0.01f, 6, 5, 5, 1, 1, 0, 0, 0, 0, ai_dnnl_convolutional_layer_weight_init_kind_xavier, ai_dnnl_convolutional_layer_bias_init_kind_zeros);
+    ai_model_desc_add_activation_layer(desc, ai_dnnl_activation_kind_tanh);
+    ai_model_desc_add_pooling_layer(desc, 2, 2, 2, 2, 0, 0, 0, 0, ai_dnnl_pooling_avg);
+    ai_model_desc_add_convolutional_layer(desc, 0.01f, 16, 5, 5, 1, 1, 0, 0, 0, 0, ai_dnnl_convolutional_layer_weight_init_kind_xavier, ai_dnnl_convolutional_layer_bias_init_kind_zeros);
+    ai_model_desc_add_activation_layer(desc, ai_dnnl_activation_kind_tanh);
+    ai_model_desc_add_pooling_layer(desc, 2, 2, 2, 2, 0, 0, 0, 0, ai_dnnl_pooling_avg);
+    ai_model_desc_add_linear_layer(desc, learning_rate, 120, ai_dnnl_linear_layer_weight_init_kind_xavier, ai_dnnl_linear_layer_bias_init_kind_zeros);
+    ai_model_desc_add_activation_layer(desc, ai_dnnl_activation_kind_tanh);
+    ai_model_desc_add_linear_layer(desc, learning_rate, 84, ai_dnnl_linear_layer_weight_init_kind_xavier, ai_dnnl_linear_layer_bias_init_kind_zeros);
+    ai_model_desc_add_activation_layer(desc, ai_dnnl_activation_kind_tanh);
+    ai_model_desc_add_linear_layer(desc, learning_rate, 10, ai_dnnl_linear_layer_weight_init_kind_xavier, ai_dnnl_linear_layer_bias_init_kind_zeros);
+    ai_model_desc_add_activation_layer(desc, ai_dnnl_activation_kind_tanh);
+
+    ai_dnnl_model_t* model;
+    AI_MnistDataset mnist;
+
+
+
+    ai_dnnl_model_create_from_desc(&model, desc);
+    AI_MnistDatasetLoad(&mnist, "./datasets/fashion_mnist", 2);
+
+    ai_dnnl_model_train(model, 60000, mnist.train_images, mnist.train_labels, 10000, mnist.test_images, mnist.test_labels, num_epochs, dnnl_train_callback);
+    
+    ai_model_desc_destroy(desc);
+    ai_dnnl_model_destroy(model);
+    printf("finished\n");
+}
+
 int main()
 {
-    ai_onednn_lenet5();
+    test_model_desc();
 }
