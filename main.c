@@ -418,7 +418,7 @@ void ai_onednn_lenet5()
     AI_MnistDataset mnist;
 
     uint32_t status = ai_dnnl_model_create(&model, &input_dims, 12, create_infos, ai_dnnl_loss_mse);
-    AI_MnistDatasetLoad(&mnist, "D:/dev/tools/datasets/mnist", 2);
+    AI_MnistDatasetLoad(&mnist, "./datasets/mnist", 2);
 
     printf("model created: %d\n", status);
 
