@@ -1,3 +1,11 @@
+/**
+ * @file lenet5_mnist.c
+ * @brief Train LeNet-5 on the MNIST dataset
+ * 
+ * This example illustrates how this library can be used to implement the LeNet-5 architecture
+ * and trains it on the MNIST dataset.
+ */
+
 
 #include <stdio.h>
 #include <inttypes.h>
@@ -5,8 +13,8 @@
 #include "ai_model_desc.h"
 #include "ai_sequential_net.h"
 #include "ai_mnist.h"
-
 #include "log.h"
+
 
 
 ai_sequential_network_t* create_lenet5(float learning_rate, ai_input_dims_t* input_dims)
@@ -67,7 +75,7 @@ int main()
 
 
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = ;
+    const char* mnist_path = "/home/david/projects/neuralnet/datasets/fashion_mnist";
 
 
     /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
