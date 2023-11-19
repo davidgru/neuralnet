@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include "util/ai_math.h"
-#include "util/ai_gradient_clipping.h"
 
 typedef struct convolutional_layer_t {
     AI_Layer hdr;
@@ -14,7 +13,6 @@ typedef struct convolutional_layer_t {
     float* b;
     float* dw;
     float learning_rate;
-    float gradient_clipping_threshold;
 } convolutional_layer_t;
 
 
@@ -55,11 +53,11 @@ uint32_t convolutional_layer_init(AI_Layer** layer, void* create_info, AI_Layer*
     _layer->hdr.mini_batch_size = prev_layer->mini_batch_size;
     _layer->hdr.forward = conv_layer_forward;
     _layer->hdr.backward = conv_layer_backward;
+    _layer->hdr.info = NULL;
     _layer->hdr.deinit = conv_layer_deinit;
 
     _layer->filter_width = filter_width;
     _layer->learning_rate = _create_info->learning_rate;
-    _layer->gradient_clipping_threshold = _create_info->gradient_clipping_threshold;
 
     _layer->w = (float*)(_layer + 1);
     _layer->b = _layer->w + weight_size;
@@ -165,13 +163,11 @@ static void conv_layer_backward(AI_Layer* layer)
         }
     }
     AI_VectorScale(dw, learning_rate, filter_size * output_channels);
-    AI_ClipGradient(dw, filter_size * output_channels, _layer->gradient_clipping_threshold);
     AI_VectorSub(w, dw, filter_size * output_channels);
 
     // Adjust output channel bias
     for (size_t i = 0; i < output_channels; i++) {
         float _db = AI_Sum(dy + i * output_size, output_size);
-        AI_ClipGradient(&_db, 1, _layer->gradient_clipping_threshold);
         b[i] -= learning_rate * _db;
     }
 }

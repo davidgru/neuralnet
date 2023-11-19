@@ -1,19 +1,18 @@
 
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
 #include "layer/ai_base_layer.h"
 #include "util/ai_loss.h"
 
 #include "ai_net.h"
-
+#include "ai_model_desc.h"
 #include "dataset/ai_mnist.h"
-
-#include <stdio.h>
-#include <string.h>
-
 #include "log.h"
 
-#include <unistd.h>
 
-void train_callback(AI_TrainingProgress* p)
+void train_callback(ai_training_info_t* p)
 {
     printf("Epoch %3d | Train loss %f | Train accuracy %5.3f%% | Test loss %f | Test accuracy %5.3f%%\n",
         p->epoch,
@@ -24,76 +23,76 @@ void train_callback(AI_TrainingProgress* p)
     );
 }
 
-void train_lenet1()
-{
-    size_t epochs = 10000;
-    float learning_rate = 0.002f;
-    float clipping_threshold = 1000.0f;
+// void train_lenet1()
+// {
+//     size_t epochs = 10000;
+//     float learning_rate = 0.002f;
+//     float clipping_threshold = 1000.0f;
 
-    AI_Net net;
-    AI_MnistDataset mnist;
+//     AI_Net net;
+//     AI_MnistDataset mnist;
 
-    AI_ConvolutionalLayerCreateInfo c1_info;
-    c1_info.output_channels = 4;
-    c1_info.filter_width = 5;
-    c1_info.learning_rate = learning_rate;
-    c1_info.gradient_clipping_threshold = clipping_threshold;
-    c1_info.weight_init = AI_ConvWeightInitXavier;
-    c1_info.bias_init = AI_ConvBiasInitZeros;
+//     AI_ConvolutionalLayerCreateInfo c1_info;
+//     c1_info.output_channels = 4;
+//     c1_info.filter_width = 5;
+//     c1_info.learning_rate = learning_rate;
+//     c1_info.gradient_clipping_threshold = clipping_threshold;
+//     c1_info.weight_init = AI_ConvWeightInitXavier;
+//     c1_info.bias_init = AI_ConvBiasInitZeros;
 
-    AI_ActivationLayerCreateInfo a1_info;
-    a1_info.activation_function = AI_ACTIVATION_FUNCTION_TANH;
+//     AI_ActivationLayerCreateInfo a1_info;
+//     a1_info.activation_function = AI_ACTIVATION_FUNCTION_TANH;
 
-    AI_PoolingLayerCreateInfo p1_info;
-    p1_info.kernel_width = 2;
-    p1_info.pooling_operation = AI_POOLING_AVERAGE;
+//     AI_PoolingLayerCreateInfo p1_info;
+//     p1_info.kernel_width = 2;
+//     p1_info.pooling_operation = AI_POOLING_AVERAGE;
 
-    AI_ConvolutionalLayerCreateInfo c2_info;
-    c2_info.output_channels = 12;
-    c2_info.filter_width = 5;
-    c2_info.learning_rate = learning_rate;
-    c2_info.gradient_clipping_threshold = clipping_threshold;
-    c2_info.weight_init = AI_ConvWeightInitXavier;
-    c2_info.bias_init = AI_ConvBiasInitZeros;
+//     AI_ConvolutionalLayerCreateInfo c2_info;
+//     c2_info.output_channels = 12;
+//     c2_info.filter_width = 5;
+//     c2_info.learning_rate = learning_rate;
+//     c2_info.gradient_clipping_threshold = clipping_threshold;
+//     c2_info.weight_init = AI_ConvWeightInitXavier;
+//     c2_info.bias_init = AI_ConvBiasInitZeros;
 
-    AI_ActivationLayerCreateInfo a2_info;
-    a2_info.activation_function = AI_ACTIVATION_FUNCTION_TANH;
+//     AI_ActivationLayerCreateInfo a2_info;
+//     a2_info.activation_function = AI_ACTIVATION_FUNCTION_TANH;
 
-    AI_PoolingLayerCreateInfo p2_info;
-    p2_info.kernel_width = 2;
-    p2_info.pooling_operation = AI_POOLING_AVERAGE;
+//     AI_PoolingLayerCreateInfo p2_info;
+//     p2_info.kernel_width = 2;
+//     p2_info.pooling_operation = AI_POOLING_AVERAGE;
 
-    AI_ConvolutionalLayerCreateInfo c3_info;
-    c3_info.output_channels = 10;
-    c3_info.filter_width = 4;
-    c3_info.learning_rate = learning_rate;
-    c3_info.gradient_clipping_threshold = clipping_threshold;
-    c3_info.weight_init = AI_ConvWeightInitXavier;
-    c3_info.bias_init = AI_ConvBiasInitZeros;
+//     AI_ConvolutionalLayerCreateInfo c3_info;
+//     c3_info.output_channels = 10;
+//     c3_info.filter_width = 4;
+//     c3_info.learning_rate = learning_rate;
+//     c3_info.gradient_clipping_threshold = clipping_threshold;
+//     c3_info.weight_init = AI_ConvWeightInitXavier;
+//     c3_info.bias_init = AI_ConvBiasInitZeros;
 
-    AI_ActivationLayerCreateInfo a3_info;
-    a3_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
+//     AI_ActivationLayerCreateInfo a3_info;
+//     a3_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
 
-    AI_LayerCreateInfo create_infos[] = {
-        { AI_CONVOLUTIONAL_LAYER, &c1_info },
-        { AI_ACTIVATION_LAYER,    &a1_info },
-        { AI_POOLING_LAYER,       &p1_info },
-        { AI_CONVOLUTIONAL_LAYER, &c2_info },
-        { AI_ACTIVATION_LAYER,    &a2_info },
-        { AI_POOLING_LAYER,       &p2_info },
-        { AI_CONVOLUTIONAL_LAYER, &c3_info },
-        { AI_ACTIVATION_LAYER,    &a3_info },
-    };
+//     AI_LayerCreateInfo create_infos[] = {
+//         { AI_CONVOLUTIONAL_LAYER, &c1_info },
+//         { AI_ACTIVATION_LAYER,    &a1_info },
+//         { AI_POOLING_LAYER,       &p1_info },
+//         { AI_CONVOLUTIONAL_LAYER, &c2_info },
+//         { AI_ACTIVATION_LAYER,    &a2_info },
+//         { AI_POOLING_LAYER,       &p2_info },
+//         { AI_CONVOLUTIONAL_LAYER, &c3_info },
+//         { AI_ACTIVATION_LAYER,    &a3_info },
+//     };
 
  
-    AI_NetInit(&net, 28, 28, 1, 1, create_infos, 8);
-    AI_MnistDatasetLoad(&mnist, "D:/dev/tools/datasets/mnist", 0);
+//     AI_NetInit(&net, 28, 28, 1, 1, create_infos, 8);
+//     AI_MnistDatasetLoad(&mnist, "/home/david/projects/neuralnet/datasets/fashion_mnist", 0);
 
-    AI_NetTrain(&net, mnist.train_images, mnist.test_images, mnist.train_labels, mnist.test_labels, mnist.num_train_images, mnist.num_test_images, epochs, learning_rate, 1, train_callback);
+//     AI_NetTrain(&net, mnist.train_images, mnist.test_images, mnist.train_labels, mnist.test_labels, mnist.num_train_images, mnist.num_test_images, epochs, learning_rate, 1, train_callback);
 
-    AI_NetDeinit(&net);
-    AI_MnistDatasetFree(&mnist);
-}
+//     AI_NetDeinit(&net);
+//     AI_MnistDatasetFree(&mnist);
+// }
 
 
 // #include "ai_dnnl_model.h"
@@ -164,67 +163,150 @@ void train_lenet1()
 //     printf("status: %d\n", status);
 // }
 
-void ai_2_layer_net()
+// void ai_2_layer_net()
+// {
+//     size_t num_epochs = 1000;
+//     size_t N = 1;
+//     float learning_rate = 0.01f;
+//     float clipping_threshold = 10000.0f;
+
+//     AI_MnistDataset mnist;
+//     AI_Net model;
+
+//     AI_LinearLayerCreateInfo l1_info;
+//     l1_info.output_size = 300;
+//     l1_info.learning_rate = learning_rate;
+//     l1_info.gradient_clipping_threshold = clipping_threshold;
+//     l1_info.weight_init = AI_LinearWeightInitXavier;
+//     l1_info.bias_init = AI_LinearBiasInitZeros;
+
+//     AI_ActivationLayerCreateInfo a1_info;
+//     a1_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
+
+//     AI_LinearLayerCreateInfo l2_info;
+//     l2_info.output_size = 10;
+//     l2_info.learning_rate = learning_rate;
+//     l2_info.gradient_clipping_threshold = clipping_threshold;
+//     l2_info.weight_init = AI_LinearWeightInitXavier;
+//     l2_info.bias_init = AI_LinearBiasInitZeros;
+    
+//     AI_ActivationLayerCreateInfo a2_info;
+//     a2_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
+
+//     AI_LayerCreateInfo create_infos[] = {
+//         { AI_LINEAR_LAYER, &l1_info },
+//         { AI_ACTIVATION_LAYER, &a1_info },
+//         { AI_LINEAR_LAYER, &l2_info },
+//         { AI_ACTIVATION_LAYER, &a2_info },
+//     };
+
+    
+//     LOG_TRACE("Initializing network\n");
+
+//     AI_NetInit(&model, 28, 28, 1, N, create_infos, 4);
+    
+//     LOG_TRACE("Loading dataset\n");
+    
+//     if (AI_MnistDatasetLoad(&mnist, "/home/david/projects/neuralnet/datasets/mnist", 0)) {
+//         LOG_ERROR("AI_MnistDatasetLoad failed\n");
+//         return;
+//     }
+
+//     LOG_TRACE("Starting training %f\n", mnist.train_images[42]);
+
+
+//     AI_NetTrain(&model, mnist.train_images, mnist.test_images, mnist.train_labels, mnist.test_labels, 60000, 10000, num_epochs, learning_rate, N, train_callback);
+// }
+
+
+// void ai_1_layer_net()
+// {
+//     size_t num_epochs = 1000;
+//     size_t N = 2;
+//     float learning_rate = 0.00000001f;
+//     float clipping_threshold = 10000.0f;
+
+//     AI_MnistDataset mnist;
+//     AI_Net model;
+
+//     AI_LinearLayerCreateInfo l1_info;
+//     l1_info.output_size = 300;
+//     l1_info.learning_rate = learning_rate;
+//     l1_info.gradient_clipping_threshold = clipping_threshold;
+//     l1_info.weight_init = AI_LinearWeightInitXavier;
+//     l1_info.bias_init = AI_LinearBiasInitZeros;
+
+//     AI_ActivationLayerCreateInfo a1_info;
+//     a1_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
+
+//     AI_LinearLayerCreateInfo l2_info;
+//     l2_info.output_size = 10;
+//     l2_info.learning_rate = learning_rate;
+//     l2_info.gradient_clipping_threshold = clipping_threshold;
+//     l2_info.weight_init = AI_LinearWeightInitXavier;
+//     l2_info.bias_init = AI_LinearBiasInitZeros;
+    
+//     AI_ActivationLayerCreateInfo a2_info;
+//     a2_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
+
+//     AI_LayerCreateInfo create_infos[] = {
+//         { AI_LINEAR_LAYER, &l1_info },
+//         { AI_ACTIVATION_LAYER, &a1_info },
+//         { AI_LINEAR_LAYER, &l2_info },
+//         { AI_ACTIVATION_LAYER, &a2_info },
+//     };
+
+    
+//     LOG_TRACE("Initializing network\n");
+
+//     AI_NetInit(&model, 28, 28, 1, N, create_infos, 4);
+    
+//     LOG_TRACE("Loading dataset\n");
+    
+//     if (AI_MnistDatasetLoad(&mnist, "/home/david/projects/neuralnet/datasets/mnist", 0)) {
+//         LOG_ERROR("AI_MnistDatasetLoad failed\n");
+//         return;
+//     }
+
+//     LOG_TRACE("Starting training %f\n", mnist.train_images[42]);
+
+
+//     AI_NetTrain(&model, mnist.train_images, mnist.test_images, mnist.train_labels, mnist.test_labels, 60000, 10000, num_epochs, learning_rate, N, train_callback);
+// }
+
+void lenet5_model_desc()
 {
-    size_t num_epochs = 1000;
-    size_t N = 1;
-    float learning_rate = 0.001f;
-    float clipping_threshold = 10000.0f;
+    float learning_rate = 0.01f;
 
-    AI_MnistDataset mnist;
-    AI_Net model;
+    ai_model_desc_t* desc;
+    ai_model_desc_create(&desc);
 
-    AI_LinearLayerCreateInfo l1_info;
-    l1_info.output_size = 300;
-    l1_info.learning_rate = learning_rate;
-    l1_info.gradient_clipping_threshold = clipping_threshold;
-    l1_info.weight_init = AI_LinearWeightInitXavier;
-    l1_info.bias_init = AI_LinearBiasInitZeros;
+    ai_model_desc_add_convolutional_layer(desc, learning_rate, 6, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
+    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
+    ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_AVERAGE);
 
-    AI_ActivationLayerCreateInfo a1_info;
-    a1_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
+    ai_model_desc_add_convolutional_layer(desc, learning_rate, 16, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
+    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
+    ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_AVERAGE);
 
-    AI_LinearLayerCreateInfo l2_info;
-    l2_info.output_size = 10;
-    l2_info.learning_rate = learning_rate;
-    l2_info.gradient_clipping_threshold = clipping_threshold;
-    l2_info.weight_init = AI_LinearWeightInitXavier;
-    l2_info.bias_init = AI_LinearBiasInitZeros;
-    
-    AI_ActivationLayerCreateInfo a2_info;
-    a2_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
+    ai_model_desc_add_linear_layer(desc, learning_rate, 120, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
+    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
 
-    AI_LayerCreateInfo create_infos[] = {
-        { AI_LINEAR_LAYER, &l1_info },
-        { AI_ACTIVATION_LAYER, &a1_info },
-        { AI_LINEAR_LAYER, &l2_info },
-        { AI_ACTIVATION_LAYER, &a2_info },
-    };
+    ai_model_desc_add_linear_layer(desc, learning_rate, 84, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
+    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
 
-    
-    LOG_TRACE("Initializing network\n");
+    ai_model_desc_add_linear_layer(desc, learning_rate, 10, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
+    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_SIGMOID);
 
-    AI_NetInit(&model, 28, 28, 1, N, create_infos, 4);
-    
-    LOG_TRACE("Loading dataset\n");
-    
-    if (AI_MnistDatasetLoad(&mnist, "/home/david/projects/neuralnet/datasets/mnist", 0)) {
-        LOG_ERROR("AI_MnistDatasetLoad failed\n");
-        return;
-    }
-
-    LOG_TRACE("Starting training %f\n", mnist.train_images[42]);
-
-
-    AI_NetTrain(&model, mnist.train_images, mnist.test_images, mnist.train_labels, mnist.test_labels, 60000, 10000, num_epochs, learning_rate, N, train_callback);
+    ai_sequential_network_t** lenet5;
+    ai_sequential_network_create(&lenet5, )
 }
 
 // void train_lenet5()
 // {
 //     size_t epochs = 10000;
-//     float learning_rate = 0.1f;
+//     float learning_rate = 0.01f;
 //     float clipping_threshold = 1000.0f;
-//     float dropout_rate = 0.5f;
 
 //     AI_Net net;
 //     AI_MnistDataset mnist;
@@ -269,9 +351,6 @@ void ai_2_layer_net()
 //     AI_ActivationLayerCreateInfo a3_info;
 //     a3_info.activation_function = AI_ACTIVATION_FUNCTION_TANH;
 
-//     AI_DropoutLayerCreateInfo d3_info;
-//     d3_info.dropout_rate = dropout_rate;
-
 //     AI_LinearLayerCreateInfo l4_info;
 //     l4_info.output_size = 84;
 //     l4_info.learning_rate = learning_rate;
@@ -282,9 +361,6 @@ void ai_2_layer_net()
 //     AI_ActivationLayerCreateInfo a4_info;
 //     a4_info.activation_function = AI_ACTIVATION_FUNCTION_TANH;
     
-//     AI_DropoutLayerCreateInfo d4_info;
-//     d4_info.dropout_rate = dropout_rate;
-
 //     AI_LinearLayerCreateInfo l5_info;
 //     l5_info.output_size = 10;
 //     l5_info.learning_rate = learning_rate;
@@ -293,7 +369,7 @@ void ai_2_layer_net()
 //     l5_info.bias_init = AI_LinearBiasInitZeros;
 
 //     AI_ActivationLayerCreateInfo a5_info;
-//     a5_info.activation_function = AI_ACTIVATION_FUNCTION_TANH;
+//     a5_info.activation_function = AI_ACTIVATION_FUNCTION_SIGMOID;
 
 
 //     AI_LayerCreateInfo create_infos[] = {
@@ -311,7 +387,7 @@ void ai_2_layer_net()
 //         { AI_ACTIVATION_LAYER,    &a5_info },
 //     };
 
-//     AI_MnistDatasetLoad(&mnist, "D:/dev/tools/datasets/mnist", 2);
+//     AI_MnistDatasetLoad(&mnist, "/home/david/projects/neuralnet/datasets/fashion_mnist", 2);
 //     AI_NetInit(&net, 32, 32, 1, 1, create_infos, 12);
 
 //     AI_NetTrain(&net, mnist.train_images, mnist.test_images, mnist.train_labels, mnist.test_labels, mnist.num_train_images, mnist.num_test_images, epochs, learning_rate, 1, train_callback);
@@ -495,7 +571,6 @@ void ai_2_layer_net()
 
 int main()
 {
-    // sleep(2); // sleep for debugger
-
-    ai_2_layer_net();
+    lenet5_model_desc();
+    // train_lenet5();
 }

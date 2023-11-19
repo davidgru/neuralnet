@@ -4,8 +4,8 @@ NAIVE := used
 
 SOURCEDIR := src
 
-INCLUDE := -I$(SOURCEDIR)/lib
-SRC := $(SOURCEDIR)/dataset/ai_mnist.c $(SOURCEDIR)/main.c $(SOURCEDIR)/lib/log.c
+INCLUDE := -I$(SOURCEDIR)/lib -I$(SOURCEDIR)/dataset
+SRC := $(SOURCEDIR)/dataset/ai_mnist.c $(SOURCEDIR)/lib/log.c
 
 ifdef NAIVE
 INCLUDE += -I$(SOURCEDIR)/naive
@@ -16,25 +16,26 @@ endif
 
 OBJ := $(SRC:.c=.o)
 
-
-TARGET := main
-
 CC := gcc
 
-CFLAGS := -march=haswell -DAI_LOG_LEVEL=2 -DAI_USE_AVX -O3 -Ofast
+CFLAGS := -DAI_LOG_LEVEL=3 -march=haswell
+CFLAGS += -O3 -Ofast -DAI_USE_AVX
+# CFLAGS += -g
 
-LDFLAGS := -lm 			# math library
+LDFLAGS := -lm	# math library
 
 $(TARGET): $(OBJ)
-	$(CC) $^ -o $@ $(LDFLAGS)
+	$(CC) $(INCLUDE) $(CFLAGS) -c $@.c -o $(TARGET).o
+	$(CC) $^ $(TARGET).o -o $@ $(LDFLAGS)
 
 $(SOURCEDIR)/%.o: $(SOURCEDIR)/%.c
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
+
 all: $(TARGET)
 
 clean:
-	@$(RM) -rv $(TARGET) $(OBJ)
+	@$(RM) -rv $(TARGET) $(TARGET).o $(OBJ)
 
 rebuild:
 	make clean && make

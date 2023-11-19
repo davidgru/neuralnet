@@ -57,6 +57,7 @@ void pooling_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_laye
     _layer->hdr.mini_batch_size = prev_layer->mini_batch_size;
     _layer->hdr.forward = pooling_layer_forward;
     _layer->hdr.backward = pooling_layer_backward;
+    _layer->hdr.info = NULL;
     _layer->hdr.deinit = pooling_layer_deinit;
 
     _layer->kernel_width = kernel_size;

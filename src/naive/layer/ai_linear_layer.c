@@ -8,7 +8,6 @@
 #include <immintrin.h>
 
 #include "util/ai_math.h"
-#include "util/ai_gradient_clipping.h"
 
 #include "log.h"
 
@@ -38,7 +37,6 @@ typedef struct linear_layer_t {
     float* b;
     float* dw;
     float learning_rate;
-    float gradient_clipping_threshold;
     uint32_t dummy;
 } linear_layer_t;
 
@@ -85,7 +83,6 @@ uint32_t linear_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_l
     _layer->hdr.deinit = linear_layer_deinit;
 
     _layer->learning_rate = _create_info->learning_rate;
-    _layer->gradient_clipping_threshold = _create_info->gradient_clipping_threshold;
 
     // Assign buffers
     _layer->w = (float*)(_layer + 1);
@@ -141,8 +138,7 @@ static void linear_layer_backward(AI_Layer* layer)
 
     // Adjust weights
     matrix_product_t1(x, dy, dw, input_size, output_size, mini_batch_size); // Perform dw = x_t * dy
-    AI_VectorScaleAVX(dw, learning_rate, weights_size);
-    //AI_ClipGradient(dw, weights_size, _layer->gradient_clipping_threshold);
+    AI_VectorScaleAVX(dw, learning_rate * (1.0f / mini_batch_size), weights_size);
     AI_VectorSubAVX(w, dw, weights_size); // Subtract dw from w
 
     // Adjust bias (use layer->dw buffer)
@@ -150,8 +146,7 @@ static void linear_layer_backward(AI_Layer* layer)
     // AI_VectorCopy(dw, dy, output_size);
     for (size_t i = 0; i < mini_batch_size; i++)
         AI_VectorAdd(dw, dy + i * output_size, output_size);
-    AI_VectorScaleAVX(dw, learning_rate, output_size);
-    //AI_ClipGradient(dw, output_size, _layer->gradient_clipping_threshold);
+    AI_VectorScaleAVX(dw, learning_rate * (1.0f / mini_batch_size), output_size);
     AI_VectorSubAVX(b, dw, output_size);
 
 }
