@@ -5,6 +5,8 @@
 #include <malloc.h>
 #include <string.h>
 
+#include "log.h"
+
 static void set_batch_size(AI_Net* net, size_t batch_size)
 {
     net->input_layer->mini_batch_size = batch_size;
@@ -64,18 +66,32 @@ void AI_NetTrain(AI_Net* net, float* train_data, float* test_data, uint8_t* trai
     float test_loss = 0.0f;
     float test_accuracy = 0.0f;
 
+    LOG_TRACE("Performing inital test\n");
+
     // Initial Test
     set_batch_size(net, 1);
     set_is_training(net, 0);
     for (uint32_t j = 0; j < test_dataset_size; j++) {
+        
+        LOG_TRACE("Retrieving input/target pair\n");
+        
         float* input = test_data + j * net->input_size;
         uint8_t* label = test_labels + j;
+
+        
+        LOG_TRACE("Initiating forward pass\n");
+        
         AI_NetForward(net, input);
+        
+
         test_accuracy += AI_LossAccuracy(&net->loss, label);
         test_loss += AI_LossCompute(&net->loss, label);
     }
     test_accuracy = test_accuracy * 100.0f / test_dataset_size;
     test_loss /= test_dataset_size;
+
+
+    LOG_TRACE("Registering callbacks\n");
 
 
     if (callback) {
@@ -88,7 +104,14 @@ void AI_NetTrain(AI_Net* net, float* train_data, float* test_data, uint8_t* trai
         callback(&progress_info);
     }
 
+
+    LOG_TRACE("Starting training loop\n");
+
+
     for (uint32_t i = 0; i < num_epochs; i++) {
+
+        LOG_TRACE("Epoch: %d\n", i + 1);
+
 
         float train_loss = 0.0f;
         float train_accuracy = 0.0f;
@@ -100,10 +123,14 @@ void AI_NetTrain(AI_Net* net, float* train_data, float* test_data, uint8_t* trai
         set_batch_size(net, batch_size);
         set_is_training(net, 1);
         for (uint32_t j = 0; j < train_dataset_size; j += batch_size) {
+
+            LOG_TRACE("Retrieving input/target pair\n");
             float* input = train_data + j * net->input_size;
             uint8_t* label = train_labels + j;
 
             // Forward pass
+
+            LOG_TRACE("Performing forward pass\n");
             AI_NetForward(net, input);
             
             // Evaluation

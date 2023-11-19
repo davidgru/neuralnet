@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ai_layer/ai_base_layer.h"
-#include "ai_util/ai_loss.h"
+#include "layer/ai_base_layer.h"
+#include "util/ai_loss.h"
 
 typedef struct AI_Net {
     AI_Layer* input_layer;

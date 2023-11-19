@@ -8,13 +8,17 @@
 #include <time.h>
 #include <math.h>
 
+#include "log.h"
+#include <stdio.h>
+
 #define PI 3.14f
+
 
 static bool inited = false;
 
 static float random_uniform()
 {
-    return ((float)rand() + 1) / (float)(RAND_MAX + 2);
+    return (float)rand() / ((float)RAND_MAX + 1.0);
 }
 
 static float init_random()

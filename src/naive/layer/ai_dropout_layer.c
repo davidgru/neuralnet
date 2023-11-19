@@ -1,7 +1,7 @@
 
 #include "ai_dropout_layer.h"
 
-#include "../ai_util/ai_random.h"
+#include "util/ai_random.h"
 
 #include <malloc.h>
 

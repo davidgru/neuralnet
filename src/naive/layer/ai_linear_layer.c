@@ -7,8 +7,10 @@
 // AVX intrinsic header
 #include <immintrin.h>
 
-#include "../ai_util/ai_math.h"
-#include "../ai_util/ai_gradient_clipping.h"
+#include "util/ai_math.h"
+#include "util/ai_gradient_clipping.h"
+
+#include "log.h"
 
 // Based on: http://cs231n.stanford.edu/handouts/linear-backprop.pdf
 
@@ -41,12 +43,9 @@ typedef struct linear_layer_t {
 } linear_layer_t;
 
 
-// AVX accelerated matrix product: output = m1 * m2
-static void matrix_product_avx(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
-// AVX accelerated matrix product, where m1 is transposed: output = m1_t * m2
-static void matrix_product_avx_t1(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
-// AVX accelerated matrix product, where m2 is transposed: output = m1 * m2_t
-static void matrix_product_avx_t2(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
+static void matrix_product(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
+static void matrix_product_t1(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
+static void matrix_product_t2(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
 
 // Forward propagation through the layer
 static void linear_layer_forward(AI_Layer* layer);
@@ -102,6 +101,11 @@ uint32_t linear_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_l
         _layer->w[i] = _create_info->weight_init(input_size, output_size);
     for (size_t i = 0; i < output_size; i++)
         _layer->b[i] = _create_info->bias_init(input_size, output_size);
+
+    LOG_INFO("linear layer initialized with: %d out: %d wdist: (%f +/- %f) bdist (%f +/- %f)\n",
+        (int)input_size, (int)output_size, AI_Mean(_layer->w, weight_size),
+        AI_Stddev(_layer->w, weight_size), AI_Mean(_layer->b, _layer->hdr.output_width),
+        AI_Stddev(_layer->b, _layer->hdr.output_width));
 }
 
 
@@ -109,8 +113,8 @@ static void linear_layer_forward(AI_Layer* layer)
 {
     linear_layer_t* _layer = (linear_layer_t*)layer;
 
-    // Multiply input and weight matrix
-    matrix_product_avx(_layer->hdr.input, _layer->w, _layer->hdr.output, _layer->hdr.mini_batch_size, _layer->hdr.output_width, _layer->hdr.input_width);
+    matrix_product(_layer->hdr.input, _layer->w, _layer->hdr.output, _layer->hdr.mini_batch_size, _layer->hdr.output_width, _layer->hdr.input_width);
+    
     // Add bias
     for (size_t i = 0; i < _layer->hdr.mini_batch_size; i++)
         AI_VectorAddAVX(_layer->hdr.output + i * _layer->hdr.output_width, _layer->b, _layer->hdr.output_width);
@@ -135,10 +139,10 @@ static void linear_layer_backward(AI_Layer* layer)
     float* dw = _layer->dw;
 
     // Calculate gradients with respect to input
-    matrix_product_avx_t2(dy, w, dx, mini_batch_size, input_size, output_size);
+    matrix_product_t2(dy, w, dx, mini_batch_size, input_size, output_size);
 
     // Adjust weights
-    matrix_product_avx_t1(x, dy, dw, input_size, output_size, mini_batch_size); // Perform dw = x_t * dy
+    matrix_product_t1(x, dy, dw, input_size, output_size, mini_batch_size); // Perform dw = x_t * dy
     AI_VectorScaleAVX(dw, learning_rate, weights_size);
     AI_ClipGradient(dw, weights_size, _layer->gradient_clipping_threshold);
     AI_VectorSubAVX(w, dw, weights_size); // Subtract dw from w
@@ -160,7 +164,11 @@ static void linear_layer_deinit(AI_Layer* layer)
 }
 
 
-static void matrix_product_avx(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
+#if defined(AI_USE_AVX)
+
+
+// AVX accelerated matrix product: output = m1 * m2
+static void matrix_product(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = height1;
@@ -193,7 +201,8 @@ static void matrix_product_avx(float* m1, float* m2, float* output, size_t heigh
     }
 }
 
-static void matrix_product_avx_t1(float* m1, float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
+// AVX accelerated matrix product, where m1 is transposed: output = m1_t * m2
+static void matrix_product_t1(float* m1, float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = width1;
@@ -226,7 +235,8 @@ static void matrix_product_avx_t1(float* m1, float* m2, float* output, size_t wi
     }
 }
 
-static void matrix_product_avx_t2(float* m1, float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
+// AVX accelerated matrix product, where m2 is transposed: output = m1 * m2_t
+static void matrix_product_t2(float* m1, float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
 {
     const size_t owidth = height2;
     const size_t oheight = height1;
@@ -255,3 +265,60 @@ static void matrix_product_avx_t2(float* m1, float* m2, float* output, size_t he
         }
     }
 }
+
+
+#else
+
+
+static void matrix_product(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
+{
+    const size_t owidth = width2;
+    const size_t oheight = height1;
+
+    for (size_t r = 0; r < oheight; r++) {
+        for (size_t c = 0; c < owidth; c++) {
+            float sum = 0.0f;
+            for (size_t s = 0; s < sharedDim; s++) {
+                float a1 = m1[r * height1 + s];
+                float a2 = m2[s * width2 + c];
+                sum += a1 * a2;
+            }
+            output[r + owidth + c] = sum;
+        }
+    }
+}
+
+static void matrix_product_t1(float* m1, float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
+{
+    const size_t owidth = width2;
+    const size_t oheight = width1;
+
+    for (size_t r = 0; r < oheight; r++) {
+        for (size_t c = 0; c < owidth; c++) {
+            float sum = 0.0f;
+            for (size_t s = 0; s < sharedDim; s++) {
+                sum += m1[s * width1 + r] * m2[s * width2 + c];
+            }
+            output[r + owidth + c] = sum;
+        }
+    }
+}
+
+static void matrix_product_t2(float* m1, float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
+{
+    const size_t owidth = height2;
+    const size_t oheight = height1;
+
+    for (size_t r = 0; r < oheight; r++) {
+        for (size_t c = 0; c < owidth; c++) {
+            float sum = 0.0f;
+            for (size_t s = 0; s < sharedDim; s++) {
+                sum += m1[r * sharedDim + s] * m2[c * sharedDim + s];
+            }
+            output[r + owidth + c] = sum;
+        }
+    }
+}
+
+
+#endif

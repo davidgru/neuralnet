@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "../ai_util/ai_weight_init.h"
+#include "util/ai_weight_init.h"
 
 /* The header of every layer */
 

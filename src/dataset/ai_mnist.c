@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <windows.h>
 
 #define TRAIN_IMAGE_SAMPLE_SIZE 60000
 #define TEST_IMAGE_SAMPLE_SIZE 10000

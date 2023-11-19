@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../ai_util/ai_math.h"
-#include "../ai_util/ai_gradient_clipping.h"
+#include "util/ai_math.h"
+#include "util/ai_gradient_clipping.h"
 
 typedef struct convolutional_layer_t {
     AI_Layer hdr;

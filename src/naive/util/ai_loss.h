@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "../ai_layer/ai_base_layer.h"
+#include "layer/ai_base_layer.h"
 
 typedef float(*AI_LossFunction)(float* v, size_t size, uint32_t label);
 typedef void(*AI_LossDerivative)(float* in, float* out, size_t size, uint32_t label);

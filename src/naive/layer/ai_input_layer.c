@@ -24,10 +24,10 @@ void input_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer)
     _layer->output_channels = _layer->input_channels;
     _layer->mini_batch_size = _create_info->batch_size;
 
-    _layer->input = 0;
-    _layer->output = 0;
-    _layer->gradient = 0;
-    _layer->prev_gradient = 0;
+    _layer->input = NULL;
+    _layer->output = NULL;
+    _layer->gradient = NULL;
+    _layer->prev_gradient = NULL;
 
     _layer->forward = input_layer_forward;
     _layer->backward = input_layer_backward;

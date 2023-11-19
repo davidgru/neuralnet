@@ -8,9 +8,11 @@
 #include "ai_pooling_layer.h"
 #include "ai_dropout_layer.h"
 
+#include "log.h"
 
 void AI_LayerInit(AI_Layer** layer, AI_LayerCreateInfo* create_info, AI_Layer* prev_layer)
 {
+    LOG_TRACE("Initializing layer of type %d\n", create_info->type);
     switch (create_info->type) {
         case AI_INPUT_LAYER:
             input_layer_init(layer, create_info->create_info, prev_layer);

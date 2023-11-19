@@ -1,21 +1,42 @@
 
-ONEDNN_DIR = D:/dev/tools/oneDNN_msbuild
+NAIVE := used
 
-CFLAGS = -Ofast -march=haswell -mavx -mavx2
-INCLUDE = -I$(ONEDNN_DIR)/include
-LDFLAGS =  $(ONEDNN_DIR)/bin/dnnl.dll
-SRC = main.c  ai_util/ai_gradient_clipping.c ai_util/ai_loss.c ai_util/ai_math.c ai_util/ai_random.c ai_util/ai_weight_init.c ai_datasets/ai_mnist.c ai_layer/ai_base_layer.c \
-	ai_layer/ai_input_layer.c ai_layer/ai_linear_layer.c ai_layer/ai_activation_layer.c ai_layer/ai_convolutional_layer.c ai_layer/ai_pooling_layer.c ai_layer/ai_dropout_layer.c \
-	ai_net.c \
-	ai_layer/ai_dnnl_base_layer.c ai_layer/ai_dnnl_linear_layer.c ai_layer/ai_dnnl_activation_layer.c ai_layer/ai_dnnl_reorder_layer.c ai_util/ai_dnnl_util.c \
-	ai_layer/ai_dnnl_input_layer.c ai_util/ai_dnnl_loss.c ai_dnnl_model.c ai_util/ai_dnnl_reorder.c ai_layer/ai_dnnl_convolutional_layer.c ai_layer/ai_dnnl_pooling_layer.c \
-	ai_model_desc.c
 
-main.exe: $(SRC)
-	gcc $(CFLAGS) $(INCLUDE) $(SRC) $(LDFLAGS) -o main.exe
+SOURCEDIR := src
+
+INCLUDE := -I$(SOURCEDIR)/lib
+SRC := $(SOURCEDIR)/dataset/ai_mnist.c $(SOURCEDIR)/main.c $(SOURCEDIR)/lib/log.c
+
+ifdef NAIVE
+INCLUDE += -I$(SOURCEDIR)/naive
+SRC += $(shell find $(SOURCEDIR)/naive -name '*.c')
+else
+$(error Only NAIVE implementation available.)
+endif
+
+OBJ := $(SRC:.c=.o)
+
+
+TARGET := main
+
+CC := gcc
+
+CFLAGS := -march=haswell -DAI_LOG_LEVEL=3 -O3
+
+LDFLAGS := -lm 			# math library
+
+$(TARGET): $(OBJ)
+	$(CC) $^ -o $@ $(LDFLAGS)
+
+$(SOURCEDIR)/%.o: $(SOURCEDIR)/%.c
+	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
+
+all: $(TARGET)
 
 clean:
-	del main.exe
+	@$(RM) -rv $(TARGET) $(OBJ)
 
 rebuild:
 	make clean && make
+
+.PHONY: all clean rebuild

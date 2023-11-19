@@ -1,7 +1,7 @@
 
 #include "ai_activation_layer.h"
 
-#include "../ai_util/ai_math.h"
+#include "util/ai_math.h"
 
 #include <math.h>
 #include <stdlib.h>
