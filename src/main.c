@@ -168,8 +168,8 @@ void ai_2_layer_net()
 {
     size_t num_epochs = 1000;
     size_t N = 1;
-    float learning_rate = 0.0000000001f;
-    float clipping_threshold = 1000.0f;
+    float learning_rate = 0.001f;
+    float clipping_threshold = 10000.0f;
 
     AI_MnistDataset mnist;
     AI_Net model;
@@ -198,7 +198,7 @@ void ai_2_layer_net()
         { AI_LINEAR_LAYER, &l1_info },
         { AI_ACTIVATION_LAYER, &a1_info },
         { AI_LINEAR_LAYER, &l2_info },
-        { AI_ACTIVATION_LAYER, &a2_info }
+        { AI_ACTIVATION_LAYER, &a2_info },
     };
 
     

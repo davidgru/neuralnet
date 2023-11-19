@@ -90,10 +90,6 @@ void AI_NetTrain(AI_Net* net, float* train_data, float* test_data, uint8_t* trai
     test_accuracy = test_accuracy * 100.0f / test_dataset_size;
     test_loss /= test_dataset_size;
 
-
-    LOG_TRACE("Registering callbacks\n");
-
-
     if (callback) {
         progress_info.epoch = -1;
         progress_info.train_loss = 0.0f;
@@ -103,6 +99,9 @@ void AI_NetTrain(AI_Net* net, float* train_data, float* test_data, uint8_t* trai
 
         callback(&progress_info);
     }
+
+    for (size_t i = 0; i < net->num_layers; i++)
+        AI_LayerInfo(net->layers[i]);
 
 
     LOG_TRACE("Starting training loop\n");
@@ -139,7 +138,7 @@ void AI_NetTrain(AI_Net* net, float* train_data, float* test_data, uint8_t* trai
 
             // Backward pass
             AI_LossBackward(&net->loss, label);
-            for (size_t k = net->num_layers - 1; k >= 1; k--)
+            for (int k = net->num_layers - 1; k >= 0; k--)
                 AI_LayerBackward(net->layers[k]);
         }
         train_loss = train_loss / train_dataset_size;
@@ -167,6 +166,10 @@ void AI_NetTrain(AI_Net* net, float* train_data, float* test_data, uint8_t* trai
 
             callback(&progress_info);
         }
+
+        for (size_t i = 0; i < net->num_layers; i++)
+        AI_LayerInfo(net->layers[i]);
+
     }
 }
 

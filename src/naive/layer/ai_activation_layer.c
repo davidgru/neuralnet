@@ -66,6 +66,7 @@ uint32_t activation_layer_init(AI_Layer** layer, void* create_info, AI_Layer* pr
 
     _layer->hdr.forward = activation_layer_forward;
     _layer->hdr.backward = activation_layer_backward;
+    _layer->hdr.info = NULL;
     _layer->hdr.deinit = activation_layer_deinit;
 
     _layer->hdr.output = (float*)(_layer + 1);

@@ -51,6 +51,7 @@ static void matrix_product_t2(float* m1, float* m2, float* output, size_t height
 static void linear_layer_forward(AI_Layer* layer);
 // Backward propagation through the layer
 static void linear_layer_backward(AI_Layer* layer);
+static void linear_layer_info(AI_Layer* layer);
 // Deinit a linear layer
 static void linear_layer_deinit(AI_Layer* layer);
 
@@ -80,6 +81,7 @@ uint32_t linear_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_l
     _layer->hdr.mini_batch_size = batch_size;
     _layer->hdr.forward = linear_layer_forward;
     _layer->hdr.backward = linear_layer_backward;
+    _layer->hdr.info = linear_layer_info;
     _layer->hdr.deinit = linear_layer_deinit;
 
     _layer->learning_rate = _create_info->learning_rate;
@@ -102,10 +104,6 @@ uint32_t linear_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_l
     for (size_t i = 0; i < output_size; i++)
         _layer->b[i] = _create_info->bias_init(input_size, output_size);
 
-    LOG_INFO("linear layer initialized with: %d out: %d wdist: (%f +/- %f) bdist (%f +/- %f)\n",
-        (int)input_size, (int)output_size, AI_Mean(_layer->w, weight_size),
-        AI_Stddev(_layer->w, weight_size), AI_Mean(_layer->b, _layer->hdr.output_width),
-        AI_Stddev(_layer->b, _layer->hdr.output_width));
 }
 
 
@@ -144,16 +142,32 @@ static void linear_layer_backward(AI_Layer* layer)
     // Adjust weights
     matrix_product_t1(x, dy, dw, input_size, output_size, mini_batch_size); // Perform dw = x_t * dy
     AI_VectorScaleAVX(dw, learning_rate, weights_size);
-    AI_ClipGradient(dw, weights_size, _layer->gradient_clipping_threshold);
+    //AI_ClipGradient(dw, weights_size, _layer->gradient_clipping_threshold);
     AI_VectorSubAVX(w, dw, weights_size); // Subtract dw from w
 
     // Adjust bias (use layer->dw buffer)
     memset(dw, 0, output_size * sizeof(float));
+    // AI_VectorCopy(dw, dy, output_size);
     for (size_t i = 0; i < mini_batch_size; i++)
-        AI_VectorCopy(dw, dy + i * output_size, output_size);
+        AI_VectorAdd(dw, dy + i * output_size, output_size);
     AI_VectorScaleAVX(dw, learning_rate, output_size);
-    AI_ClipGradient(dw, output_size, _layer->gradient_clipping_threshold);
+    //AI_ClipGradient(dw, output_size, _layer->gradient_clipping_threshold);
     AI_VectorSubAVX(b, dw, output_size);
+
+}
+
+
+static void linear_layer_info(AI_Layer* layer)
+{
+    linear_layer_t* _layer = (linear_layer_t*)layer;
+    const size_t input_size = _layer->hdr.input_width;
+    const size_t output_size = _layer->hdr.output_width;
+    const size_t weight_size = input_size * output_size;
+
+    LOG_INFO("linear layer info: in: %d out: %d wdist: (%f +/- %f) bdist (%f +/- %f)\n",
+        (int)input_size, (int)output_size, AI_Mean(_layer->w, weight_size),
+        AI_Stddev(_layer->w, weight_size), AI_Mean(_layer->b, output_size),
+        AI_Stddev(_layer->b, output_size));
 }
 
 static void linear_layer_deinit(AI_Layer* layer)
@@ -279,11 +293,9 @@ static void matrix_product(float* m1, float* m2, float* output, size_t height1, 
         for (size_t c = 0; c < owidth; c++) {
             float sum = 0.0f;
             for (size_t s = 0; s < sharedDim; s++) {
-                float a1 = m1[r * height1 + s];
-                float a2 = m2[s * width2 + c];
-                sum += a1 * a2;
+                sum += m1[r * sharedDim + s] * m2[s * width2 + c];
             }
-            output[r + owidth + c] = sum;
+            output[r * owidth + c] = sum;
         }
     }
 }
@@ -299,7 +311,7 @@ static void matrix_product_t1(float* m1, float* m2, float* output, size_t width1
             for (size_t s = 0; s < sharedDim; s++) {
                 sum += m1[s * width1 + r] * m2[s * width2 + c];
             }
-            output[r + owidth + c] = sum;
+            output[r * owidth + c] = sum;
         }
     }
 }
@@ -315,7 +327,7 @@ static void matrix_product_t2(float* m1, float* m2, float* output, size_t height
             for (size_t s = 0; s < sharedDim; s++) {
                 sum += m1[r * sharedDim + s] * m2[c * sharedDim + s];
             }
-            output[r + owidth + c] = sum;
+            output[r * owidth + c] = sum;
         }
     }
 }

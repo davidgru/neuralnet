@@ -54,6 +54,12 @@ void AI_LayerForward(AI_Layer* layer)
     layer->forward(layer);
 }
 
+void AI_LayerInfo(AI_Layer* layer)
+{
+    if (layer->info) {
+        layer->info(layer);
+    }
+}
 
 void AI_LayerBackward(AI_Layer* layer)
 {

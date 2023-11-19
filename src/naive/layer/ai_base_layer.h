@@ -26,6 +26,7 @@ typedef struct AI_Layer {
 
     void (*forward)(struct AI_Layer* layer);
     void (*backward)(struct AI_Layer* layer);
+    void (*info)(struct AI_Layer* layer);
     void (*deinit)(struct AI_Layer* layer);
 } AI_Layer;
 
@@ -114,4 +115,5 @@ void AI_LayerInit(AI_Layer** layer, AI_LayerCreateInfo* create_info, AI_Layer* p
 void AI_LayerLink(AI_Layer* layer, AI_Layer* prev_layer, AI_Layer* next_layer);
 void AI_LayerForward(AI_Layer* layer);
 void AI_LayerBackward(AI_Layer* layer);
+void AI_LayerInfo(AI_Layer* layer);
 void AI_LayerDeinit(AI_Layer* layer);

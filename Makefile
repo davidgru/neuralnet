@@ -21,7 +21,7 @@ TARGET := main
 
 CC := gcc
 
-CFLAGS := -march=haswell -DAI_LOG_LEVEL=3 -O3
+CFLAGS := -march=haswell -DAI_LOG_LEVEL=2 -DAI_USE_AVX -O3 -Ofast
 
 LDFLAGS := -lm 			# math library
 
