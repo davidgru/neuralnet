@@ -245,19 +245,16 @@ float AI_Mean(float* v, size_t size)
 float AI_StddevM(float* v, size_t size, float mean)
 {
     float squared_sum = 0.0f;
-    for (size_t i = 0; i < size; i++)
-        squared_sum += v[i] * v[i];
-    return (squared_sum / size) - (mean * mean);
+    for (size_t i = 0; i < size; i++) {
+        squared_sum += (v[i] - mean) * (v[i] - mean);
+    }
+    squared_sum /= (float)size;
+    return sqrtf(squared_sum);
 }
 
 // Calculate the stddev of a vector (mean is calculated internally)
 float AI_Stddev(float* v, size_t size)
 {
-    float sum = 0.0f;
-    float squared_sum = 0.0f;
-    for (size_t i = 0; i < size; i++) {
-        sum += v[i];
-        squared_sum += v[i] * v[i];
-    }
-    return sqrtf((squared_sum / size) - (sum * sum) / (size * size));
+    float mean = AI_Mean(v, size);
+    return AI_StddevM(v, size, mean);
 }
