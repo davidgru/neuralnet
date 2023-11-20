@@ -4,8 +4,9 @@
 
 #include <malloc.h>
 #include <string.h>
-// AVX intrinsic header
+#if defined(AI_USE_AVX)
 #include <immintrin.h>
+#endif
 
 #include "util/ai_math.h"
 
@@ -13,22 +14,6 @@
 
 // Based on: http://cs231n.stanford.edu/handouts/linear-backprop.pdf
 
-/*
- * A fully connected layer
-
-typedef struct AI_FCLayer {
-    size_t input_size;
-    size_t output_size;
-    float* w; // weight matrix:         stored in layer             (input_size x output_size)
-    float* b; // bias matrix:           stored in layer             (1 x output_size)
-    float* x; // input matrix:          stored in previous layer    (1 x input_size)
-    float* y; // output matrix:         stored in layer             (1 x output_size)
-    float* dw; // weight gradients:     stored in layer             (input_size x output_size)
-    float* dx; // input gradients:      stored in layer             (1 x input_size)
-    float* dy; // output gradients:     stored in next layer        (1 x output_size)
-} AI_FCLayer;
-
-*/
 
 // A fully connected layer
 typedef struct linear_layer_t {
@@ -112,7 +97,7 @@ static void linear_layer_forward(AI_Layer* layer)
     
     // Add bias
     for (size_t i = 0; i < _layer->hdr.mini_batch_size; i++)
-        AI_VectorAddAVX(_layer->hdr.output + i * _layer->hdr.output_width, _layer->b, _layer->hdr.output_width);
+        AI_VectorAdd(_layer->hdr.output + i * _layer->hdr.output_width, _layer->b, _layer->hdr.output_width);
 }
 
 static void linear_layer_backward(AI_Layer* layer)
@@ -138,16 +123,15 @@ static void linear_layer_backward(AI_Layer* layer)
 
     // Adjust weights
     matrix_product_t1(x, dy, dw, input_size, output_size, mini_batch_size); // Perform dw = x_t * dy
-    AI_VectorScaleAVX(dw, learning_rate * (1.0f / mini_batch_size), weights_size);
-    AI_VectorSubAVX(w, dw, weights_size); // Subtract dw from w
+    AI_VectorScale(dw, learning_rate * (1.0f / mini_batch_size), weights_size);
+    AI_VectorSub(w, dw, weights_size); // Subtract dw from w
 
     // Adjust bias (use layer->dw buffer)
     memset(dw, 0, output_size * sizeof(float));
-    // AI_VectorCopy(dw, dy, output_size);
     for (size_t i = 0; i < mini_batch_size; i++)
         AI_VectorAdd(dw, dy + i * output_size, output_size);
-    AI_VectorScaleAVX(dw, learning_rate * (1.0f / mini_batch_size), output_size);
-    AI_VectorSubAVX(b, dw, output_size);
+    AI_VectorScale(dw, learning_rate * (1.0f / mini_batch_size), output_size);
+    AI_VectorSub(b, dw, output_size);
 
 }
 

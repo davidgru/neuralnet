@@ -9,19 +9,15 @@ void AI_VectorAddScalar(float* v, float s, size_t size);
 
 // Vector elementwise add: v1 += v2
 void AI_VectorAdd(float* v1, float* v2, size_t size);
-void AI_VectorAddAVX(float* v1, float* v2, size_t size);
 
 // Vector elementwise sub: v1 -= v2
 void AI_VectorSub(float* v1, float* v2, size_t size);
-void AI_VectorSubAVX(float* v1, float* v2, size_t size);
 
 // Vector elementwise multiply
 void AI_VectorMul(float* v1, float* v2, size_t size);
-void AI_VectorMulAVX(float* v1, float* v2, size_t size);
 
 // Scale all elements of v by f: v *= f
 void AI_VectorScale(float* v, float f, size_t size);
-void AI_VectorScaleAVX(float* v, float f, size_t size);
 
 // Copies all elements of v2 to v1
 void AI_VectorCopy(float* v1, float* v2, size_t size);

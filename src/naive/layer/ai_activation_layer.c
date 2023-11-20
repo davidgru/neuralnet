@@ -116,7 +116,7 @@ static void activation_layer_backward(AI_Layer* layer)
 
     for (size_t i = 0; i < mini_batch_size * input_size; i++)
         _layer->hdr.gradient[i] = _layer->derivative(_layer->hdr.output[i]);
-    AI_VectorMulAVX(_layer->hdr.gradient, _layer->hdr.prev_gradient, input_size * mini_batch_size);
+    AI_VectorMul(_layer->hdr.gradient, _layer->hdr.prev_gradient, input_size * mini_batch_size);
 }
 
 static void activation_layer_deinit(AI_Layer* layer)

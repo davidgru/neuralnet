@@ -14,6 +14,7 @@
 #include "ai_sequential_net.h"
 #include "ai_mnist.h"
 #include "log.h"
+#include "config_info.h"
 
 
 
@@ -75,7 +76,7 @@ int main()
 
 
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = "/home/david/projects/neuralnet/datasets/fashion_mnist";
+    const char* mnist_path = ;
 
 
     /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
@@ -84,6 +85,10 @@ int main()
     size_t batch_size = 1; /* Only batch size of 1 supported at the moment */
     float learning_rate = 0.01f;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_MSE;
+
+
+    /* Verify the compile time configuration. For example, that avx is used */
+    dump_compile_time_config();
 
 
     /* Load mnist with a padding of two because lenet expects 32x32 input and the naive
