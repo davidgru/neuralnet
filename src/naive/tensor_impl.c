@@ -48,13 +48,19 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
 }
 
 
-const tensor_shape_t* tensor_get_shape(tensor_t* tensor)
+const tensor_shape_t* tensor_get_shape(const tensor_t* tensor)
 {
     return &tensor->shape;
 }
 
 
 float* tensor_get_data(tensor_t* tensor)
+{
+    return tensor->data;
+}
+
+
+const float* tensor_get_data_const(const tensor_t* tensor)
 {
     return tensor->data;
 }

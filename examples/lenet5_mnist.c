@@ -21,7 +21,7 @@
 #include "log.h"
 
 
-ai_sequential_network_t* create_lenet5(float learning_rate, tensor_shape_t* input_shape)
+ai_sequential_network_t* create_lenet5(float learning_rate, tensor_shape_t* input_shape, size_t batch_size)
 {
     ai_model_desc_t* desc = NULL;
     ai_sequential_network_t* model = NULL;
@@ -52,7 +52,7 @@ ai_sequential_network_t* create_lenet5(float learning_rate, tensor_shape_t* inpu
     ai_model_desc_dump(desc);
 
 
-    ai_sequential_network_create(&model, input_shape, desc);
+    ai_sequential_network_create(&model, input_shape, batch_size, desc);
 
     return model;
 }
@@ -109,7 +109,7 @@ int main()
         .dims[TENSOR_HEIGHT_DIM] = mnist.image_height,
         .dims[TENSOR_WIDTH_DIM] = mnist.image_width
     };
-    lenet5 = create_lenet5(learning_rate, &input_shape);
+    lenet5 = create_lenet5(learning_rate, &input_shape, batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 

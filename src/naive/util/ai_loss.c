@@ -5,9 +5,11 @@
 #include <stdlib.h>
 
 
-uint32_t AI_LossInit(AI_Loss* loss, const tensor_shape_t* input_shape, AI_LossFunctionEnum loss_function)
+uint32_t AI_LossInit(AI_Loss* loss, const tensor_shape_t* input_shape, size_t max_batch_size, AI_LossFunctionEnum loss_function)
 {
-    tensor_allocate(&loss->gradient, input_shape);
+    tensor_shape_t max_input_shape = *input_shape;
+    max_input_shape.dims[TENSOR_BATCH_DIM] = max_batch_size;
+    tensor_allocate(&loss->gradient_mem, &max_input_shape);
 
     switch (loss_function) {
         case AI_LOSS_FUNCTION_MSE:
@@ -24,24 +26,17 @@ uint32_t AI_LossInit(AI_Loss* loss, const tensor_shape_t* input_shape, AI_LossFu
 }
 
 
-void AI_LossLink(AI_Loss* loss, AI_Layer* layer)
+uint32_t AI_LossAccuracy(AI_Loss* loss, const tensor_t* input, const uint8_t* labels)
 {
-    loss->input = &layer->output;
-    layer->prev_gradient = &loss->gradient;
-}
-
-
-uint32_t AI_LossAccuracy(AI_Loss* loss, uint8_t* labels)
-{
-    const tensor_shape_t* shape = tensor_get_shape(loss->input);
-    float* input = tensor_get_data(loss->input);
+    const tensor_shape_t* shape = tensor_get_shape(input);
+    const float* input_data = tensor_get_data_const(input);
 
     const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
     const size_t channels = shape->dims[TENSOR_CHANNEL_DIM];
 
     uint32_t accuracy = 0;
     for (size_t i = 0; i < batch_size; i++) {
-        float* channels_input = input + i * channels;
+        const float* channels_input = input_data + i * channels;
         uint32_t prediction = AI_Max(channels_input, channels);
         accuracy += (uint32_t)(prediction == labels[i]);
     }
@@ -49,10 +44,10 @@ uint32_t AI_LossAccuracy(AI_Loss* loss, uint8_t* labels)
 }
 
 
-float AI_LossCompute(AI_Loss* loss, uint8_t* labels)
+float AI_LossCompute(AI_Loss* loss, const tensor_t* input, const uint8_t* labels)
 {
-    const tensor_shape_t* shape = tensor_get_shape(loss->input);
-    float* input = tensor_get_data(loss->input);
+    const tensor_shape_t* shape = tensor_get_shape(input);
+    const float* input_data = tensor_get_data_const(input);
 
     const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
     const size_t channels = shape->dims[TENSOR_CHANNEL_DIM];
@@ -60,33 +55,41 @@ float AI_LossCompute(AI_Loss* loss, uint8_t* labels)
 
     float sum = 0.0f;
     for (size_t i = 0; i < batch_size; i++) {
-        float* channels_input = input + i * channels;
+        const float* channels_input = input_data + i * channels;
         sum += loss->function(channels_input, channels, labels[i]);
     }
     return sum;
 }
 
 
-void AI_LossBackward(AI_Loss* loss, uint8_t* labels)
+void AI_LossBackward(AI_Loss* loss, const tensor_t* input, const uint8_t* labels, tensor_t** out_gradient)
 {
-    const tensor_shape_t* shape = tensor_get_shape(loss->input);
-    float* input = tensor_get_data(loss->input);
+    const tensor_shape_t* shape = tensor_get_shape(input);
+
+    /* Construct the output gradient to be same size as input and use scratch gradient_mem as
+        buffer. */
+    tensor_from_memory(&loss->gradient, shape, tensor_get_data(&loss->gradient_mem));
+
+    const float* input_data = tensor_get_data_const(input);
     float* gradient = tensor_get_data(&loss->gradient);
+
 
     const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
     const size_t channels = shape->dims[TENSOR_CHANNEL_DIM];
 
     for (size_t i = 0; i < batch_size; i++) {
-        float* channels_input = input + i * channels;
+        const float* channels_input = input_data + i * channels;
         float* channels_gradient = gradient + i * channels;
         loss->derivative(channels_input, channels_gradient, channels, labels[i]);
     }
+
+    *out_gradient = &loss->gradient;
 }
 
 
 void AI_LossDeinit(AI_Loss* loss)
 {
-    tensor_destory(&loss->gradient);
+    tensor_destory(&loss->gradient_mem);
 }
 
 
@@ -95,7 +98,7 @@ void AI_LossDeinit(AI_Loss* loss)
 
 
 
-float AI_LossMSE(float* v, size_t size, uint32_t label)
+float AI_LossMSE(const float* v, size_t size, uint32_t label)
 {
     float sum = 0.0f;
 
@@ -107,7 +110,7 @@ float AI_LossMSE(float* v, size_t size, uint32_t label)
 }
 
 
-void AI_DLossMSE(float* input, float* gradient, size_t size, uint32_t label)
+void AI_DLossMSE(const float* input, float* gradient, size_t size, uint32_t label)
 {
     for (size_t i = 0; i < size; i++) {
         gradient[i] = input[i] - (label == i);
@@ -116,13 +119,13 @@ void AI_DLossMSE(float* input, float* gradient, size_t size, uint32_t label)
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 
-float AI_LossCrossEntropy(float* v, size_t size, uint32_t label)
+float AI_LossCrossEntropy(const float* v, size_t size, uint32_t label)
 {
     return -logf(max(1e-12, v[label]));
 }
 
 
-void AI_DLossCrossEntropy(float* input, float* gradient, size_t size, uint32_t label)
+void AI_DLossCrossEntropy(const float* input, float* gradient, size_t size, uint32_t label)
 {
     for (size_t i = 0; i < size; i++)
         gradient[i] = input[i] - (label == i);
@@ -130,7 +133,7 @@ void AI_DLossCrossEntropy(float* input, float* gradient, size_t size, uint32_t l
 
 
 
-uint32_t AI_Max(float* v, size_t size)
+uint32_t AI_Max(const float* v, size_t size)
 {
     uint32_t max = 0;
     for (size_t i = 1; i < size; i++)

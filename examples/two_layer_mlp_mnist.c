@@ -20,7 +20,7 @@
 #include "tensor_impl.h"
 
 
-ai_sequential_network_t* create_mlp(float learning_rate, tensor_shape_t* input_shape)
+ai_sequential_network_t* create_mlp(float learning_rate, tensor_shape_t* input_shape, size_t batch_size)
 {
     ai_model_desc_t* desc = NULL;
     ai_sequential_network_t* model = NULL;
@@ -40,7 +40,7 @@ ai_sequential_network_t* create_mlp(float learning_rate, tensor_shape_t* input_s
     ai_model_desc_dump(desc);
 
 
-    ai_sequential_network_create(&model, input_shape, desc);
+    ai_sequential_network_create(&model, input_shape, batch_size, desc);
 
     return model;
 }
@@ -67,10 +67,10 @@ int main()
 
 
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
+    const char* mnist_path = ;
 
 
-    size_t num_epochs = 100;
+    size_t num_epochs = 10;
     size_t batch_size = 1; /* Only batch size of 1 supported at the moment */
     float learning_rate = 0.01f;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_MSE;
@@ -95,7 +95,7 @@ int main()
         .dims[TENSOR_HEIGHT_DIM] = 1,
         .dims[TENSOR_WIDTH_DIM] = 1
     };
-    mlp = create_mlp(learning_rate, &input_shape);
+    mlp = create_mlp(learning_rate, &input_shape, batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 

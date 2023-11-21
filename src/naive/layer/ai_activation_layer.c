@@ -8,15 +8,36 @@
 #include "log.h"
 
 
-typedef void (*activation_function_t)(float* in, float* out, size_t size);
+typedef void (*activation_function_t)(const float* in, float* out, size_t size);
 typedef float (*activation_derivative_t)(float f);
 
 
 typedef struct activation_layer_t {
-    AI_Layer hdr;
     activation_function_t activation_function;
     activation_derivative_t derivative;
 } activation_layer_t;
+
+
+static uint32_t activation_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
+    const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
+static uint32_t activation_layer_forward(void* private_data, const tensor_t* input,
+    tensor_t* out_output);
+static uint32_t activation_layer_backward(void* private_data, const tensor_t* input, const tensor_t* output,
+    const tensor_t* prev_gradient, tensor_t* out_gradient);
+static uint32_t activation_layer_calc_output_shape(tensor_shape_t* out_output_shape, const void* create_info,
+    const tensor_shape_t* input_shape);
+
+
+const layer_info_t activation_layer_info = {
+    .init_func = activation_layer_init,
+    .deinit_func = NULL, /* not needed */
+    .forward_func = activation_layer_forward,
+    .backward_func = activation_layer_backward,
+    .calc_output_size = activation_layer_calc_output_shape,
+    .info_func = NULL, /* not implemented */
+    .layer_private_size = sizeof(activation_layer_t)
+};
+
 
 /* Activation functions and derivatives */
 
@@ -32,51 +53,29 @@ static float drelu(float f);
 static float dleaky_relu(float f);
 static float dsoftmax(float f);
 
-static void sigmoidv(float* in, float* out, size_t size);
-static void tanhv(float* in, float* out, size_t size);
-static void reluv(float* in, float* out, size_t size);
-static void leaky_reluv(float* in, float* out, size_t size);
-static void softmaxv(float* in, float* out, size_t size);
+static void sigmoidv(const float* in, float* out, size_t size);
+static void tanhv(const float* in, float* out, size_t size);
+static void reluv(const float* in, float* out, size_t size);
+static void leaky_reluv(const float* in, float* out, size_t size);
+static void softmaxv(const float* in, float* out, size_t size);
 
-static void dsigmoidv(float* in, float* out, size_t size);
-static void dtanhv(float* in, float* out, size_t size);
-static void dreluv(float* in, float* out, size_t size);
-static void dleaky_reluv(float* in, float* out, size_t size);
-static void dsoftmaxv(float* in, float* out, size_t size);
-
-
-static void activation_layer_forward(AI_Layer* layer);
-static void activation_layer_backward(AI_Layer* layer);
-static void activation_layer_deinit(AI_Layer* layer);
+static void dsigmoidv(const float* in, float* out, size_t size);
+static void dtanhv(const float* in, float* out, size_t size);
+static void dreluv(const float* in, float* out, size_t size);
+static void dleaky_reluv(const float* in, float* out, size_t size);
+static void dsoftmaxv(const float* in, float* out, size_t size);
 
 
-uint32_t activation_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer)
+static uint32_t activation_layer_init(
+    void* private_data,
+    const AI_LayerCreateInfo* create_info,
+    const tensor_shape_t* input_shape,
+    const tensor_shape_t* output_shape
+)
 {
+    activation_layer_t* activation_layer = (activation_layer_t*)private_data;
     AI_ActivationLayerCreateInfo* activation_create_info =
         (AI_ActivationLayerCreateInfo*)create_info;
-
-    *layer = (AI_Layer*)malloc(sizeof(activation_layer_t));
-    if (*layer == NULL) {
-        return 1;
-    }
-
-    activation_layer_t* activation_layer = (activation_layer_t*)*layer;
-
-
-    /* fill header information */
-    activation_layer->hdr.input_shape = prev_layer->output_shape;
-    activation_layer->hdr.output_shape = prev_layer->output_shape; /* shape does not change*/
-
-    /* allocate owned memory */
-    tensor_allocate(&activation_layer->hdr.output, &activation_layer->hdr.output_shape);
-    tensor_allocate(&activation_layer->hdr.gradient, &activation_layer->hdr.input_shape);
-
-    /* virtual functions */
-    activation_layer->hdr.forward = activation_layer_forward;
-    activation_layer->hdr.backward = activation_layer_backward;
-    activation_layer->hdr.info = NULL;
-    activation_layer->hdr.deinit = activation_layer_deinit;
-
 
     switch(activation_create_info->activation_function) {
         case AI_ACTIVATION_FUNCTION_SIGMOID:
@@ -104,42 +103,52 @@ uint32_t activation_layer_init(AI_Layer** layer, void* create_info, AI_Layer* pr
 }
 
 
-
-static void activation_layer_forward(AI_Layer* layer)
+static uint32_t activation_layer_forward(
+    void* private_data,
+    const tensor_t* input,
+    tensor_t* out_output
+)
 {
     LOG_TRACE("activation layer forward pass\n");
 
-    activation_layer_t* activation_layer = (activation_layer_t*)layer;    
+    activation_layer_t* activation_layer = (activation_layer_t*)private_data;    
 
 
-    const tensor_shape_t* shape = tensor_get_shape(activation_layer->hdr.input);
+    const tensor_shape_t* shape = tensor_get_shape(input);
     const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
     const size_t per_batch_size = tensor_size_from_shape(shape) / batch_size;
 
 
-    float* input_data = tensor_get_data(activation_layer->hdr.input);
-    float* output_data = tensor_get_data(&activation_layer->hdr.output);
+    const float* input_data = tensor_get_data_const(input);
+    float* output_data = tensor_get_data(out_output);
 
 
     for (size_t i = 0; i < batch_size; i++) {
-        float* input_batch = input_data + i * per_batch_size;
+        const float* input_batch = input_data + i * per_batch_size;
         float* output_batch = output_data + i * per_batch_size;
         activation_layer->activation_function(input_batch, output_batch, per_batch_size);
     }
 }
 
-static void activation_layer_backward(AI_Layer* layer)
+
+static uint32_t activation_layer_backward(
+    void* private_data,
+    const tensor_t* input,
+    const tensor_t* output,
+    const tensor_t* prev_gradient,
+    tensor_t* out_gradient
+)
 {
-    activation_layer_t* activation_layer = (activation_layer_t*)layer;    
+    activation_layer_t* activation_layer = (activation_layer_t*)private_data;
 
 
-    const tensor_shape_t* shape = tensor_get_shape(activation_layer->hdr.input);
+    const tensor_shape_t* shape = tensor_get_shape(out_gradient);
     const size_t size = tensor_size_from_shape(shape);
 
 
-    float* gradient_data = tensor_get_data(&activation_layer->hdr.gradient);
-    float* output_data = tensor_get_data(&activation_layer->hdr.output);
-    float* prev_gradient_data = tensor_get_data(activation_layer->hdr.prev_gradient);
+    const float* output_data = tensor_get_data_const(output);
+    const float* prev_gradient_data = tensor_get_data_const(prev_gradient);
+    float* gradient_data = tensor_get_data(out_gradient);
 
 
     for (size_t i = 0; i < size; i++) {
@@ -150,13 +159,17 @@ static void activation_layer_backward(AI_Layer* layer)
     AI_VectorMul(gradient_data, prev_gradient_data, size);
 }
 
-static void activation_layer_deinit(AI_Layer* layer)
+
+static uint32_t activation_layer_calc_output_shape(
+    tensor_shape_t* out_output_shape,
+    const void* create_info,
+    const tensor_shape_t* input_shape
+)
 {
-    activation_layer_t* activation_layer = (activation_layer_t*)layer;
-    if (activation_layer != NULL) {
-        tensor_destory(&activation_layer->hdr.output);
-        tensor_destory(&activation_layer->hdr.gradient);
-    }
+    /* activation layer does not change the shape */
+    *out_output_shape = *input_shape;
+
+    return 0;
 }
 
 
@@ -223,31 +236,31 @@ float dsoftmax(float f)
 }
 
 
-void sigmoidv(float* in, float* out, size_t size)
+void sigmoidv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = sigmoid(in[i]);
 }
 
-void tanhv(float* in, float* out, size_t size)
+void tanhv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = tanh(in[i]);
 }
 
-void reluv(float* in, float* out, size_t size)
+void reluv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = relu(in[i]);
 }
 
-void leaky_reluv(float* in, float* out, size_t size)
+void leaky_reluv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = leaky_relu(in[i]);
 }
 
-void softmaxv(float* in, float* out, size_t size)
+void softmaxv(const float* in, float* out, size_t size)
 {
     // Find the max value
     float max = -3.4028235e38;
@@ -268,34 +281,34 @@ void softmaxv(float* in, float* out, size_t size)
 }
 
 
-void dsigmoidv(float* in, float* out, size_t size)
+void dsigmoidv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = dsigmoid(in[i]);
 }
 
 
-void dtanhv(float* in, float* out, size_t size)
+void dtanhv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = dtanh(in[i]);
 }
 
 
-void dreluv(float* in, float* out, size_t size)
+void dreluv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = drelu(in[i]);
 }
 
 
-void dleaky_reluv(float* in, float* out, size_t size)
+void dleaky_reluv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = dleaky_relu(in[i]);
 }
 
-void dsoftmaxv(float* in, float* out, size_t size)
+void dsoftmaxv(const float* in, float* out, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         out[i] = (1.0f - in[i]) * in[i];

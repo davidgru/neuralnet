@@ -108,10 +108,3 @@ typedef struct AI_ConvolutionalLayerCreateInfo {
 typedef struct AI_DropoutLayerCreateInfo {
     float dropout_rate;
 } AI_DropoutLayerCreateInfo;
-
-void AI_LayerInit(AI_Layer** layer, AI_LayerCreateInfo* create_info, AI_Layer* prev_layer);
-void AI_LayerLink(AI_Layer* layer, AI_Layer* prev_layer, AI_Layer* next_layer);
-void AI_LayerForward(AI_Layer* layer);
-void AI_LayerBackward(AI_Layer* layer);
-void AI_LayerInfo(AI_Layer* layer);
-void AI_LayerDeinit(AI_Layer* layer);

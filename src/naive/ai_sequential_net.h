@@ -7,10 +7,11 @@
 #include "layer/ai_base_layer.h"
 #include "util/ai_loss.h"
 
+#include "layer/ai_layer.h"
+
 
 typedef struct ai_sequential_network {
-    AI_Layer* input_layer;
-    AI_Layer** layers;
+    layer_t* layers;
     size_t num_layers;
     tensor_shape_t input_shape;
     tensor_shape_t output_shape;
@@ -33,11 +34,12 @@ typedef void (*ai_training_callback_t)(ai_training_info_t * progress_info);
 void ai_sequential_network_create(
     ai_sequential_network_t** net,
     tensor_shape_t* input_shape,
+    size_t max_batch_size,
     ai_model_desc_t* desc
 );
 
 
-void ai_sequential_network_forward(ai_sequential_network_t* net, tensor_t* input);
+void ai_sequential_network_forward(ai_sequential_network_t* net, const tensor_t* input, tensor_t** out_output);
 
 
 void ai_sequential_network_test(

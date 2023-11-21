@@ -70,7 +70,7 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
  * @param tensor    A tensor
  * @return          Number of tensor elements
  */
-const tensor_shape_t* tensor_get_shape(tensor_t* tensor);
+const tensor_shape_t* tensor_get_shape(const tensor_t* tensor);
 
 
 /**
@@ -80,6 +80,15 @@ const tensor_shape_t* tensor_get_shape(tensor_t* tensor);
  * @return A pointer to the tensor data
  */
 float* tensor_get_data(tensor_t* tensor);
+
+
+/**
+ * @brief Get tensor data - const version.
+ * 
+ * @param tensor    A tensor
+ * @return A pointer to the tensor data
+ */
+const float* tensor_get_data_const(const tensor_t* tensor);
 
 
 /**

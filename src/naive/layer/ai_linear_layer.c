@@ -3,7 +3,7 @@
 
 
 #include "ai_linear_layer.h"
-
+#include "ai_layer.h"
 
 #include <malloc.h>
 #include <string.h>
@@ -20,10 +20,7 @@
 #define LINEAR_WEIGHTS_INPUT_DIM  3
 
 
-
-// A fully connected layer
 typedef struct linear_layer_t {
-    AI_Layer hdr;
     tensor_t weights;
     tensor_t bias;
     tensor_t d_weights;
@@ -33,60 +30,53 @@ typedef struct linear_layer_t {
 } linear_layer_t;
 
 
-static void matrix_product(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
-static void matrix_product_t1(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
-static void matrix_product_t2(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
+static uint32_t linear_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
+    const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
+static uint32_t linear_layer_deinit(void* private_data);
+static uint32_t linear_layer_forward(void* private_data, const tensor_t* input,
+    tensor_t* out_output);
+static uint32_t linear_layer_backward(void* private_data, const tensor_t* input, const tensor_t* output,
+    const tensor_t* prev_gradient, tensor_t* out_gradient);
+static uint32_t linear_layer_calc_output_shape(tensor_shape_t* out_output_shape, const void* create_info,
+    const tensor_shape_t* input_shape);
 
-// Forward propagation through the layer
-static void linear_layer_forward(AI_Layer* layer);
-// Backward propagation through the layer
-static void linear_layer_backward(AI_Layer* layer);
-static void linear_layer_info(AI_Layer* layer);
-// Deinit a linear layer
-static void linear_layer_deinit(AI_Layer* layer);
 
-// Init a linear layer
-uint32_t linear_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer)
+const layer_info_t linear_layer_info = {
+    .init_func = linear_layer_init,
+    .deinit_func = linear_layer_deinit,
+    .forward_func = linear_layer_forward,
+    .backward_func = linear_layer_backward,
+    .calc_output_size = linear_layer_calc_output_shape,
+    .info_func = NULL,
+    .layer_private_size = sizeof(linear_layer_t)
+};
+
+
+static void matrix_product(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
+static void matrix_product_t1(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
+static void matrix_product_t2(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim);
+
+
+static uint32_t linear_layer_init(
+    void* private_data,
+    const AI_LayerCreateInfo* create_info,
+    const tensor_shape_t* input_shape,
+    const tensor_shape_t* output_shape
+)
 {
-    AI_LinearLayerCreateInfo* linear_create_info = (AI_LinearLayerCreateInfo*)create_info;
+    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
+    const AI_LinearLayerCreateInfo* linear_create_info = (AI_LinearLayerCreateInfo*)create_info;
 
-    /* TODO: sanity check that input is one-dimensional */
-
-    *layer = (AI_Layer*)malloc(sizeof(linear_layer_t));
-    if (*layer == NULL) {
-        return 1;
-    }
-
-    linear_layer_t* linear_layer = (linear_layer_t*)*layer;
-
-
-    /* fill header information*/
-    linear_layer->hdr.input_shape = prev_layer->output_shape;
-    linear_layer->hdr.output_shape.dims[TENSOR_BATCH_DIM]
-        = linear_layer->hdr.input_shape.dims[TENSOR_BATCH_DIM];
-    linear_layer->hdr.output_shape.dims[TENSOR_CHANNEL_DIM] = linear_create_info->output_size;
-    linear_layer->hdr.output_shape.dims[TENSOR_HEIGHT_DIM] = 1;
-    linear_layer->hdr.output_shape.dims[TENSOR_WIDTH_DIM] = 1;
-
-    /* virtual functions */
-    linear_layer->hdr.forward = linear_layer_forward;
-    linear_layer->hdr.backward = linear_layer_backward;
-    linear_layer->hdr.info = linear_layer_info;
-    linear_layer->hdr.deinit = linear_layer_deinit;
-
-    /* allocate owned memory */
-    tensor_allocate(&linear_layer->hdr.output, &linear_layer->hdr.output_shape);
-    tensor_allocate(&linear_layer->hdr.gradient, &linear_layer->hdr.input_shape);
 
     /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
         future. */
     tensor_shape_t weights_shape = {
         .dims[0] = 0,
         .dims[1] = 0,
-        .dims[LINEAR_WEIGHTS_OUTPUT_DIM] = linear_create_info->output_size,
-        .dims[LINEAR_WEIGHTS_INPUT_DIM] = prev_layer->output_shape.dims[TENSOR_CHANNEL_DIM] 
-            * prev_layer->output_shape.dims[TENSOR_HEIGHT_DIM]
-            * prev_layer->output_shape.dims[TENSOR_WIDTH_DIM]
+        .dims[LINEAR_WEIGHTS_OUTPUT_DIM] = output_shape->dims[TENSOR_CHANNEL_DIM],
+        .dims[LINEAR_WEIGHTS_INPUT_DIM] = input_shape->dims[TENSOR_CHANNEL_DIM]
+            * input_shape->dims[TENSOR_HEIGHT_DIM]
+            * input_shape->dims[TENSOR_WIDTH_DIM]
     };
     tensor_allocate(&linear_layer->weights, &weights_shape);
     tensor_allocate(&linear_layer->d_weights, &weights_shape);
@@ -102,8 +92,8 @@ uint32_t linear_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_l
 
     linear_layer->learning_rate = linear_create_info->learning_rate;
 
-    /* Initialise weights and bias */
-    
+
+    /* Initialise weights and bias */    
     float* weights_data = tensor_get_data(&linear_layer->weights);
     const size_t weights_size = tensor_size_from_shape(&weights_shape);
     for (size_t i = 0; i < weights_size; i++) {
@@ -123,22 +113,37 @@ uint32_t linear_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_l
     }
 
     return 0;
+};
+
+
+static uint32_t linear_layer_deinit(void* private_data)
+{
+    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
+    
+    tensor_destory(&linear_layer->weights);
+    tensor_destory(&linear_layer->d_weights);
+    tensor_destory(&linear_layer->bias);
+    tensor_destory(&linear_layer->d_bias);
 }
 
 
-static void linear_layer_forward(AI_Layer* layer)
+static uint32_t linear_layer_forward(
+    void* private_data,
+    const tensor_t* input,
+    tensor_t* out_output
+)
 {
-    linear_layer_t* linear_layer = (linear_layer_t*)layer;
+    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
 
 
-    const tensor_shape_t* input_shape = tensor_get_shape(linear_layer->hdr.input);
-    const tensor_shape_t* output_shape = tensor_get_shape(&linear_layer->hdr.output);
+    const tensor_shape_t* input_shape = tensor_get_shape(input);
+    const tensor_shape_t* output_shape = tensor_get_shape(out_output);
 
 
-    float* input = tensor_get_data(linear_layer->hdr.input);
-    float* output = tensor_get_data(&linear_layer->hdr.output);
-    float* weights = tensor_get_data(&linear_layer->weights);
-    float* bias = tensor_get_data(&linear_layer->bias);
+    const float* input_data = tensor_get_data_const(input);
+    const float* weights = tensor_get_data_const(&linear_layer->weights);
+    const float* bias = tensor_get_data_const(&linear_layer->bias);
+    float* output_data = tensor_get_data(out_output);
 
 
     const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
@@ -147,32 +152,38 @@ static void linear_layer_forward(AI_Layer* layer)
 
 
     /* output = input * weights */
-    matrix_product(input, weights, output, batch_size, output_size, per_batch_input_size);
+    matrix_product(input_data, weights, output_data, batch_size, output_size, per_batch_input_size);
 
     /* output += bias */
     for (size_t i = 0; i < batch_size; i++) {
-        float* batch_output = output + i * output_size;
+        float* batch_output = output_data + i * output_size;
         AI_VectorAdd(batch_output, bias, output_size);
     }
 }
 
-static void linear_layer_backward(AI_Layer* layer)
+
+static uint32_t linear_layer_backward(
+    void* private_data,
+    const tensor_t* input,
+    const tensor_t* output,
+    const tensor_t* prev_gradient,
+    tensor_t* out_gradient
+)
 {
-    linear_layer_t* linear_layer = (linear_layer_t*)layer;
+    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
 
 
-    const tensor_shape_t* input_shape = tensor_get_shape(linear_layer->hdr.input);
-    const tensor_shape_t* output_shape = tensor_get_shape(&linear_layer->hdr.output);
+    const tensor_shape_t* input_shape = tensor_get_shape(input);
+    const tensor_shape_t* output_shape = tensor_get_shape(output);
     const tensor_shape_t* weights_shape = tensor_get_shape(&linear_layer->weights);
 
 
-    float* input = tensor_get_data(linear_layer->hdr.input);
-    float* output = tensor_get_data(&linear_layer->hdr.output);
+    const float* input_data = tensor_get_data_const(input);
+    const float* prev_gradient_data = tensor_get_data_const(prev_gradient);
+    float* gradient_data = tensor_get_data(out_gradient);
     float* weights = tensor_get_data(&linear_layer->weights);
     float* bias = tensor_get_data(&linear_layer->bias);
     float* d_weights = tensor_get_data(&linear_layer->d_weights);
-    float* gradient = tensor_get_data(&linear_layer->hdr.gradient);
-    float* prev_gradient = tensor_get_data(linear_layer->hdr.prev_gradient);
 
 
     const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
@@ -181,11 +192,11 @@ static void linear_layer_backward(AI_Layer* layer)
     const size_t weights_size = tensor_size_from_shape(weights_shape);
 
     /* Calculate gradient for backprop: gradient = prev_gradient * weights.T */
-    matrix_product_t2(prev_gradient, weights, gradient, batch_size, per_batch_input_size,
+    matrix_product_t2(prev_gradient_data, weights, gradient_data, batch_size, per_batch_input_size,
         output_channels);
 
     /* Calculate gradient of weights: d_weights = weights.T * prev_gradient */
-    matrix_product_t1(input, prev_gradient, d_weights, per_batch_input_size, output_channels,
+    matrix_product_t1(input_data, prev_gradient_data, d_weights, per_batch_input_size, output_channels,
         batch_size);
     /* d_weights *= learning_rate / batch_size. TODO: combine scale and subtraction */
     AI_VectorScale(d_weights, linear_layer->learning_rate * (1.0f / batch_size), weights_size);
@@ -195,38 +206,29 @@ static void linear_layer_backward(AI_Layer* layer)
     /* Adjust bias (use layer->dw buffer) */
     memset(d_weights, 0, output_channels * sizeof(float));
     for (size_t i = 0; i < batch_size; i++) {
-        AI_VectorAdd(d_weights, prev_gradient + i * output_channels, output_channels);
+        AI_VectorAdd(d_weights, prev_gradient_data + i * output_channels, output_channels);
     }
     AI_VectorScale(d_weights, linear_layer->learning_rate * (1.0f / batch_size), output_channels);
     AI_VectorSub(bias, d_weights, output_channels);
 }
 
 
-static void linear_layer_info(AI_Layer* layer)
+static uint32_t linear_layer_calc_output_shape(
+    tensor_shape_t* out_output_shape,
+    const void* create_info,
+    const tensor_shape_t* input_shape
+)
 {
-    // linear_layer_t* _layer = (linear_layer_t*)layer;
-    // const size_t input_size = _layer->hdr.input_width;
-    // const size_t output_size = _layer->hdr.output_width;
-    // const size_t weight_size = input_size * output_size;
+    AI_LinearLayerCreateInfo* linear_create_info = (AI_LinearLayerCreateInfo*)create_info;
 
-    // LOG_INFO("linear layer info: in: %d out: %d wdist: (%f +/- %f) bdist (%f +/- %f)\n",
-    //     (int)input_size, (int)output_size, AI_Mean(_layer->w, weight_size),
-    //     AI_Stddev(_layer->w, weight_size), AI_Mean(_layer->b, output_size),
-    //     AI_Stddev(_layer->b, output_size));
-}
+    /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
+        future. */
+    out_output_shape->dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
+    out_output_shape->dims[TENSOR_CHANNEL_DIM] = linear_create_info->output_size;
+    out_output_shape->dims[TENSOR_HEIGHT_DIM] = 1;
+    out_output_shape->dims[TENSOR_WIDTH_DIM] = 1;    
 
-static void linear_layer_deinit(AI_Layer* layer)
-{
-    linear_layer_t* linear_layer = (linear_layer_t*)layer;
-    if (linear_layer != NULL) {
-        tensor_destory(&linear_layer->hdr.output);
-        tensor_destory(&linear_layer->hdr.gradient);
-        tensor_destory(&linear_layer->weights);
-        tensor_destory(&linear_layer->d_weights);
-        tensor_destory(&linear_layer->bias);
-        tensor_destory(&linear_layer->d_bias);
-        free(linear_layer);
-    }
+    return 0;
 }
 
 
@@ -234,7 +236,7 @@ static void linear_layer_deinit(AI_Layer* layer)
 
 
 // AVX accelerated matrix product: output = m1 * m2
-static void matrix_product(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
+static void matrix_product(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = height1;
@@ -268,7 +270,7 @@ static void matrix_product(float* m1, float* m2, float* output, size_t height1, 
 }
 
 // AVX accelerated matrix product, where m1 is transposed: output = m1_t * m2
-static void matrix_product_t1(float* m1, float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
+static void matrix_product_t1(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = width1;
@@ -302,7 +304,7 @@ static void matrix_product_t1(float* m1, float* m2, float* output, size_t width1
 }
 
 // AVX accelerated matrix product, where m2 is transposed: output = m1 * m2_t
-static void matrix_product_t2(float* m1, float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
+static void matrix_product_t2(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
 {
     const size_t owidth = height2;
     const size_t oheight = height1;
@@ -336,7 +338,7 @@ static void matrix_product_t2(float* m1, float* m2, float* output, size_t height
 #else
 
 
-static void matrix_product(float* m1, float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
+static void matrix_product(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = height1;
@@ -352,7 +354,7 @@ static void matrix_product(float* m1, float* m2, float* output, size_t height1, 
     }
 }
 
-static void matrix_product_t1(float* m1, float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
+static void matrix_product_t1(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = width1;
@@ -368,7 +370,7 @@ static void matrix_product_t1(float* m1, float* m2, float* output, size_t width1
     }
 }
 
-static void matrix_product_t2(float* m1, float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
+static void matrix_product_t2(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
 {
     const size_t owidth = height2;
     const size_t oheight = height1;

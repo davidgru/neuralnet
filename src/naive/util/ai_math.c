@@ -14,7 +14,7 @@
 #if defined(AI_USE_AVX)
 
 
-void AI_VectorAdd(float* v1, float* v2, size_t size)
+void AI_VectorAdd(float* v1, const float* v2, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
     size_t i = 0;
@@ -29,7 +29,7 @@ void AI_VectorAdd(float* v1, float* v2, size_t size)
 }
 
 
-void AI_VectorSub(float* v1, float* v2, size_t size)
+void AI_VectorSub(float* v1, const float* v2, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
     size_t i = 0;
@@ -44,7 +44,7 @@ void AI_VectorSub(float* v1, float* v2, size_t size)
 }
 
 
-void AI_VectorMul(float* v1, float* v2, size_t size)
+void AI_VectorMul(float* v1, const float* v2, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
     size_t i = 0;
@@ -75,21 +75,21 @@ void AI_VectorScale(float* v, float f, size_t size)
 #else
 
 
-void AI_VectorAdd(float* v1, float* v2, size_t size)
+void AI_VectorAdd(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] += v2[i];
 }
 
 
-void AI_VectorSub(float* v1, float* v2, size_t size)
+void AI_VectorSub(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] -= v2[i];
 }
 
 
-void AI_VectorMul(float* v1, float* v2, size_t size)
+void AI_VectorMul(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] *= v2[i];    
@@ -114,7 +114,7 @@ void AI_VectorAddScalar(float* v, float s, size_t size)
 
 
 // Copies all elements of v2 to v1
-void AI_VectorCopy(float* v1, float* v2, size_t size)
+void AI_VectorCopy(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] = v2[i];
@@ -122,7 +122,7 @@ void AI_VectorCopy(float* v1, float* v2, size_t size)
 
 
 // Convolution operation
-void AI_MatrixConvolution(float* m1, float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY)
+void AI_MatrixConvolution(const float* m1, const float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY)
 {
     size_t owidth = (mwidth - kwidth) / strideX + 1;
     size_t oheight = (mheight - kheight) / strideY + 1;
@@ -136,7 +136,7 @@ void AI_MatrixConvolution(float* m1, float* kernel, float* output, size_t mwidth
 
 
 // Convolution operation with padding and dilation
-void AI_MatrixConvolutionPadded(float* m1, float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY, size_t padX, size_t padY, size_t dilationX, size_t dilationY)
+void AI_MatrixConvolutionPadded(const float* m1, const float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY, size_t padX, size_t padY, size_t dilationX, size_t dilationY)
 {
     size_t owidth = (mwidth - kwidth + 2 * padX) / strideX + 1;
     size_t oheight = (mheight - kheight + 2 * padY) / strideY + 1;
@@ -161,7 +161,7 @@ void AI_MatrixConvolutionPadded(float* m1, float* kernel, float* output, size_t 
 
 
 // Convolution operation with padding and dilation and a 180° rotated kernel
-void AI_MatrixConvolutionPaddedRotateFilter(float* m1, float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY, size_t padX, size_t padY, size_t dilationX, size_t dilationY)
+void AI_MatrixConvolutionPaddedRotateFilter(const float* m1, const float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY, size_t padX, size_t padY, size_t dilationX, size_t dilationY)
 {
     size_t owidth = (mwidth - kwidth + 2 * padX) / strideX + 1;
     size_t oheight = (mheight - kheight + 2 * padY) / strideY + 1;
@@ -184,7 +184,7 @@ void AI_MatrixConvolutionPaddedRotateFilter(float* m1, float* kernel, float* out
 
 
 // Sums all elements of v together
-float AI_Sum(float* v, size_t size)
+float AI_Sum(const float* v, size_t size)
 {
     float sum = 0.0f;
     for (size_t i = 0; i < size; i++)
