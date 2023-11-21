@@ -27,59 +27,54 @@ static void pooling_operation_average_backward(float* x, float* dy, float* dx, s
 static void pooling_operation_max_backward(float* x, float* dy, float* dx, size_t input_width, size_t input_height, size_t kernel_width);
 static void pooling_operation_min_backward(float* x, float* dy, float* dx, size_t input_width, size_t input_height, size_t kernel_width);
 
-void pooling_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer)
+uint32_t pooling_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer)
 {
-    AI_PoolingLayerCreateInfo* _create_info = (AI_PoolingLayerCreateInfo*)create_info;
+    AI_PoolingLayerCreateInfo* pooling_create_info = (AI_PoolingLayerCreateInfo*)create_info;
 
-    const size_t input_width = prev_layer->output_width;
-    const size_t input_height = prev_layer->output_height;
-    const size_t input_channels = prev_layer->output_channels;
-    const size_t kernel_size = _create_info->kernel_width;
+    *layer = (AI_Layer*)malloc(sizeof(pooling_layer_t));
+    if (*layer == NULL) {
+        return 1;
+    }
 
-    const size_t output_width = input_width / kernel_size;
-    const size_t output_height = input_height / kernel_size;
+    pooling_layer_t* pooling_layer = (pooling_layer_t*)*layer;
 
-    const size_t input_size = input_width * input_height * input_channels * prev_layer->mini_batch_size;
-    const size_t output_size = output_width * output_height * input_channels * prev_layer->mini_batch_size;
+    /* fill header information */
+    pooling_layer->hdr.input_shape = prev_layer->output_shape;
+    pooling_layer->hdr.output_shape.dims[TENSOR_BATCH_DIM]
+        = pooling_layer->hdr.input_shape.dims[TENSOR_BATCH_DIM];
+    pooling_layer->hdr.output_shape.dims[TENSOR_CHANNEL_DIM]
+        = pooling_layer->hdr.input_shape.dims[TENSOR_CHANNEL_DIM];
+    pooling_layer->hdr.output_shape.dims[TENSOR_HEIGHT_DIM]
+        = pooling_layer->hdr.input_shape.dims[TENSOR_HEIGHT_DIM]
+        / pooling_create_info->kernel_width;
+    pooling_layer->hdr.output_shape.dims[TENSOR_WIDTH_DIM]
+        = pooling_layer->hdr.input_shape.dims[TENSOR_WIDTH_DIM]
+        / pooling_create_info->kernel_width;
+    
+    /* allocate owned memory */
+    tensor_allocate(&pooling_layer->hdr.output, &pooling_layer->hdr.output_shape);
+    tensor_allocate(&pooling_layer->hdr.gradient, &pooling_layer->hdr.input_shape);
 
-    const size_t size = sizeof(pooling_layer_t) + (input_size + output_size) * sizeof(float);
+    /* virtual functions */
+    pooling_layer->hdr.forward = pooling_layer_forward;
+    pooling_layer->hdr.backward = pooling_layer_backward;
+    pooling_layer->hdr.info = NULL;
+    pooling_layer->hdr.deinit = pooling_layer_deinit;
 
-    *layer = (AI_Layer*)malloc(size);
+    pooling_layer->kernel_width = pooling_create_info->kernel_width;
 
-    pooling_layer_t* _layer = (pooling_layer_t*)*layer;
-
-    _layer->hdr.input_width = input_width;
-    _layer->hdr.input_height = input_height;
-    _layer->hdr.input_channels = input_channels;
-    _layer->hdr.output_width = output_width;
-    _layer->hdr.output_height = output_height;
-    _layer->hdr.output_channels = input_channels;
-    _layer->hdr.mini_batch_size = prev_layer->mini_batch_size;
-    _layer->hdr.forward = pooling_layer_forward;
-    _layer->hdr.backward = pooling_layer_backward;
-    _layer->hdr.info = NULL;
-    _layer->hdr.deinit = pooling_layer_deinit;
-
-    _layer->kernel_width = kernel_size;
-
-    _layer->hdr.output = (float*)(_layer + 1);
-    _layer->hdr.gradient = _layer->hdr.output + output_size;
-
-    _layer->hdr.input = 0;
-    _layer->hdr.prev_gradient = 0;
-
-    switch(_create_info->pooling_operation) {
+    switch(pooling_create_info->pooling_operation) {
         case AI_POOLING_AVERAGE:
-            _layer->pooling_operation_func = pooling_operation_average;
-            _layer->pooling_operation_backward = pooling_operation_average_backward;
+            pooling_layer->pooling_operation_func = pooling_operation_average;
+            pooling_layer->pooling_operation_backward = pooling_operation_average_backward;
             break;
         case AI_POOLING_MAX:
-            _layer->pooling_operation_func = pooling_operation_max;
-            _layer->pooling_operation_backward = pooling_operation_max_backward;
+            pooling_layer->pooling_operation_func = pooling_operation_max;
+            pooling_layer->pooling_operation_backward = pooling_operation_max_backward;
             break;
         case AI_POOLING_MIN:
-            _layer->pooling_operation_func = pooling_operation_min;
-            _layer->pooling_operation_backward = pooling_operation_min_backward;
+            pooling_layer->pooling_operation_func = pooling_operation_min;
+            pooling_layer->pooling_operation_backward = pooling_operation_min_backward;
             break;
     }
 }
@@ -88,24 +83,35 @@ void pooling_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_laye
 
 static void pooling_layer_forward(AI_Layer* layer)
 {
-    pooling_layer_t* _layer = (pooling_layer_t*)layer;
+    pooling_layer_t* pooling_layer = (pooling_layer_t*)layer;
 
-    const size_t input_width = _layer->hdr.input_width;
-    const size_t input_height = _layer->hdr.input_height;
-    const size_t output_width = _layer->hdr.output_width;
-    const size_t output_height = _layer->hdr.output_height;
-    const size_t channels = _layer->hdr.input_channels;
-    const size_t kernel_width = _layer->kernel_width;
 
-    float* x = _layer->hdr.input;
-    float* y = _layer->hdr.output;
+    const tensor_shape_t* input_shape = tensor_get_shape(pooling_layer->hdr.input);
+    const tensor_shape_t* output_shape = tensor_get_shape(&pooling_layer->hdr.output);
 
-    memset(y, 0, output_width * output_height * channels * _layer->hdr.mini_batch_size * sizeof(float));
-    for (size_t n = 0; n < _layer->hdr.mini_batch_size; n++) {
+
+    float* input_data = tensor_get_data(pooling_layer->hdr.input);
+    float* output_data = tensor_get_data(&pooling_layer->hdr.output);
+    
+
+    const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
+    const size_t channels = input_shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t input_height = input_shape->dims[TENSOR_HEIGHT_DIM];
+    const size_t input_width = input_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t per_batch_input_size = tensor_size_from_shape(input_shape) / batch_size;
+    const size_t output_height = output_shape->dims[TENSOR_HEIGHT_DIM];
+    const size_t output_width = output_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t per_batch_output_size = tensor_size_from_shape(output_shape) / batch_size;
+    
+    memset(output_data, 0, tensor_size_from_shape(output_shape) * sizeof(float));
+    for (size_t n = 0; n < batch_size; n++) {
         for (size_t i = 0; i < channels; i++) {
-            float* _x = x + n * input_width * input_height * channels + i * input_width * input_height;
-            float* _y = y + n * output_width * output_height * channels + i * output_width * output_height;
-            _layer->pooling_operation_func(_x, _y, input_width, input_height, kernel_width);
+            float* feature_map_in = input_data + n * per_batch_input_size
+                + i * input_width * input_height;
+            float* feature_map_out = output_data + n * per_batch_output_size
+                + i * output_width * output_height;
+            pooling_layer->pooling_operation_func(feature_map_in, feature_map_out, input_width,
+                input_height, pooling_layer->kernel_width);
         }
     }
 }
@@ -113,26 +119,39 @@ static void pooling_layer_forward(AI_Layer* layer)
 
 static void pooling_layer_backward(AI_Layer* layer)
 {
-    pooling_layer_t* _layer = (pooling_layer_t*)layer;
+    pooling_layer_t* pooling_layer = (pooling_layer_t*)layer;
 
-    const size_t input_width = _layer->hdr.input_width;
-    const size_t input_height = _layer->hdr.input_height;
-    const size_t output_width = _layer->hdr.output_width;
-    const size_t output_height = _layer->hdr.output_height;
-    const size_t channels = _layer->hdr.input_channels;
-    const size_t kernel_width = _layer->kernel_width;
 
-    float* x = _layer->hdr.input;
-    float* dx = _layer->hdr.gradient;
-    float* dy = _layer->hdr.prev_gradient;
+    const tensor_shape_t* input_shape = tensor_get_shape(pooling_layer->hdr.input);
+    const tensor_shape_t* output_shape = tensor_get_shape(&pooling_layer->hdr.output);
 
-    memset(dx, 0, input_width * input_height * channels * _layer->hdr.mini_batch_size * sizeof(float));
-    for (size_t n = 0; n < _layer->hdr.mini_batch_size; n++) {
+
+    float* input = tensor_get_data(pooling_layer->hdr.input);
+    float* gradient = tensor_get_data(&pooling_layer->hdr.gradient);
+    float* prev_gradient = tensor_get_data(pooling_layer->hdr.prev_gradient);
+
+
+    const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
+    const size_t channels = input_shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t input_height = input_shape->dims[TENSOR_HEIGHT_DIM];
+    const size_t input_width = input_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t per_batch_input_size = tensor_size_from_shape(input_shape) / batch_size;
+    const size_t output_height = output_shape->dims[TENSOR_HEIGHT_DIM];
+    const size_t output_width = output_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t per_batch_output_size = tensor_size_from_shape(output_shape) / batch_size;
+
+
+    memset(gradient, 0, tensor_size_from_shape(input_shape) * sizeof(float));
+    for (size_t n = 0; n < batch_size; n++) {
         for (size_t i = 0; i < channels; i++) {
-            float* _x = x + n * input_width * input_height * channels + i * input_width * input_height;
-            float* _dx = dx + n * input_width * input_height * channels + i * input_width * input_height;
-            float* _dy = dy + n * output_width * output_height * channels + i * output_width * output_height;
-            _layer->pooling_operation_backward(_x, _dy, _dx, input_width, input_height, kernel_width);
+            float* feature_map_in = input + n * per_batch_input_size
+                + i * input_width * input_height;
+            float* d_feature_map_in = gradient + n * per_batch_input_size
+                + i * input_width * input_height; 
+            float* d_feature_map_out = prev_gradient + n * per_batch_output_size
+                + i * output_width * output_height;
+            pooling_layer->pooling_operation_backward(feature_map_in, d_feature_map_out,
+                d_feature_map_in, input_width, input_height, pooling_layer->kernel_width);
         }
     }
 }
@@ -140,9 +159,11 @@ static void pooling_layer_backward(AI_Layer* layer)
 
 static void pooling_layer_deinit(AI_Layer* layer)
 {
-    pooling_layer_t* _layer = (pooling_layer_t*)layer;
-    if (_layer)
-        free(_layer);
+    pooling_layer_t* pooling_layer = (pooling_layer_t*)layer;
+    if (pooling_layer != NULL) {
+        tensor_destory(&pooling_layer->hdr.output);
+        tensor_destory(&pooling_layer->hdr.gradient);
+    }
 }
 
 
@@ -219,6 +240,7 @@ static void pooling_operation_average_backward(float* x, float* dy, float* dx, s
         }
     }
 }
+
 
 static void pooling_operation_max_backward(float* x, float* dy, float* dx, size_t input_width, size_t input_height, size_t kernel_width)
 {

@@ -38,12 +38,12 @@ void AI_LayerInit(AI_Layer** layer, AI_LayerCreateInfo* create_info, AI_Layer* p
 void AI_LayerLink(AI_Layer* layer, AI_Layer* prev_layer, AI_Layer* next_layer)
 {
     if (prev_layer)
-        layer->input = prev_layer->output;
+        layer->input = &prev_layer->output;
     else
         layer->input = 0;
 
     if (next_layer)
-        layer->prev_gradient = next_layer->gradient;
+        layer->prev_gradient = &next_layer->gradient;
     else
         layer->prev_gradient = 0;
 }

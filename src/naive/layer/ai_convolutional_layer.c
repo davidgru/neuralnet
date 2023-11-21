@@ -1,97 +1,146 @@
-
-#include "ai_convolutional_layer.h"
-
 #include <stdlib.h>
 #include <string.h>
 
+#include "log.h"
+
 #include "util/ai_math.h"
+
+#include "ai_convolutional_layer.h"
+
+
+#define CONV_WEIGHT_OUTPUT_CHANNEL_DIM  0
+#define CONV_WEIGHT_INPUT_CHANNEL_DIM   1
+#define CONV_WEIGHT_HEIGHT_DIM          2
+#define CONV_WEIGHT_WIDTH_DIM           3
+
 
 typedef struct convolutional_layer_t {
     AI_Layer hdr;
-    size_t filter_width;
-    float* w;
-    float* b;
-    float* dw;
+    tensor_t weights;
+    tensor_t bias;
+    tensor_t d_weights;
+    tensor_t d_bias;
     float learning_rate;
 } convolutional_layer_t;
+
+
 
 
 static void conv_layer_forward(AI_Layer* layer);
 static void conv_layer_backward(AI_Layer* layer);
 static void conv_layer_deinit(AI_Layer* layer);
 
+static tensor_shape_t calculate_output_shape(
+    const tensor_shape_t* input_shape,
+    const AI_ConvolutionalLayerCreateInfo* create_info
+);
 
 uint32_t convolutional_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer)
 {
-    AI_ConvolutionalLayerCreateInfo* _create_info = (AI_ConvolutionalLayerCreateInfo*)create_info;
+    AI_ConvolutionalLayerCreateInfo* conv_create_info =
+        (AI_ConvolutionalLayerCreateInfo*)create_info;
 
-    const size_t input_width = prev_layer->output_width;
-    const size_t input_height = prev_layer->output_height;
-    const size_t input_channels = prev_layer->output_channels;
-    const size_t filter_width = _create_info->filter_width;
+    *layer = (AI_Layer*)malloc(sizeof(convolutional_layer_t));
+    if (*layer == NULL) {
+        return 1;
+    }
 
-    const size_t output_width = input_width - filter_width + 1;
-    const size_t output_height = input_height - filter_width + 1;
-    const size_t output_channels = _create_info->output_channels;
+    convolutional_layer_t* conv_layer = (convolutional_layer_t*)*layer;
 
-    const size_t weight_size = filter_width * filter_width * input_channels * output_channels;
-    const size_t bias_size = output_channels;
-    const size_t output_size = output_width * output_height * output_channels * prev_layer->mini_batch_size;
-    const size_t gradient_size = input_width * input_height * input_channels * prev_layer->mini_batch_size;
 
-    const size_t size = sizeof(convolutional_layer_t) + (weight_size + bias_size + output_size + gradient_size + weight_size) * sizeof(float);
-    *layer = (AI_Layer*)malloc(size);
+    /* fill header information */
+    
+    conv_layer->hdr.input_shape = prev_layer->output_shape;
+    conv_layer->hdr.output_shape = calculate_output_shape(&conv_layer->hdr.input_shape,
+        conv_create_info);
 
-    convolutional_layer_t* _layer = (convolutional_layer_t*)*layer;
+    /* allocate owned memory */
+    tensor_allocate(&conv_layer->hdr.gradient, &conv_layer->hdr.input_shape);
+    tensor_allocate(&conv_layer->hdr.output, &conv_layer->hdr.output_shape);
+    
+    tensor_shape_t weights_shape = {
+        .dims[CONV_WEIGHT_OUTPUT_CHANNEL_DIM] = conv_create_info->output_channels,
+        .dims[CONV_WEIGHT_INPUT_CHANNEL_DIM] = conv_layer->hdr.input_shape.dims[TENSOR_CHANNEL_DIM],
+        .dims[CONV_WEIGHT_HEIGHT_DIM] = conv_create_info->filter_width,
+        .dims[CONV_WEIGHT_WIDTH_DIM] = conv_create_info->filter_width
+    };
+    tensor_allocate(&conv_layer->weights, &weights_shape);
+    tensor_allocate(&conv_layer->d_weights, &weights_shape);
 
-    _layer->hdr.input_width = input_width;
-    _layer->hdr.input_height = input_height;
-    _layer->hdr.input_channels = input_channels;
-    _layer->hdr.output_width = output_width;
-    _layer->hdr.output_height = output_height;
-    _layer->hdr.output_channels = output_channels;
-    _layer->hdr.mini_batch_size = prev_layer->mini_batch_size;
-    _layer->hdr.forward = conv_layer_forward;
-    _layer->hdr.backward = conv_layer_backward;
-    _layer->hdr.info = NULL;
-    _layer->hdr.deinit = conv_layer_deinit;
+    tensor_shape_t bias_shape = {
+        .dims[0] = 0,
+        .dims[1] = 0,
+        .dims[2] = 0,
+        .dims[3] = conv_create_info->output_channels
+    };
+    tensor_allocate(&conv_layer->bias, &bias_shape);
+    tensor_allocate(&conv_layer->d_bias, &bias_shape);
 
-    _layer->filter_width = filter_width;
-    _layer->learning_rate = _create_info->learning_rate;
+    /* virtual functions */
+    conv_layer->hdr.forward = conv_layer_forward;
+    conv_layer->hdr.backward = conv_layer_backward;
+    conv_layer->hdr.info = NULL;
+    conv_layer->hdr.deinit = conv_layer_deinit;
 
-    _layer->w = (float*)(_layer + 1);
-    _layer->b = _layer->w + weight_size;
-    _layer->hdr.output = _layer->b + bias_size;
-    _layer->hdr.gradient = _layer->hdr.output + output_size;
-    _layer->dw = _layer->hdr.gradient + gradient_size;
+    conv_layer->learning_rate = conv_create_info->learning_rate;
 
-    for (size_t i = 0; i < weight_size; i++)
-        _layer->w[i] = _create_info->weight_init(input_width, input_height, input_channels);
-    for (size_t i = 0; i < bias_size; i++)
-        _layer->b[i] = _create_info->bias_init(input_width, input_height, input_channels);
+
+    /* initialize weights and bias */
+
+    float* weights_data = tensor_get_data(&conv_layer->weights);
+    const size_t weights_size = tensor_size_from_shape(&weights_shape);
+    for (size_t i = 0; i < weights_size; i++) {
+        weights_data[i] = conv_create_info->weight_init(
+            conv_layer->hdr.input_shape.dims[TENSOR_WIDTH_DIM], 
+            conv_layer->hdr.input_shape.dims[TENSOR_HEIGHT_DIM], 
+            conv_layer->hdr.input_shape.dims[TENSOR_CHANNEL_DIM]
+        );
+    }
+
+    float* bias_data = tensor_get_data(&conv_layer->bias);
+    const size_t bias_size = tensor_size_from_shape(&bias_shape);
+    for (size_t i = 0; i < bias_size; i++) {
+        bias_data[i] = conv_create_info->bias_init(
+            conv_layer->hdr.input_shape.dims[TENSOR_WIDTH_DIM], 
+            conv_layer->hdr.input_shape.dims[TENSOR_HEIGHT_DIM], 
+            conv_layer->hdr.input_shape.dims[TENSOR_CHANNEL_DIM]
+        );
+    }
+
+    return 0;
 }
 
 
 static void conv_layer_forward(AI_Layer* layer)
 {
-    convolutional_layer_t* _layer = (convolutional_layer_t*)layer;
+    LOG_TRACE("conv layer fwd pass\n");
 
-    const size_t filter_width = _layer->filter_width;
-    const size_t input_width = _layer->hdr.input_width;
-    const size_t input_height = _layer->hdr.input_height;
-    const size_t input_channels = _layer->hdr.input_channels;
-    const size_t output_width = _layer->hdr.output_width;
-    const size_t output_height = _layer->hdr.output_height;
-    const size_t output_channels = _layer->hdr.output_channels;
-    const size_t batch_size = _layer->hdr.mini_batch_size;
+    convolutional_layer_t* conv_layer = (convolutional_layer_t*)layer;
 
-    const size_t filter_size = filter_width * filter_width * input_channels;
+
+    const tensor_shape_t* input_shape = tensor_get_shape(conv_layer->hdr.input);
+    const tensor_shape_t* output_shape = tensor_get_shape(&conv_layer->hdr.output);
+    const tensor_shape_t* weights_shape = tensor_get_shape(&conv_layer->weights);
+
+
+    float* x = tensor_get_data(conv_layer->hdr.input);
+    float* y = tensor_get_data(&conv_layer->hdr.output);
+    float* w = tensor_get_data(&conv_layer->weights);
+    float* b = tensor_get_data(&conv_layer->bias);
+
+
+    const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
+    const size_t input_channels = input_shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t input_height = input_shape->dims[TENSOR_HEIGHT_DIM];
+    const size_t input_width = input_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t output_channels = output_shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t output_height = output_shape->dims[TENSOR_HEIGHT_DIM];
+    const size_t output_width = output_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t filter_width = weights_shape->dims[CONV_WEIGHT_WIDTH_DIM];
+
     const size_t output_size = output_width * output_height;
+    const size_t filter_size = filter_width * filter_width * input_channels;
 
-    float* x = _layer->hdr.input;
-    float* y = _layer->hdr.output;
-    float* w = _layer->w;
-    float* b = _layer->b;
 
     memset(y, 0, output_size * output_channels * batch_size * sizeof(float));
     for (size_t n = 0; n < batch_size; n++) {
@@ -112,30 +161,35 @@ static void conv_layer_forward(AI_Layer* layer)
 
 static void conv_layer_backward(AI_Layer* layer)
 {
-    convolutional_layer_t* _layer = (convolutional_layer_t*)layer;
+    convolutional_layer_t* conv_layer = (convolutional_layer_t*)layer;
 
-    const size_t filter_width = _layer->filter_width;
-    const size_t input_width = _layer->hdr.input_width;
-    const size_t input_height = _layer->hdr.input_height;
-    const size_t input_channels = _layer->hdr.input_channels;
-    const size_t output_width = _layer->hdr.output_width;
-    const size_t output_height = _layer->hdr.output_height;
-    const size_t output_channels = _layer->hdr.output_channels;
-    const size_t batch_size = _layer->hdr.mini_batch_size;
 
-    const size_t filter_size = filter_width * filter_width * input_channels;
-    const size_t output_size = output_width * output_height;
+    const tensor_shape_t* input_shape = tensor_get_shape(conv_layer->hdr.input);
+    const tensor_shape_t* output_shape = tensor_get_shape(&conv_layer->hdr.output);
+    const tensor_shape_t* weights_shape = tensor_get_shape(&conv_layer->weights);
+
+    float* x = tensor_get_data(conv_layer->hdr.input);
+    float* y = tensor_get_data(&conv_layer->hdr.output);
+    float* w = tensor_get_data(&conv_layer->weights);
+    float* b = tensor_get_data(&conv_layer->bias);
+    float* dx = tensor_get_data(&conv_layer->hdr.gradient);
+    float* dy = tensor_get_data(conv_layer->hdr.prev_gradient);
+    float* dw = tensor_get_data(&conv_layer->d_weights);
+    
+
+    const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
+    const size_t input_channels = input_shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t input_height = input_shape->dims[TENSOR_HEIGHT_DIM];
+    const size_t input_width = input_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t output_channels = output_shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t output_height = output_shape->dims[TENSOR_HEIGHT_DIM];
+    const size_t output_width = output_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t filter_width = weights_shape->dims[CONV_WEIGHT_WIDTH_DIM];
+
     const size_t input_size = input_width * input_height;
+    const size_t output_size = output_width * output_height;
+    const size_t filter_size = filter_width * filter_width * input_channels;
 
-    const float learning_rate = _layer->learning_rate;
-
-    float* x = _layer->hdr.input;
-    float* y = _layer->hdr.output;
-    float* w = _layer->w;
-    float* b = _layer->b;
-    float* dx = _layer->hdr.gradient;
-    float* dy = _layer->hdr.prev_gradient;
-    float* dw = _layer->dw;
 
     // Calculate gradients with respect to the input and store in dx
     memset(dx, 0, input_size * input_channels * batch_size * sizeof(float));
@@ -145,7 +199,8 @@ static void conv_layer_backward(AI_Layer* layer)
             for (size_t j = 0; j < output_channels; j++) {
                 float* _dy = dy + n * output_size * output_channels + j * output_size;
                 float* _w = w + j + filter_size + i * filter_width * filter_width;
-                AI_MatrixConvolutionPaddedRotateFilter(_dy, _w, _dx, output_width, output_height, filter_width, filter_width, 1, 1, filter_width - 1, filter_width - 1, 0, 0);
+                AI_MatrixConvolutionPaddedRotateFilter(_dy, _w, _dx, output_width, output_height,
+                    filter_width, filter_width, 1, 1, filter_width - 1, filter_width - 1, 0, 0);
             }
         }
     }
@@ -158,25 +213,49 @@ static void conv_layer_backward(AI_Layer* layer)
             for (size_t j = 0; j < output_channels; j++) {
                 float* _dy = dy + n * output_size * output_channels + j * output_size;
                 float* _dw = dw + j * filter_size + i * filter_width * filter_width;
-                AI_MatrixConvolutionPadded(_x, _dy, _dw, input_width, input_height, output_width, output_height, 1, 1, 0, 0, 0, 0);
+                AI_MatrixConvolutionPadded(_x, _dy, _dw, input_width, input_height, output_width,
+                    output_height, 1, 1, 0, 0, 0, 0);
             }
         }
     }
-    AI_VectorScale(dw, learning_rate, filter_size * output_channels);
+    AI_VectorScale(dw, conv_layer->learning_rate, filter_size * output_channels);
     AI_VectorSub(w, dw, filter_size * output_channels);
 
     // Adjust output channel bias
     for (size_t i = 0; i < output_channels; i++) {
         float _db = AI_Sum(dy + i * output_size, output_size);
-        b[i] -= learning_rate * _db;
+        b[i] -= conv_layer->learning_rate * _db;
     }
 }
 
 
 static void conv_layer_deinit(AI_Layer* layer)
 {
-    convolutional_layer_t* _layer = (convolutional_layer_t*)layer;
+    convolutional_layer_t* conv_layer = (convolutional_layer_t*)layer;
 
-    if (_layer)
-        free(_layer);
+    if (conv_layer != NULL) {
+        tensor_destory(&conv_layer->hdr.output);
+        tensor_destory(&conv_layer->hdr.gradient);
+        tensor_destory(&conv_layer->weights);
+        tensor_destory(&conv_layer->d_weights);
+        tensor_destory(&conv_layer->bias);
+        tensor_destory(&conv_layer->d_bias);
+        free(conv_layer);
+    }
+}
+
+
+static tensor_shape_t calculate_output_shape(
+    const tensor_shape_t* input_shape,
+    const AI_ConvolutionalLayerCreateInfo* create_info
+)
+{
+    tensor_shape_t output_shape;
+    output_shape.dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
+    output_shape.dims[TENSOR_CHANNEL_DIM] = create_info->output_channels;
+    output_shape.dims[TENSOR_HEIGHT_DIM] = input_shape->dims[TENSOR_HEIGHT_DIM]
+        - create_info->filter_width + 1;
+    output_shape.dims[TENSOR_WIDTH_DIM] = input_shape->dims[TENSOR_WIDTH_DIM]
+        - create_info->filter_width + 1;
+    return output_shape;
 }

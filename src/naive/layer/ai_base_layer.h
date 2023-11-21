@@ -6,28 +6,31 @@
 
 #include "util/ai_weight_init.h"
 
+#include "tensor.h"
+#include "tensor_impl.h"
+
 /* The header of every layer */
 
 typedef struct AI_Layer {
-    size_t input_width;
-    size_t input_height;
-    size_t input_channels;
-    size_t output_width;
-    size_t output_height;
-    size_t output_channels;
-    size_t mini_batch_size;
+    /* Input and output shape */
+    tensor_shape_t input_shape;
+    tensor_shape_t output_shape;
 
-    uint64_t is_training;
+    /* Supplied by adjacent layers */
+    tensor_t* input;
+    tensor_t* prev_gradient;
+    
+    /* Allocated and owned by the layer */
+    tensor_t gradient;
+    tensor_t output;
 
-    float* input;
-    float* output;
-    float* gradient;
-    float* prev_gradient;
-
+    /* Virtual functions implemented by each layer */
     void (*forward)(struct AI_Layer* layer);
     void (*backward)(struct AI_Layer* layer);
     void (*info)(struct AI_Layer* layer);
     void (*deinit)(struct AI_Layer* layer);
+
+    uint64_t is_training;
 } AI_Layer;
 
 typedef enum AI_LayerKind {
@@ -48,10 +51,7 @@ typedef struct AI_LayerCreateInfo {
 
 
 typedef struct AI_InputLayerCreateInfo {
-    size_t input_width;
-    size_t input_height;
-    size_t input_channels;
-    size_t batch_size;
+    tensor_shape_t input_shape;
 } AI_InputLayerCreateInfo;
 
 /* Use to initialise an activation layer */

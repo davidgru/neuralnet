@@ -1,15 +1,21 @@
-
-#include "ai_activation_layer.h"
-
-#include "util/ai_math.h"
-
 #include <math.h>
 #include <stdlib.h>
 
+#include "util/ai_math.h"
+
+#include "ai_activation_layer.h"
+
+#include "log.h"
+
+
+typedef void (*activation_function_t)(float* in, float* out, size_t size);
+typedef float (*activation_derivative_t)(float f);
+
+
 typedef struct activation_layer_t {
     AI_Layer hdr;
-    void(*activation_function)(float* in, float* out, size_t size);
-    float(*derivative)(float f);
+    activation_function_t activation_function;
+    activation_derivative_t derivative;
 } activation_layer_t;
 
 /* Activation functions and derivatives */
@@ -46,85 +52,111 @@ static void activation_layer_deinit(AI_Layer* layer);
 
 uint32_t activation_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer)
 {
-    AI_ActivationLayerCreateInfo* _create_info = (AI_ActivationLayerCreateInfo*)create_info;
+    AI_ActivationLayerCreateInfo* activation_create_info =
+        (AI_ActivationLayerCreateInfo*)create_info;
 
-    // Allocate memory for the layer
-    const size_t input_size = prev_layer->output_width * prev_layer->output_height * prev_layer->output_channels; 
+    *layer = (AI_Layer*)malloc(sizeof(activation_layer_t));
+    if (*layer == NULL) {
+        return 1;
+    }
 
-    size_t size = sizeof(activation_layer_t) + 2 * input_size * prev_layer->mini_batch_size * sizeof(float);
-    *layer = (AI_Layer*)malloc(size);
+    activation_layer_t* activation_layer = (activation_layer_t*)*layer;
 
-    activation_layer_t* _layer = (activation_layer_t*)*layer;
 
-    _layer->hdr.input_width = prev_layer->output_width;
-    _layer->hdr.input_height = prev_layer->output_height;
-    _layer->hdr.input_channels = prev_layer->output_channels;
-    _layer->hdr.output_width = _layer->hdr.input_width;
-    _layer->hdr.output_height = _layer->hdr.input_height;
-    _layer->hdr.output_channels = _layer->hdr.input_channels;
-    _layer->hdr.mini_batch_size = prev_layer->mini_batch_size;
+    /* fill header information */
+    activation_layer->hdr.input_shape = prev_layer->output_shape;
+    activation_layer->hdr.output_shape = prev_layer->output_shape; /* shape does not change*/
 
-    _layer->hdr.forward = activation_layer_forward;
-    _layer->hdr.backward = activation_layer_backward;
-    _layer->hdr.info = NULL;
-    _layer->hdr.deinit = activation_layer_deinit;
+    /* allocate owned memory */
+    tensor_allocate(&activation_layer->hdr.output, &activation_layer->hdr.output_shape);
+    tensor_allocate(&activation_layer->hdr.gradient, &activation_layer->hdr.input_shape);
 
-    _layer->hdr.output = (float*)(_layer + 1);
-    _layer->hdr.gradient = _layer->hdr.output + input_size * _layer->hdr.mini_batch_size;
+    /* virtual functions */
+    activation_layer->hdr.forward = activation_layer_forward;
+    activation_layer->hdr.backward = activation_layer_backward;
+    activation_layer->hdr.info = NULL;
+    activation_layer->hdr.deinit = activation_layer_deinit;
 
-    switch(_create_info->activation_function) {
+
+    switch(activation_create_info->activation_function) {
         case AI_ACTIVATION_FUNCTION_SIGMOID:
-            _layer->activation_function = sigmoidv;
-            _layer->derivative = dsigmoid;
+            activation_layer->activation_function = sigmoidv;
+            activation_layer->derivative = dsigmoid;
             break;
         case AI_ACTIVATION_FUNCTION_TANH:
-            _layer->activation_function = tanhv;
-            _layer->derivative = dtanh;
+            activation_layer->activation_function = tanhv;
+            activation_layer->derivative = dtanh;
             break;
         case AI_ACTIVATION_FUNCTION_RELU:
-            _layer->activation_function = reluv;
-            _layer->derivative = drelu;
+            activation_layer->activation_function = reluv;
+            activation_layer->derivative = drelu;
             break;
         case AI_ACTIVATION_FUNCTION_LEAKY_RELU:
-            _layer->activation_function = leaky_reluv;
-            _layer->derivative = dleaky_relu;
+            activation_layer->activation_function = leaky_reluv;
+            activation_layer->derivative = dleaky_relu;
             break;
         case AI_ACTIVATION_FUNCTION_SOFTMAX:
-            _layer->activation_function = softmaxv;
-            _layer->derivative = dsoftmax;
+            activation_layer->activation_function = softmaxv;
+            activation_layer->derivative = dsoftmax;
     }
+
+    return 0;
 }
 
 
 
 static void activation_layer_forward(AI_Layer* layer)
 {
-    activation_layer_t* _layer = (activation_layer_t*)layer;
+    LOG_TRACE("activation layer forward pass\n");
 
-    const size_t input_size = _layer->hdr.input_width * _layer->hdr.input_height * _layer->hdr.input_channels;
+    activation_layer_t* activation_layer = (activation_layer_t*)layer;    
 
-    for (size_t i = 0; i < _layer->hdr.mini_batch_size; i++)
-        _layer->activation_function(_layer->hdr.input + i * input_size, _layer->hdr.output + i * input_size, input_size);
+
+    const tensor_shape_t* shape = tensor_get_shape(activation_layer->hdr.input);
+    const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
+    const size_t per_batch_size = tensor_size_from_shape(shape) / batch_size;
+
+
+    float* input_data = tensor_get_data(activation_layer->hdr.input);
+    float* output_data = tensor_get_data(&activation_layer->hdr.output);
+
+
+    for (size_t i = 0; i < batch_size; i++) {
+        float* input_batch = input_data + i * per_batch_size;
+        float* output_batch = output_data + i * per_batch_size;
+        activation_layer->activation_function(input_batch, output_batch, per_batch_size);
+    }
 }
 
 static void activation_layer_backward(AI_Layer* layer)
 {
-    activation_layer_t* _layer = (activation_layer_t*)layer;
+    activation_layer_t* activation_layer = (activation_layer_t*)layer;    
 
-    const size_t input_size = _layer->hdr.input_width * _layer->hdr.input_height * _layer->hdr.input_channels;
-    const size_t mini_batch_size = _layer->hdr.mini_batch_size;
 
-    for (size_t i = 0; i < mini_batch_size * input_size; i++)
-        _layer->hdr.gradient[i] = _layer->derivative(_layer->hdr.output[i]);
-    AI_VectorMul(_layer->hdr.gradient, _layer->hdr.prev_gradient, input_size * mini_batch_size);
+    const tensor_shape_t* shape = tensor_get_shape(activation_layer->hdr.input);
+    const size_t size = tensor_size_from_shape(shape);
+
+
+    float* gradient_data = tensor_get_data(&activation_layer->hdr.gradient);
+    float* output_data = tensor_get_data(&activation_layer->hdr.output);
+    float* prev_gradient_data = tensor_get_data(activation_layer->hdr.prev_gradient);
+
+
+    for (size_t i = 0; i < size; i++) {
+        gradient_data[i] = activation_layer->derivative(output_data[i]);
+    }
+    
+    /* Chain rule */
+    AI_VectorMul(gradient_data, prev_gradient_data, size);
 }
 
 static void activation_layer_deinit(AI_Layer* layer)
 {
-    activation_layer_t* _layer = (activation_layer_t*)layer;
-
-    if (_layer)
-        free(_layer);
+    activation_layer_t* activation_layer = (activation_layer_t*)layer;
+    if (activation_layer != NULL) {
+        tensor_destory(&activation_layer->hdr.output);
+        tensor_destory(&activation_layer->hdr.gradient);
+    }
 }
 
 

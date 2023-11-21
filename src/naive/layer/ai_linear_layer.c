@@ -1,4 +1,7 @@
 
+/* Based on: http://cs231n.stanford.edu/handouts/linear-backprop.pdf */
+
+
 #include "ai_linear_layer.h"
 
 
@@ -12,15 +15,19 @@
 
 #include "log.h"
 
-// Based on: http://cs231n.stanford.edu/handouts/linear-backprop.pdf
+
+#define LINEAR_WEIGHTS_OUTPUT_DIM 2
+#define LINEAR_WEIGHTS_INPUT_DIM  3
+
 
 
 // A fully connected layer
 typedef struct linear_layer_t {
     AI_Layer hdr;
-    float* w;
-    float* b;
-    float* dw;
+    tensor_t weights;
+    tensor_t bias;
+    tensor_t d_weights;
+    tensor_t d_bias;
     float learning_rate;
     uint32_t dummy;
 } linear_layer_t;
@@ -41,119 +48,185 @@ static void linear_layer_deinit(AI_Layer* layer);
 // Init a linear layer
 uint32_t linear_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer)
 {
-    AI_LinearLayerCreateInfo* _create_info = (AI_LinearLayerCreateInfo*)create_info;
+    AI_LinearLayerCreateInfo* linear_create_info = (AI_LinearLayerCreateInfo*)create_info;
 
-    const size_t input_size = prev_layer->output_width * prev_layer->output_height * prev_layer->output_channels;
-    const size_t output_size = _create_info->output_size;
-    const size_t batch_size = prev_layer->mini_batch_size;
-    const size_t weight_size = input_size * output_size;
+    /* TODO: sanity check that input is one-dimensional */
 
-    // Allocate memory for the layer
-    size_t size = sizeof(linear_layer_t) + (weight_size + output_size + output_size * batch_size + input_size * batch_size + weight_size) * sizeof(float);
-    *layer = (AI_Layer*)malloc(size);
+    *layer = (AI_Layer*)malloc(sizeof(linear_layer_t));
+    if (*layer == NULL) {
+        return 1;
+    }
 
-    linear_layer_t* _layer = (linear_layer_t*)*layer;
+    linear_layer_t* linear_layer = (linear_layer_t*)*layer;
 
-    // Set layer attributes
-    _layer->hdr.input_width = input_size;
-    _layer->hdr.input_height = 1;
-    _layer->hdr.input_channels = 1;
-    _layer->hdr.output_width = output_size;
-    _layer->hdr.output_height = 1;
-    _layer->hdr.output_channels = 1;
-    _layer->hdr.mini_batch_size = batch_size;
-    _layer->hdr.forward = linear_layer_forward;
-    _layer->hdr.backward = linear_layer_backward;
-    _layer->hdr.info = linear_layer_info;
-    _layer->hdr.deinit = linear_layer_deinit;
 
-    _layer->learning_rate = _create_info->learning_rate;
+    /* fill header information*/
+    linear_layer->hdr.input_shape = prev_layer->output_shape;
+    linear_layer->hdr.output_shape.dims[TENSOR_BATCH_DIM]
+        = linear_layer->hdr.input_shape.dims[TENSOR_BATCH_DIM];
+    linear_layer->hdr.output_shape.dims[TENSOR_CHANNEL_DIM] = linear_create_info->output_size;
+    linear_layer->hdr.output_shape.dims[TENSOR_HEIGHT_DIM] = 1;
+    linear_layer->hdr.output_shape.dims[TENSOR_WIDTH_DIM] = 1;
 
-    // Assign buffers
-    _layer->w = (float*)(_layer + 1);
-    _layer->b = _layer->w + weight_size;
-    _layer->hdr.output = _layer->b + output_size;
-    _layer->hdr.gradient = _layer->hdr.output + output_size * batch_size;
-    _layer->dw = _layer->hdr.gradient + input_size * batch_size;
+    /* virtual functions */
+    linear_layer->hdr.forward = linear_layer_forward;
+    linear_layer->hdr.backward = linear_layer_backward;
+    linear_layer->hdr.info = linear_layer_info;
+    linear_layer->hdr.deinit = linear_layer_deinit;
 
-    // Set those in the linking function
-    _layer->hdr.input = 0;
-    _layer->hdr.prev_gradient = 0;
+    /* allocate owned memory */
+    tensor_allocate(&linear_layer->hdr.output, &linear_layer->hdr.output_shape);
+    tensor_allocate(&linear_layer->hdr.gradient, &linear_layer->hdr.input_shape);
 
-    // Initialise weights and bias
-    for (size_t i = 0; i < weight_size; i++)
-        _layer->w[i] = _create_info->weight_init(input_size, output_size);
-    for (size_t i = 0; i < output_size; i++)
-        _layer->b[i] = _create_info->bias_init(input_size, output_size);
+    /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
+        future. */
+    tensor_shape_t weights_shape = {
+        .dims[0] = 0,
+        .dims[1] = 0,
+        .dims[LINEAR_WEIGHTS_OUTPUT_DIM] = linear_create_info->output_size,
+        .dims[LINEAR_WEIGHTS_INPUT_DIM] = prev_layer->output_shape.dims[TENSOR_CHANNEL_DIM] 
+            * prev_layer->output_shape.dims[TENSOR_HEIGHT_DIM]
+            * prev_layer->output_shape.dims[TENSOR_WIDTH_DIM]
+    };
+    tensor_allocate(&linear_layer->weights, &weights_shape);
+    tensor_allocate(&linear_layer->d_weights, &weights_shape);
 
+    tensor_shape_t bias_shape = {
+        .dims[0] = 0,
+        .dims[1] = 0,
+        .dims[2] = 0,
+        .dims[3] = linear_create_info->output_size
+    };
+    tensor_allocate(&linear_layer->bias, &bias_shape);
+    tensor_allocate(&linear_layer->d_bias, &bias_shape);
+
+    linear_layer->learning_rate = linear_create_info->learning_rate;
+
+    /* Initialise weights and bias */
+    
+    float* weights_data = tensor_get_data(&linear_layer->weights);
+    const size_t weights_size = tensor_size_from_shape(&weights_shape);
+    for (size_t i = 0; i < weights_size; i++) {
+        weights_data[i] = linear_create_info->weight_init(
+            weights_shape.dims[LINEAR_WEIGHTS_INPUT_DIM],
+            weights_shape.dims[LINEAR_WEIGHTS_OUTPUT_DIM]
+        );
+    }
+
+    float* bias_data = tensor_get_data(&linear_layer->bias);
+    const size_t bias_size = tensor_size_from_shape(&bias_shape);
+    for (size_t i = 0; i < bias_size; i++) {
+        bias_data[i] = linear_create_info->bias_init(
+            weights_shape.dims[LINEAR_WEIGHTS_INPUT_DIM],
+            weights_shape.dims[LINEAR_WEIGHTS_OUTPUT_DIM]
+        );
+    }
+
+    return 0;
 }
 
 
 static void linear_layer_forward(AI_Layer* layer)
 {
-    linear_layer_t* _layer = (linear_layer_t*)layer;
+    linear_layer_t* linear_layer = (linear_layer_t*)layer;
 
-    matrix_product(_layer->hdr.input, _layer->w, _layer->hdr.output, _layer->hdr.mini_batch_size, _layer->hdr.output_width, _layer->hdr.input_width);
-    
-    // Add bias
-    for (size_t i = 0; i < _layer->hdr.mini_batch_size; i++)
-        AI_VectorAdd(_layer->hdr.output + i * _layer->hdr.output_width, _layer->b, _layer->hdr.output_width);
+
+    const tensor_shape_t* input_shape = tensor_get_shape(linear_layer->hdr.input);
+    const tensor_shape_t* output_shape = tensor_get_shape(&linear_layer->hdr.output);
+
+
+    float* input = tensor_get_data(linear_layer->hdr.input);
+    float* output = tensor_get_data(&linear_layer->hdr.output);
+    float* weights = tensor_get_data(&linear_layer->weights);
+    float* bias = tensor_get_data(&linear_layer->bias);
+
+
+    const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
+    const size_t per_batch_input_size = tensor_size_from_shape(input_shape) / batch_size;
+    const size_t output_size = output_shape->dims[TENSOR_CHANNEL_DIM];
+
+
+    /* output = input * weights */
+    matrix_product(input, weights, output, batch_size, output_size, per_batch_input_size);
+
+    /* output += bias */
+    for (size_t i = 0; i < batch_size; i++) {
+        float* batch_output = output + i * output_size;
+        AI_VectorAdd(batch_output, bias, output_size);
+    }
 }
 
 static void linear_layer_backward(AI_Layer* layer)
 {
-    linear_layer_t* _layer = (linear_layer_t*)layer;
+    linear_layer_t* linear_layer = (linear_layer_t*)layer;
 
-    const size_t input_size = _layer->hdr.input_width;
-    const size_t output_size = _layer->hdr.output_width;
-    const size_t weights_size = input_size * _layer->hdr.output_width;
-    const size_t mini_batch_size = _layer->hdr.mini_batch_size;
-    const float learning_rate = _layer->learning_rate;
 
-    float* w = _layer->w;
-    float* b = _layer->b;
-    float* y = _layer->hdr.output;
-    float* x = _layer->hdr.input;
-    float* dx = _layer->hdr.gradient;
-    float* dy = _layer->hdr.prev_gradient;
-    float* dw = _layer->dw;
+    const tensor_shape_t* input_shape = tensor_get_shape(linear_layer->hdr.input);
+    const tensor_shape_t* output_shape = tensor_get_shape(&linear_layer->hdr.output);
+    const tensor_shape_t* weights_shape = tensor_get_shape(&linear_layer->weights);
 
-    // Calculate gradients with respect to input
-    matrix_product_t2(dy, w, dx, mini_batch_size, input_size, output_size);
 
-    // Adjust weights
-    matrix_product_t1(x, dy, dw, input_size, output_size, mini_batch_size); // Perform dw = x_t * dy
-    AI_VectorScale(dw, learning_rate * (1.0f / mini_batch_size), weights_size);
-    AI_VectorSub(w, dw, weights_size); // Subtract dw from w
+    float* input = tensor_get_data(linear_layer->hdr.input);
+    float* output = tensor_get_data(&linear_layer->hdr.output);
+    float* weights = tensor_get_data(&linear_layer->weights);
+    float* bias = tensor_get_data(&linear_layer->bias);
+    float* d_weights = tensor_get_data(&linear_layer->d_weights);
+    float* gradient = tensor_get_data(&linear_layer->hdr.gradient);
+    float* prev_gradient = tensor_get_data(linear_layer->hdr.prev_gradient);
 
-    // Adjust bias (use layer->dw buffer)
-    memset(dw, 0, output_size * sizeof(float));
-    for (size_t i = 0; i < mini_batch_size; i++)
-        AI_VectorAdd(dw, dy + i * output_size, output_size);
-    AI_VectorScale(dw, learning_rate * (1.0f / mini_batch_size), output_size);
-    AI_VectorSub(b, dw, output_size);
 
+    const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
+    const size_t per_batch_input_size = tensor_size_from_shape(input_shape) / batch_size;
+    const size_t output_channels = output_shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t weights_size = tensor_size_from_shape(weights_shape);
+
+    /* Calculate gradient for backprop: gradient = prev_gradient * weights.T */
+    matrix_product_t2(prev_gradient, weights, gradient, batch_size, per_batch_input_size,
+        output_channels);
+
+    /* Calculate gradient of weights: d_weights = weights.T * prev_gradient */
+    matrix_product_t1(input, prev_gradient, d_weights, per_batch_input_size, output_channels,
+        batch_size);
+    /* d_weights *= learning_rate / batch_size. TODO: combine scale and subtraction */
+    AI_VectorScale(d_weights, linear_layer->learning_rate * (1.0f / batch_size), weights_size);
+    /* Gradient step: weights -= d_weights */
+    AI_VectorSub(weights, d_weights, weights_size);
+
+    /* Adjust bias (use layer->dw buffer) */
+    memset(d_weights, 0, output_channels * sizeof(float));
+    for (size_t i = 0; i < batch_size; i++) {
+        AI_VectorAdd(d_weights, prev_gradient + i * output_channels, output_channels);
+    }
+    AI_VectorScale(d_weights, linear_layer->learning_rate * (1.0f / batch_size), output_channels);
+    AI_VectorSub(bias, d_weights, output_channels);
 }
 
 
 static void linear_layer_info(AI_Layer* layer)
 {
-    linear_layer_t* _layer = (linear_layer_t*)layer;
-    const size_t input_size = _layer->hdr.input_width;
-    const size_t output_size = _layer->hdr.output_width;
-    const size_t weight_size = input_size * output_size;
+    // linear_layer_t* _layer = (linear_layer_t*)layer;
+    // const size_t input_size = _layer->hdr.input_width;
+    // const size_t output_size = _layer->hdr.output_width;
+    // const size_t weight_size = input_size * output_size;
 
-    LOG_INFO("linear layer info: in: %d out: %d wdist: (%f +/- %f) bdist (%f +/- %f)\n",
-        (int)input_size, (int)output_size, AI_Mean(_layer->w, weight_size),
-        AI_Stddev(_layer->w, weight_size), AI_Mean(_layer->b, output_size),
-        AI_Stddev(_layer->b, output_size));
+    // LOG_INFO("linear layer info: in: %d out: %d wdist: (%f +/- %f) bdist (%f +/- %f)\n",
+    //     (int)input_size, (int)output_size, AI_Mean(_layer->w, weight_size),
+    //     AI_Stddev(_layer->w, weight_size), AI_Mean(_layer->b, output_size),
+    //     AI_Stddev(_layer->b, output_size));
 }
 
 static void linear_layer_deinit(AI_Layer* layer)
 {
-    linear_layer_t* _layer = (linear_layer_t*)layer;
-    if (_layer)
-        free(_layer);
+    linear_layer_t* linear_layer = (linear_layer_t*)layer;
+    if (linear_layer != NULL) {
+        tensor_destory(&linear_layer->hdr.output);
+        tensor_destory(&linear_layer->hdr.gradient);
+        tensor_destory(&linear_layer->weights);
+        tensor_destory(&linear_layer->d_weights);
+        tensor_destory(&linear_layer->bias);
+        tensor_destory(&linear_layer->d_bias);
+        free(linear_layer);
+    }
 }
 
 

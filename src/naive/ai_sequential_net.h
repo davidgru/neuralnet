@@ -1,26 +1,19 @@
 #pragma once
 
 
-#include "layer/ai_base_layer.h"
-#include "util/ai_loss.h"
+#include "tensor.h"
 
 #include "ai_model_desc.h"
-
-
-typedef struct ai_input_dims_t {
-    size_t batch_size;
-    size_t channels;
-    size_t height;
-    size_t width;
-} ai_input_dims_t;
+#include "layer/ai_base_layer.h"
+#include "util/ai_loss.h"
 
 
 typedef struct ai_sequential_network {
     AI_Layer* input_layer;
     AI_Layer** layers;
     size_t num_layers;
-    size_t input_size;
-    size_t output_size;
+    tensor_shape_t input_shape;
+    tensor_shape_t output_shape;
 } ai_sequential_network_t;
 
 
@@ -39,12 +32,12 @@ typedef void (*ai_training_callback_t)(ai_training_info_t * progress_info);
 
 void ai_sequential_network_create(
     ai_sequential_network_t** net,
-    ai_input_dims_t* input_dims,
+    tensor_shape_t* input_shape,
     ai_model_desc_t* desc
 );
 
 
-void ai_sequential_network_forward(ai_sequential_network_t* net, float* input);
+void ai_sequential_network_forward(ai_sequential_network_t* net, tensor_t* input);
 
 
 void ai_sequential_network_test(

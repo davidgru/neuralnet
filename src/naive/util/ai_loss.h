@@ -1,10 +1,15 @@
 #pragma once
 
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "tensor.h"
+#include "tensor_impl.h"
+
 #include "layer/ai_base_layer.h"
+
 
 typedef float(*AI_LossFunction)(float* v, size_t size, uint32_t label);
 typedef void(*AI_LossDerivative)(float* in, float* out, size_t size, uint32_t label);
@@ -13,11 +18,10 @@ typedef void(*AI_LossDerivative)(float* in, float* out, size_t size, uint32_t la
 typedef struct AI_Loss {
     AI_LossFunction function;
     AI_LossDerivative derivative;
-    float* input;
-    float* gradient;
-    size_t size;
-    size_t mini_batch_size;
+    tensor_t* input;
+    tensor_t gradient;
 } AI_Loss;
+
 
 typedef enum AI_LossFunctionEnum {
     AI_LOSS_FUNCTION_SIGMOID,
@@ -25,7 +29,8 @@ typedef enum AI_LossFunctionEnum {
     AI_LOSS_FUNCTION_CROSS_ENTROPY,
 } AI_LossFunctionEnum;
 
-uint32_t AI_LossInit(AI_Loss* loss, size_t size, size_t mini_batch_size, AI_LossFunctionEnum loss_function);
+
+uint32_t AI_LossInit(AI_Loss* loss, const tensor_shape_t* input_shape, AI_LossFunctionEnum loss_function);
 void AI_LossLink(AI_Loss* loss, AI_Layer* layer);
 
 uint32_t AI_LossAccuracy(AI_Loss* loss, uint8_t* labels);

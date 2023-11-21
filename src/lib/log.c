@@ -63,7 +63,7 @@ static void log_internal(const char* prefix, const char* fmt, va_list args)
     strcpy(prefixed_fmt, prefix);
     strcpy(prefixed_fmt + prefixlen, fmt);
 
-    int ret = vprintf(fmt, args);
+    int ret = vprintf(prefixed_fmt, args);
 
     free(prefixed_fmt);
 }

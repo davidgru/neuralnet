@@ -1,27 +1,26 @@
 /**
- * @file lenet5_mnist.c
- * @brief Train LeNet-5 on the MNIST dataset
+ * @file two_layer_mlp_mnist.c
+ * @brief Train a two-layered MLP on the MNIST dataset
  * 
- * This example illustrates how this library can be used to implement the LeNet-5 architecture
- * and trains it on the MNIST dataset.
+ * This example illustrates how this library can be used to implement a two layer deep MLP and
+ * trains it on the MNIST dataset.
  */
 
 
 #include <stdio.h>
 #include <inttypes.h>
 
-#include "tensor.h"
-#include "tensor_impl.h"
-
 #include "ai_model_desc.h"
 #include "ai_sequential_net.h"
 #include "ai_mnist.h"
-
-#include "config_info.h"
 #include "log.h"
+#include "config_info.h"
+
+#include "tensor.h"
+#include "tensor_impl.h"
 
 
-ai_sequential_network_t* create_lenet5(float learning_rate, tensor_shape_t* input_shape)
+ai_sequential_network_t* create_mlp(float learning_rate, tensor_shape_t* input_shape)
 {
     ai_model_desc_t* desc = NULL;
     ai_sequential_network_t* model = NULL;
@@ -30,19 +29,8 @@ ai_sequential_network_t* create_lenet5(float learning_rate, tensor_shape_t* inpu
     /* Allocate resources for the model descriptor. */
     ai_model_desc_create(&desc);
 
-    ai_model_desc_add_convolutional_layer(desc, learning_rate, 6, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
-    ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_AVERAGE);
-
-    ai_model_desc_add_convolutional_layer(desc, learning_rate, 16, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
-    ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_AVERAGE);
-
-    ai_model_desc_add_linear_layer(desc, learning_rate, 120, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
-
-    ai_model_desc_add_linear_layer(desc, learning_rate, 84, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
+    ai_model_desc_add_linear_layer(desc, learning_rate, 300, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
+    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_SIGMOID);
 
     ai_model_desc_add_linear_layer(desc, learning_rate, 10, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_SIGMOID);
@@ -75,16 +63,14 @@ void train_callback(ai_training_info_t* p)
 int main()
 {
     AI_MnistDataset mnist;
-    ai_sequential_network_t* lenet5;
+    ai_sequential_network_t* mlp;
 
 
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = ;
+    const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
 
 
-    /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
-        after one epoch and an accuracy of ~98.5% after 10 epochs */
-    size_t num_epochs = 10;
+    size_t num_epochs = 100;
     size_t batch_size = 1; /* Only batch size of 1 supported at the moment */
     float learning_rate = 0.01f;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_MSE;
@@ -104,22 +90,22 @@ int main()
 
 
     tensor_shape_t input_shape = {
-        .dims[TENSOR_BATCH_DIM] = batch_size,
-        .dims[TENSOR_CHANNEL_DIM] = 1,
-        .dims[TENSOR_HEIGHT_DIM] = mnist.image_height,
-        .dims[TENSOR_WIDTH_DIM] = mnist.image_width
+        .dims[TENSOR_BATCH_DIM] = 1,
+        .dims[TENSOR_CHANNEL_DIM] = mnist.image_height * mnist.image_width,
+        .dims[TENSOR_HEIGHT_DIM] = 1,
+        .dims[TENSOR_WIDTH_DIM] = 1
     };
-    lenet5 = create_lenet5(learning_rate, &input_shape);
+    mlp = create_mlp(learning_rate, &input_shape);
     LOG_INFO("Created the model. Start training...\n");
 
 
-    ai_sequential_network_train(lenet5, mnist.train_images, mnist.test_images, mnist.train_labels,
+    ai_sequential_network_train(mlp, mnist.train_images, mnist.test_images, mnist.train_labels,
         mnist.test_labels, mnist.num_train_images, mnist.num_test_images, num_epochs, learning_rate,
         batch_size, loss_type, train_callback);
 
 
     /* Free resources */
-    ai_sequential_network_destroy(lenet5);
+    ai_sequential_network_destroy(mlp);
     AI_MnistDatasetFree(&mnist);
 
     return 0;

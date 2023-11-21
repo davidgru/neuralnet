@@ -7,12 +7,12 @@
 
 #include "log.h"
 
-static void set_batch_size(ai_sequential_network_t* net, size_t batch_size)
-{
-    net->input_layer->mini_batch_size = batch_size;
-    for (size_t i = 0; i < net->num_layers; i++)
-        net->layers[i]->mini_batch_size = batch_size;
-}
+// static void set_batch_size(ai_sequential_network_t* net, size_t batch_size)
+// {
+//     net->input_layer-> = batch_size;
+//     for (size_t i = 0; i < net->num_layers; i++)
+//         net->layers[i]->mini_batch_size = batch_size;
+// }
 
 static void set_is_training(ai_sequential_network_t* net, uint64_t is_training)
 {
@@ -24,7 +24,7 @@ static void set_is_training(ai_sequential_network_t* net, uint64_t is_training)
 
 void ai_sequential_network_create(
     ai_sequential_network_t** net,
-    ai_input_dims_t* input_dims,
+    tensor_shape_t* input_shape,
     ai_model_desc_t* desc
 )
 {
@@ -33,10 +33,7 @@ void ai_sequential_network_create(
 
     /* init dummy input layer */
     AI_InputLayerCreateInfo i_info = {
-        .input_width = input_dims->width,
-        .input_height = input_dims->height,
-        .input_channels = input_dims->channels,
-        .batch_size = input_dims->batch_size
+        .input_shape = *input_shape
     };
     AI_LayerCreateInfo c_info = {
         .type = AI_INPUT_LAYER,
@@ -60,24 +57,19 @@ void ai_sequential_network_create(
     }
 
 
-
-    size_t input_size = input_dims->batch_size * input_dims->channels * input_dims->height
-        * input_dims->width;
-    size_t output_size = layers[desc->num_layers - 1]->output_width;
-    
     ai_sequential_network_t network = {
         .input_layer = input_layer,
         .layers = layers,
         .num_layers = desc->num_layers,
-        .input_size = input_size,
-        .output_size = output_size
+        .input_shape = *input_shape,
+        .output_shape = layers[desc->num_layers - 1]->output.shape,
     };
     *net = (ai_sequential_network_t*)malloc(sizeof(ai_sequential_network_t));
     *(*net) = network;
 }
 
 
-void ai_sequential_network_forward(ai_sequential_network_t* net, float* input)
+void ai_sequential_network_forward(ai_sequential_network_t* net, tensor_t* input)
 {
     net->layers[0]->input = input;
     for (size_t i = 0; i < net->num_layers; i++)
@@ -98,15 +90,20 @@ void ai_sequential_network_test(
     float test_accuracy = 0.0f;
     float test_loss = 0.0f;
 
-    set_batch_size(net, 1);
+    // set_batch_size(net, 1);
     set_is_training(net, 0);
+
+    size_t input_size = tensor_size_from_shape(&net->input_shape);
     
     for (uint32_t j = 0; j < test_set_size; j++) {
-        float* input = test_data + j * net->input_size;
+        float* input = test_data + j * input_size;
         uint8_t* label = test_labels + j;
-        
-        ai_sequential_network_forward(net, input);
-        
+
+        tensor_t input_tensor;
+        tensor_from_memory(&input_tensor, &net->input_shape, input);
+
+        ai_sequential_network_forward(net, &input_tensor);
+
         test_accuracy += AI_LossAccuracy(loss, label);
         test_loss += AI_LossCompute(loss, label);
     }
@@ -133,12 +130,15 @@ void ai_sequential_network_train(
 {
     AI_Loss loss;
 
+    size_t input_size = tensor_size_from_shape(&net->input_shape);
+    size_t output_size = tensor_size_from_shape(&net->output_shape);
+
     /* set up the loss and link it with the output layer */
-    AI_LossInit(&loss, net->output_size, batch_size, loss_type);
+    AI_LossInit(&loss, &net->output_shape, loss_type);
     AI_LossLink(&loss, net->layers[net->num_layers - 1]);
 
 
-    LOG_TRACE("Performing inital test\n");
+    LOG_TRACE("Performing initial test\n");
     float test_accuracy;
     float test_loss;
     ai_sequential_network_test(net, test_data, test_labels, test_dataset_size, &loss,
@@ -167,15 +167,18 @@ void ai_sequential_network_train(
         float train_accuracy = 0.0f;
 
         /* Train one epoch */
-        set_batch_size(net, batch_size);
+        // set_batch_size(net, batch_size);
         set_is_training(net, 1);
         for (uint32_t j = 0; j < train_dataset_size; j += batch_size) {
 
-            float* input = train_data + j * net->input_size;
+            float* input = train_data + j * input_size;
             uint8_t* label = train_labels + j;
 
             /* Forward pass */
-            ai_sequential_network_forward(net, input);
+            tensor_t input_tensor;
+            tensor_from_memory(&input_tensor, &net->input_shape, input);
+
+            ai_sequential_network_forward(net, &input_tensor);
             
             /* Loss */
             train_accuracy += AI_LossAccuracy(&loss, label);
