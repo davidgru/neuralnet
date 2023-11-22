@@ -232,13 +232,16 @@ static uint32_t conv_layer_backward(
             }
         }
     }
-    AI_VectorScale(dw, conv_layer->learning_rate, filter_size * output_channels);
+    AI_VectorScale(dw, conv_layer->learning_rate * (1.0 / batch_size), filter_size * output_channels);
     AI_VectorSub(w, dw, filter_size * output_channels);
 
     // Adjust output channel bias
-    for (size_t i = 0; i < output_channels; i++) {
-        float _db = AI_Sum(dy + i * output_size, output_size);
-        b[i] -= conv_layer->learning_rate * _db;
+    for (size_t n = 0; n < batch_size; n++) {
+        const float* _dy = dy + n * output_channels * output_size;
+        for (size_t i = 0; i < output_channels; i++) {
+            float _db = AI_Sum(_dy + i * output_size, output_size);
+            b[i] -= conv_layer->learning_rate * (1.0 / batch_size) * _db;
+        }
     }
 }
 

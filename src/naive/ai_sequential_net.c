@@ -163,7 +163,7 @@ void ai_sequential_network_train(
         // set_is_training(net, 1);
         for (uint32_t j = 0; j < train_dataset_size; j += batch_size) {
 
-            float* input = train_data + j * input_size;
+            float* input = train_data + j * input_size / batch_size;
             uint8_t* label = train_labels + j;
 
             /* Forward pass */
@@ -187,8 +187,8 @@ void ai_sequential_network_train(
                 gradient = next_gradient;
             }
         }
-        train_loss = train_loss * batch_size / train_dataset_size;
-        train_accuracy = train_accuracy * batch_size / train_dataset_size;
+        train_loss = train_loss / train_dataset_size;
+        train_accuracy = train_accuracy / train_dataset_size;
         
         /* Test */
         ai_sequential_network_test(net, test_data, test_labels, test_dataset_size, &loss,
