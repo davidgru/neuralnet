@@ -16,6 +16,11 @@
 #include "log.h"
 
 
+#define NUM_LINEAR_LAYER_PARAMS 2
+#define LINEAR_LAYER_WEIGHTS_PARAM 0
+#define LINEAR_LAYER_BIAS_PARAM 1
+
+
 #define LINEAR_WEIGHTS_OUTPUT_DIM 2
 #define LINEAR_WEIGHTS_INPUT_DIM  3
 
@@ -25,13 +30,15 @@ typedef struct linear_layer_t {
     tensor_t bias;
     tensor_t d_weights;
     tensor_t d_bias;
-    float learning_rate;
+    layer_param_ref_t param_refs[NUM_LINEAR_LAYER_PARAMS];
     uint32_t dummy;
 } linear_layer_t;
 
 
 static uint32_t linear_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
     const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
+static uint32_t linear_layer_get_params(void* private_data,
+    layer_param_ref_list_t* out_layer_params);
 static uint32_t linear_layer_deinit(void* private_data);
 static uint32_t linear_layer_forward(void* private_data, const tensor_t* input,
     tensor_t* out_output);
@@ -43,6 +50,7 @@ static uint32_t linear_layer_calc_output_shape(tensor_shape_t* out_output_shape,
 
 const layer_info_t linear_layer_info = {
     .init_func = linear_layer_init,
+    .get_param_func = linear_layer_get_params,
     .deinit_func = linear_layer_deinit,
     .forward_func = linear_layer_forward,
     .backward_func = linear_layer_backward,
@@ -90,7 +98,12 @@ static uint32_t linear_layer_init(
     tensor_allocate(&linear_layer->bias, &bias_shape);
     tensor_allocate(&linear_layer->d_bias, &bias_shape);
 
-    linear_layer->learning_rate = linear_create_info->learning_rate;
+
+    /* need to register the params for the optimizer */
+    linear_layer->param_refs[LINEAR_LAYER_WEIGHTS_PARAM].param = &linear_layer->weights;
+    linear_layer->param_refs[LINEAR_LAYER_WEIGHTS_PARAM].gradient = &linear_layer->d_weights;
+    linear_layer->param_refs[LINEAR_LAYER_BIAS_PARAM].param = &linear_layer->bias;
+    linear_layer->param_refs[LINEAR_LAYER_BIAS_PARAM].gradient = &linear_layer->d_bias;
 
 
     /* Initialise weights and bias */    
@@ -114,6 +127,19 @@ static uint32_t linear_layer_init(
 
     return 0;
 };
+
+
+static uint32_t linear_layer_get_params(
+    void* private_data,
+    layer_param_ref_list_t* out_layer_params
+)
+{
+    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
+
+    out_layer_params->param_refs = linear_layer->param_refs;
+    out_layer_params->num_params = NUM_LINEAR_LAYER_PARAMS;
+    return 0;
+}
 
 
 static uint32_t linear_layer_deinit(void* private_data)
@@ -184,6 +210,7 @@ static uint32_t linear_layer_backward(
     float* weights = tensor_get_data(&linear_layer->weights);
     float* bias = tensor_get_data(&linear_layer->bias);
     float* d_weights = tensor_get_data(&linear_layer->d_weights);
+    float* d_bias = tensor_get_data(&linear_layer->d_bias);
 
 
     const size_t batch_size = input_shape->dims[TENSOR_BATCH_DIM];
@@ -198,18 +225,15 @@ static uint32_t linear_layer_backward(
     /* Calculate gradient of weights: d_weights = weights.T * prev_gradient */
     matrix_product_t1(input_data, prev_gradient_data, d_weights, per_batch_input_size, output_channels,
         batch_size);
-    /* d_weights *= learning_rate / batch_size. TODO: combine scale and subtraction */
-    AI_VectorScale(d_weights, linear_layer->learning_rate * (1.0f / batch_size), weights_size);
-    /* Gradient step: weights -= d_weights */
-    AI_VectorSub(weights, d_weights, weights_size);
-
-    /* Adjust bias (use layer->dw buffer) */
-    memset(d_weights, 0, output_channels * sizeof(float));
+    /* d_weights /= batch_size */
+    AI_VectorScale(d_weights, (1.0f / batch_size), weights_size);
+    
+    /* Calculate gradient of bias */
+    memset(d_bias, 0, output_channels * sizeof(float));
     for (size_t i = 0; i < batch_size; i++) {
-        AI_VectorAdd(d_weights, prev_gradient_data + i * output_channels, output_channels);
+        AI_VectorAdd(d_bias, prev_gradient_data + i * output_channels, output_channels);
     }
-    AI_VectorScale(d_weights, linear_layer->learning_rate * (1.0f / batch_size), output_channels);
-    AI_VectorSub(bias, d_weights, output_channels);
+    AI_VectorScale(d_bias, (1.0f / batch_size), output_channels);
 }
 
 

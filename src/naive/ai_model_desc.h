@@ -41,7 +41,6 @@ uint32_t ai_model_desc_add_activation_layer(
  * @brief Add a convolutional layer.
  * 
  * @param desc              The model descriptor.
- * @param learning_rate     The learning rate used during training. TODO: Remove
  * @param output_channels   The amount of output channels aka number of filters.
  * @param kernel_size       The size of the square-shaped kernels.
  * @param stride            The stride in height and width dimension.
@@ -52,7 +51,6 @@ uint32_t ai_model_desc_add_activation_layer(
  */
 uint32_t ai_model_desc_add_convolutional_layer(
     ai_model_desc_t* desc,
-    float learning_rate,
     size_t output_channels,
     size_t kernel_size,
     size_t stride,
@@ -66,7 +64,6 @@ uint32_t ai_model_desc_add_convolutional_layer(
  * @brief Add a convolutional layer - extended version.
  * 
  * @param desc              The model descriptor.
- * @param learning_rate     The learning rate used during training. TODO: Remove
  * @param output_channels   The amount of output channels aka number of filters.
  * @param kernel_height     The kernel height.
  * @param kernel_width      The kernel width.
@@ -82,7 +79,6 @@ uint32_t ai_model_desc_add_convolutional_layer(
  */
 uint32_t ai_model_desc_add_convolutional_layer_ext(
     ai_model_desc_t* desc,
-    float learning_rate,
     size_t output_channels,
     size_t kernel_height,
     size_t kernel_width,
@@ -101,7 +97,6 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
  * @brief Add a linear aka fully connected aka dense layer.
  * 
  * @param desc              The model descriptor.
- * @param learning_rate     The learning rate used during training. TODO: Remove
  * @param output_size       The output size of the layer aka number of nodes.
  * @param weight_init       The function used to initialize the weights of the layer.
  * @param bias_init         The function used to initialize the bias of the layer.
@@ -109,7 +104,6 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
  */
 uint32_t ai_model_desc_add_linear_layer(
     ai_model_desc_t* desc,
-    float learning_rate,
     size_t output_size,
     AI_FCLayerWeightInit weight_init,
     AI_FCLayerBiasInit bias_init

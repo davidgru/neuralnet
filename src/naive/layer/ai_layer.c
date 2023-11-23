@@ -73,6 +73,19 @@ const tensor_shape_t* layer_get_output_shape(layer_t layer)
 }
 
 
+uint32_t layer_get_param_refs(layer_t layer, layer_param_ref_list_t* out_param_refs)
+{
+    if (layer->primitive_info->get_param_func == NULL) {
+        out_param_refs->param_refs = NULL;
+        out_param_refs->num_params = 0;
+    } else {
+        layer->primitive_info->get_param_func(layer->private_data, out_param_refs);
+    }
+
+    return 0;    
+}
+
+
 uint32_t layer_forward(layer_t layer, const tensor_t* input, tensor_t** out_output)
 {
     const tensor_shape_t* input_shape = tensor_get_shape(input);

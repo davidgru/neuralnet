@@ -27,6 +27,7 @@ uint32_t pooling_layer_calc_output_shape(tensor_shape_t* out_output_shape, const
 
 const layer_info_t pooling_layer_info = {
     .init_func = pooling_layer_init,
+    .get_param_func = NULL, /* no params */
     .deinit_func = NULL,
     .forward_func = pooling_layer_forward,
     .backward_func = pooling_layer_backward,

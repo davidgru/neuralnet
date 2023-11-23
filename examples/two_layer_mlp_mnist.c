@@ -67,12 +67,12 @@ int main()
 
 
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = ;
+    const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
 
 
-    size_t num_epochs = 10;
-    size_t batch_size = 1; /* Only batch size of 1 supported at the moment */
-    float learning_rate = 0.01f;
+    size_t num_epochs = 25;
+    size_t batch_size = 10; /* Only batch size of 1 supported at the moment */
+    float learning_rate = 1.0f;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_MSE;
 
 

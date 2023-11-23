@@ -10,6 +10,9 @@ void AI_VectorAddScalar(float* v, float s, size_t size);
 // Vector elementwise add: v1 += v2
 void AI_VectorAdd(float* v1, const float* v2, size_t size);
 
+// dest = dest + scalar * source
+void AI_VectorScaledAdd(float* dest, const float* source, float scala, size_t size);
+
 // Vector elementwise sub: v1 -= v2
 void AI_VectorSub(float* v1, const float* v2, size_t size);
 

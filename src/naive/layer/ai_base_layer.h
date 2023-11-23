@@ -73,7 +73,6 @@ typedef struct AI_ActivationLayerCreateInfo {
 
 typedef struct AI_LinearLayerCreateInfo {
     size_t output_size;
-    float learning_rate;
     AI_FCLayerWeightInit weight_init;
     AI_FCLayerBiasInit bias_init;
 } AI_LinearLayerCreateInfo;
@@ -98,7 +97,6 @@ typedef struct AI_PoolingLayerCreateInfo {
 typedef struct AI_ConvolutionalLayerCreateInfo {
     size_t output_channels;
     size_t filter_width;
-    float learning_rate;
     AI_ConvLayerWeightInit weight_init;
     AI_ConvLayerBiasInit bias_init;
 } AI_ConvolutionalLayerCreateInfo;

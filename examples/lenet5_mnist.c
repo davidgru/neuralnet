@@ -20,8 +20,11 @@
 #include "config_info.h"
 #include "log.h"
 
+#include "optimizer/ai_optimizer.h"
+#include "optimizer/ai_sgd.h"
 
-ai_sequential_network_t* create_lenet5(float learning_rate, tensor_shape_t* input_shape, size_t batch_size)
+
+ai_sequential_network_t* create_lenet5(tensor_shape_t* input_shape, size_t batch_size)
 {
     ai_model_desc_t* desc = NULL;
     ai_sequential_network_t* model = NULL;
@@ -30,21 +33,21 @@ ai_sequential_network_t* create_lenet5(float learning_rate, tensor_shape_t* inpu
     /* Allocate resources for the model descriptor. */
     ai_model_desc_create(&desc);
 
-    ai_model_desc_add_convolutional_layer(desc, learning_rate, 6, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
+    ai_model_desc_add_convolutional_layer(desc, 6, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
     ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_AVERAGE);
 
-    ai_model_desc_add_convolutional_layer(desc, learning_rate, 16, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
+    ai_model_desc_add_convolutional_layer(desc, 16, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
     ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_AVERAGE);
 
-    ai_model_desc_add_linear_layer(desc, learning_rate, 120, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
+    ai_model_desc_add_linear_layer(desc, 120, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
 
-    ai_model_desc_add_linear_layer(desc, learning_rate, 84, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
+    ai_model_desc_add_linear_layer(desc, 84, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
 
-    ai_model_desc_add_linear_layer(desc, learning_rate, 10, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
+    ai_model_desc_add_linear_layer(desc, 10, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_SIGMOID);
 
 
@@ -85,9 +88,13 @@ int main()
     /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
         after one epoch and an accuracy of ~98.5% after 10 epochs */
     size_t num_epochs = 10;
-    size_t batch_size = 1; /* Only batch size of 1 supported at the moment */
-    float learning_rate = 0.01f;
+    size_t batch_size = 1;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_MSE;
+    /* use sgd optimizer */
+    const optimizer_impl_t* optimizer = &sgd_optimizer; 
+    sgd_config_t optimizer_config = {
+        .learning_rate = 0.01f
+    };
 
 
     /* Verify the compile time configuration. For example, that avx is used */
@@ -109,13 +116,14 @@ int main()
         .dims[TENSOR_HEIGHT_DIM] = mnist.image_height,
         .dims[TENSOR_WIDTH_DIM] = mnist.image_width
     };
-    lenet5 = create_lenet5(learning_rate, &input_shape, batch_size);
+    lenet5 = create_lenet5(&input_shape, batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 
+
     ai_sequential_network_train(lenet5, mnist.train_images, mnist.test_images, mnist.train_labels,
-        mnist.test_labels, mnist.num_train_images, mnist.num_test_images, num_epochs, learning_rate,
-        batch_size, loss_type, train_callback);
+        mnist.test_labels, mnist.num_train_images, mnist.num_test_images, num_epochs, batch_size,
+        optimizer, &optimizer_config, loss_type, train_callback);
 
 
     /* Free resources */

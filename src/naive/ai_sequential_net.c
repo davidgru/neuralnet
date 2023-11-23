@@ -113,13 +113,24 @@ void ai_sequential_network_train(
     size_t train_dataset_size,
     size_t test_dataset_size,
     size_t num_epochs,
-    float learning_rate,
     size_t batch_size,
+    const optimizer_impl_t* optimizer_impl,
+    const optimizer_config_t* optimizer_config,
     AI_LossFunctionEnum loss_type,
     ai_training_callback_t callback
 )
 {
     AI_Loss loss;
+
+    /* set up the optimizer */
+    optimizer_t optimizer;
+    optimizer_create(&optimizer, optimizer_impl, optimizer_config);
+
+    for (size_t i = 0; i < net->num_layers; i++) {
+        layer_param_ref_list_t layer_param_refs;
+        layer_get_param_refs(net->layers[i], &layer_param_refs);
+        optimizer_add_params(optimizer, &layer_param_refs);
+    }
 
     tensor_shape_t train_input_shape = net->input_shape;
     train_input_shape.dims[TENSOR_BATCH_DIM] = batch_size;
@@ -186,6 +197,8 @@ void ai_sequential_network_train(
                 layer_backward(net->layers[k], gradient, &next_gradient);
                 gradient = next_gradient;
             }
+
+            optimizer_step(optimizer);
         }
         train_loss = train_loss / train_dataset_size;
         train_accuracy = train_accuracy / train_dataset_size;

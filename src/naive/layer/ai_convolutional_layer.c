@@ -9,6 +9,11 @@
 #include "ai_layer.h"
 
 
+#define NUM_CONV_LAYER_PARAMS 2
+#define CONV_LAYER_WEIGHTS_PARAM 0
+#define CONV_LAYER_BIAS_PARAM 1
+
+
 #define CONV_WEIGHT_OUTPUT_CHANNEL_DIM  0
 #define CONV_WEIGHT_INPUT_CHANNEL_DIM   1
 #define CONV_WEIGHT_HEIGHT_DIM          2
@@ -20,12 +25,14 @@ typedef struct convolutional_layer_t {
     tensor_t bias;
     tensor_t d_weights;
     tensor_t d_bias;
-    float learning_rate;
+    layer_param_ref_t param_refs[NUM_CONV_LAYER_PARAMS];
 } convolutional_layer_t;
 
 
 static uint32_t conv_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
     const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
+static uint32_t conv_layer_get_params(void* private_data,
+    layer_param_ref_list_t* out_layer_params);
 static uint32_t conv_layer_deinit(void* private_data);
 static uint32_t conv_layer_forward(void* private_data, const tensor_t* input,
     tensor_t* out_output);
@@ -37,6 +44,7 @@ uint32_t conv_layer_calc_output_shape(tensor_shape_t* out_output_shape, const vo
 
 const layer_info_t convolutional_layer_info = {
     .init_func = conv_layer_init,
+    .get_param_func = conv_layer_get_params,
     .deinit_func = conv_layer_deinit,
     .forward_func = conv_layer_forward,
     .backward_func = conv_layer_backward,
@@ -76,11 +84,15 @@ static uint32_t conv_layer_init(
     tensor_allocate(&conv_layer->bias, &bias_shape);
     tensor_allocate(&conv_layer->d_bias, &bias_shape);
 
-    conv_layer->learning_rate = conv_create_info->learning_rate;
+
+    /* need to register the params for the optimizer */
+    conv_layer->param_refs[CONV_LAYER_WEIGHTS_PARAM].param = &conv_layer->weights;
+    conv_layer->param_refs[CONV_LAYER_WEIGHTS_PARAM].gradient = &conv_layer->d_weights;
+    conv_layer->param_refs[CONV_LAYER_BIAS_PARAM].param = &conv_layer->bias;
+    conv_layer->param_refs[CONV_LAYER_BIAS_PARAM].gradient = &conv_layer->d_bias;
 
 
     /* initialize weights and bias */
-
     float* weights_data = tensor_get_data(&conv_layer->weights);
     const size_t weights_size = tensor_size_from_shape(&weights_shape);
     for (size_t i = 0; i < weights_size; i++) {
@@ -101,6 +113,19 @@ static uint32_t conv_layer_init(
         );
     }
 
+    return 0;
+}
+
+
+static uint32_t conv_layer_get_params(
+    void* private_data,
+    layer_param_ref_list_t* out_layer_params
+)
+{
+    convolutional_layer_t* conv_layer = (convolutional_layer_t*)private_data;
+
+    out_layer_params->param_refs = conv_layer->param_refs;
+    out_layer_params->num_params = NUM_CONV_LAYER_PARAMS;
     return 0;
 }
 
@@ -188,6 +213,7 @@ static uint32_t conv_layer_backward(
     float* w = tensor_get_data(&conv_layer->weights);
     float* b = tensor_get_data(&conv_layer->bias);
     float* dw = tensor_get_data(&conv_layer->d_weights);
+    float* db = tensor_get_data(&conv_layer->d_bias);
     float* dx = tensor_get_data(out_gradient);
     
 
@@ -219,7 +245,7 @@ static uint32_t conv_layer_backward(
         }
     }
 
-    // Adjust filter weights
+    // Compute weight gradients
     memset(dw, 0, filter_size * output_channels * sizeof(float));
     for (size_t n = 0; n < batch_size; n++) {
         for (size_t i = 0; i < input_channels; i++) {
@@ -232,15 +258,13 @@ static uint32_t conv_layer_backward(
             }
         }
     }
-    AI_VectorScale(dw, conv_layer->learning_rate * (1.0 / batch_size), filter_size * output_channels);
-    AI_VectorSub(w, dw, filter_size * output_channels);
+    AI_VectorScale(dw, (1.0 / batch_size), filter_size * output_channels);
 
     // Adjust output channel bias
     for (size_t n = 0; n < batch_size; n++) {
         const float* _dy = dy + n * output_channels * output_size;
         for (size_t i = 0; i < output_channels; i++) {
-            float _db = AI_Sum(_dy + i * output_size, output_size);
-            b[i] -= conv_layer->learning_rate * (1.0 / batch_size) * _db;
+            db[i] = (1.0 / batch_size) * AI_Sum(_dy + i * output_size, output_size);
         }
     }
 }

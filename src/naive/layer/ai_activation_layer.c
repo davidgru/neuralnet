@@ -30,6 +30,7 @@ static uint32_t activation_layer_calc_output_shape(tensor_shape_t* out_output_sh
 
 const layer_info_t activation_layer_info = {
     .init_func = activation_layer_init,
+    .get_param_func = NULL, /* no params */
     .deinit_func = NULL, /* not needed */
     .forward_func = activation_layer_forward,
     .backward_func = activation_layer_backward,

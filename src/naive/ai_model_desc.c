@@ -41,7 +41,6 @@ uint32_t ai_model_desc_add_activation_layer(
 
 uint32_t ai_model_desc_add_convolutional_layer(
     ai_model_desc_t* desc,
-    float learning_rate,
     size_t output_channels,
     size_t kernel_size,
     size_t stride,
@@ -50,7 +49,7 @@ uint32_t ai_model_desc_add_convolutional_layer(
     AI_ConvLayerBiasInit bias_init
 )
 {
-    return ai_model_desc_add_convolutional_layer_ext(desc, learning_rate, output_channels,
+    return ai_model_desc_add_convolutional_layer_ext(desc, output_channels,
         kernel_size, kernel_size, stride, stride, padding, padding, padding, padding, weight_init,
         bias_init);
 }
@@ -58,7 +57,6 @@ uint32_t ai_model_desc_add_convolutional_layer(
 
 uint32_t ai_model_desc_add_convolutional_layer_ext(
     ai_model_desc_t* desc,
-    float learning_rate,
     size_t output_channels,
     size_t kernel_height,
     size_t kernel_width,
@@ -91,7 +89,6 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
         (AI_ConvolutionalLayerCreateInfo*)malloc(sizeof(AI_ConvolutionalLayerCreateInfo));
     conv_create_info->output_channels = output_channels;
     conv_create_info->filter_width = kernel_height;
-    conv_create_info->learning_rate = learning_rate;
     conv_create_info->weight_init = weight_init;
     conv_create_info->bias_init = bias_init;
 
@@ -105,7 +102,6 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
 
 uint32_t ai_model_desc_add_linear_layer(
     ai_model_desc_t* desc,
-    float learning_rate,
     size_t output_size,
     AI_FCLayerWeightInit weight_init,
     AI_FCLayerBiasInit bias_init
@@ -114,7 +110,6 @@ uint32_t ai_model_desc_add_linear_layer(
     AI_LinearLayerCreateInfo* linear_create_info =
         (AI_LinearLayerCreateInfo*)malloc(sizeof(AI_LinearLayerCreateInfo));
     linear_create_info->output_size = output_size;
-    linear_create_info->learning_rate = learning_rate;
     linear_create_info->weight_init = weight_init;
     linear_create_info->bias_init = bias_init;
 

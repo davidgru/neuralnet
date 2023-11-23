@@ -79,13 +79,12 @@ uint32_t ai_model_desc_add_activation_layer(ai_model_desc_t* desc, ai_dnnl_activ
     return 0;
 }
 
-uint32_t ai_model_desc_add_linear_layer(ai_model_desc_t* desc, float learning_rate, size_t OC, ai_dnnl_linear_layer_weight_init_kind_t weight_init, ai_dnnl_linear_layer_bias_init_kind_t bias_init)
+uint32_t ai_model_desc_add_linear_layer(ai_model_desc_t* desc, size_t OC, ai_dnnl_linear_layer_weight_init_kind_t weight_init, ai_dnnl_linear_layer_bias_init_kind_t bias_init)
 {
     ai_dnnl_linear_layer_create_info_t* li = (ai_dnnl_linear_layer_create_info_t*)malloc(sizeof(ai_dnnl_linear_layer_create_info_t));
     li->OC = OC;
     li->weight_init = weight_init;
     li->bias_init = bias_init;
-    li->learning_rate = learning_rate;
     ai_dnnl_layer_create_info_t i;
     i.layer_kind = ai_dnnl_layer_kind_linear;
     i.layer_create_info = li;

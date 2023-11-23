@@ -29,6 +29,25 @@ void AI_VectorAdd(float* v1, const float* v2, size_t size)
 }
 
 
+void AI_VectorScaledAdd(float* v1, const float* v2, float scale, size_t size)
+{
+    size_t s_unroll = size / 8 * 8;
+    size_t i = 0;
+
+    __m256 _scale = _mm256_set1_ps(scale);
+
+    for (; i < s_unroll; i += 8) {
+        __m256 _v1 = _mm256_loadu_ps(v1 + i);
+        __m256 _v2 = _mm256_loadu_ps(v2 + i);
+        _v2 = _mm256_mul_ps(_v2, _scale);
+        _v1 = _mm256_add_ps(_v1, _v2);
+        _mm256_storeu_ps(v1 + i, _v1);
+    }
+    for (; i < size; i++)
+        v1[i] += scale * v2[i];
+}
+
+
 void AI_VectorSub(float* v1, const float* v2, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
@@ -79,6 +98,12 @@ void AI_VectorAdd(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] += v2[i];
+}
+
+void AI_VectorScaleAdd(float* dest, const float* source, float scale, size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+        v1[i] += scale * v2[i];
 }
 
 

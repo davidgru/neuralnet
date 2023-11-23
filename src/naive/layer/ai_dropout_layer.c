@@ -22,6 +22,7 @@ static uint32_t dropout_layer_calc_output_shape(tensor_shape_t* out_output_shape
 
 const layer_info_t dropout_layer_info = {
     .init_func = dropout_layer_init,
+    .get_param_func = NULL, /* no params */
     .deinit_func = NULL, /* not needed */
     .forward_func = dropout_layer_forward,
     .backward_func = dropout_layer_backward,

@@ -8,6 +8,7 @@
 #include "util/ai_loss.h"
 
 #include "layer/ai_layer.h"
+#include "optimizer/ai_optimizer.h"
 
 
 typedef struct ai_sequential_network {
@@ -62,8 +63,9 @@ void ai_sequential_network_train(
     size_t train_dataset_size,
     size_t test_dataset_size,
     size_t num_epochs,
-    float learning_rate,
     size_t batch_size,
+    const optimizer_impl_t* optimizer_impl,
+    const optimizer_config_t* optimizer_config,
     AI_LossFunctionEnum loss_type,
     ai_training_callback_t callback
 );
