@@ -217,7 +217,7 @@ float dtanh(float f)
 
 float drelu(float f)
 {
-    if (f < 0)
+    if (f <= 0.0)
         return 0.0f;
     else
         return 1.0f;
@@ -225,7 +225,7 @@ float drelu(float f)
 
 float dleaky_relu(float f)
 {
-    if (f < 0)
+    if (f <= 0)
         return 0.01f;
     else
         return 1.0f;    
