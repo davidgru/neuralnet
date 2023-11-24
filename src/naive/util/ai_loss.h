@@ -11,8 +11,8 @@
 #include "layer/ai_base_layer.h"
 
 
-typedef float(*AI_LossFunction)(const float* v, size_t size, uint32_t label);
-typedef void(*AI_LossDerivative)(const float* in, float* out, size_t size, uint32_t label);
+typedef float(*AI_LossFunction)(const float* v, float* scratch_mem , size_t size, uint32_t label);
+typedef void(*AI_LossDerivative)(const float* in, float* scratch_mem, float* out, size_t size, uint32_t label);
 
 
 typedef struct AI_Loss {
@@ -20,6 +20,7 @@ typedef struct AI_Loss {
     AI_LossDerivative derivative;
     tensor_t gradient_mem;
     tensor_t gradient;
+    tensor_t scratch_mem;
 } AI_Loss;
 
 
@@ -43,12 +44,12 @@ void AI_LossDeinit(AI_Loss* loss);
 
 
 
-float AI_LossMSE(const float* v, size_t size, uint32_t label);
-void AI_DLossMSE(const float* input, float* gradient, size_t size, uint32_t label);
+float AI_LossMSE(const float* v, float* scratch, size_t size, uint32_t label);
+void AI_DLossMSE(const float* input, float* scratch, float* gradient, size_t size, uint32_t label);
 
 
-float AI_LossCrossEntropy(const float* v, size_t size, uint32_t label);
-void AI_DLossCrossEntropy(const float* input, float* gradient, size_t size, uint32_t label);
+float AI_LossCrossEntropy(const float* v, float* scratch, size_t size, uint32_t label);
+void AI_DLossCrossEntropy(const float* input, float* scratch, float* gradient, size_t size, uint32_t label);
 
 uint32_t AI_Max(const float* v, size_t size);
 

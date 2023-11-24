@@ -61,7 +61,7 @@ typedef enum AI_ActivationFunctionEnum {
     AI_ACTIVATION_FUNCTION_TANH,
     AI_ACTIVATION_FUNCTION_RELU,
     AI_ACTIVATION_FUNCTION_LEAKY_RELU,
-    AI_ACTIVATION_FUNCTION_SOFTMAX,
+    /* AI_ACTIVATION_FUNCTION_SOFTMAX, */
 } AI_ActivationFunctionEnum;
 
 typedef struct AI_ActivationLayerCreateInfo {

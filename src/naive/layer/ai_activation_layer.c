@@ -95,9 +95,9 @@ static uint32_t activation_layer_init(
             activation_layer->activation_function = leaky_reluv;
             activation_layer->derivative = dleaky_relu;
             break;
-        case AI_ACTIVATION_FUNCTION_SOFTMAX:
-            activation_layer->activation_function = softmaxv;
-            activation_layer->derivative = dsoftmax;
+        /* case AI_ACTIVATION_FUNCTION_SOFTMAX: */
+        /*     activation_layer->activation_function = softmaxv; */
+        /*     activation_layer->derivative = dsoftmax; */
     }
 
     return 0;

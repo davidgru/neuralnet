@@ -5,11 +5,15 @@
 #include <stdlib.h>
 
 
+static void softmaxv(const float* in, float* out, size_t size);
+
+
 uint32_t AI_LossInit(AI_Loss* loss, const tensor_shape_t* input_shape, size_t max_batch_size, AI_LossFunctionEnum loss_function)
 {
     tensor_shape_t max_input_shape = *input_shape;
     max_input_shape.dims[TENSOR_BATCH_DIM] = max_batch_size;
     tensor_allocate(&loss->gradient_mem, &max_input_shape);
+    tensor_allocate(&loss->scratch_mem, &max_input_shape);
 
     switch (loss_function) {
         case AI_LOSS_FUNCTION_MSE:
@@ -48,6 +52,7 @@ float AI_LossCompute(AI_Loss* loss, const tensor_t* input, const uint8_t* labels
 {
     const tensor_shape_t* shape = tensor_get_shape(input);
     const float* input_data = tensor_get_data_const(input);
+    float* scratch_data = tensor_get_data(&loss->scratch_mem);
 
     const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
     const size_t channels = shape->dims[TENSOR_CHANNEL_DIM];
@@ -56,7 +61,8 @@ float AI_LossCompute(AI_Loss* loss, const tensor_t* input, const uint8_t* labels
     float sum = 0.0f;
     for (size_t i = 0; i < batch_size; i++) {
         const float* channels_input = input_data + i * channels;
-        sum += loss->function(channels_input, channels, labels[i]);
+        float* channels_scratch = scratch_data + i * channels;
+        sum += loss->function(channels_input, channels_scratch, channels, labels[i]);
     }
     return sum;
 }
@@ -72,7 +78,7 @@ void AI_LossBackward(AI_Loss* loss, const tensor_t* input, const uint8_t* labels
 
     const float* input_data = tensor_get_data_const(input);
     float* gradient = tensor_get_data(&loss->gradient);
-
+    float* scratch_data = tensor_get_data(&loss->scratch_mem);
 
     const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
     const size_t channels = shape->dims[TENSOR_CHANNEL_DIM];
@@ -80,7 +86,8 @@ void AI_LossBackward(AI_Loss* loss, const tensor_t* input, const uint8_t* labels
     for (size_t i = 0; i < batch_size; i++) {
         const float* channels_input = input_data + i * channels;
         float* channels_gradient = gradient + i * channels;
-        loss->derivative(channels_input, channels_gradient, channels, labels[i]);
+        float* channels_scratch = scratch_data + i * channels;
+        loss->derivative(channels_input, channels_scratch, channels_gradient, channels, labels[i]);
     }
 
     *out_gradient = &loss->gradient;
@@ -98,7 +105,7 @@ void AI_LossDeinit(AI_Loss* loss)
 
 
 
-float AI_LossMSE(const float* v, size_t size, uint32_t label)
+float AI_LossMSE(const float* v, float* scratch, size_t size, uint32_t label)
 {
     float sum = 0.0f;
 
@@ -110,7 +117,7 @@ float AI_LossMSE(const float* v, size_t size, uint32_t label)
 }
 
 
-void AI_DLossMSE(const float* input, float* gradient, size_t size, uint32_t label)
+void AI_DLossMSE(const float* input, float* scratch, float* gradient, size_t size, uint32_t label)
 {
     for (size_t i = 0; i < size; i++) {
         gradient[i] = input[i] - (label == i);
@@ -119,16 +126,17 @@ void AI_DLossMSE(const float* input, float* gradient, size_t size, uint32_t labe
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 
-float AI_LossCrossEntropy(const float* v, size_t size, uint32_t label)
+float AI_LossCrossEntropy(const float* v, float* scratch, size_t size, uint32_t label)
 {
-    return -logf(max(1e-12, v[label]));
+    softmaxv(v, scratch, size);
+    return -logf(max(1e-12, scratch[label]));
 }
 
 
-void AI_DLossCrossEntropy(const float* input, float* gradient, size_t size, uint32_t label)
+void AI_DLossCrossEntropy(const float* input, float* scratch, float* gradient, size_t size, uint32_t label)
 {
     for (size_t i = 0; i < size; i++)
-        gradient[i] = input[i] - (label == i);
+        gradient[i] = scratch[i] - (label == i);
 }
 
 
@@ -142,3 +150,23 @@ uint32_t AI_Max(const float* v, size_t size)
     return max;
 }
 
+
+static void softmaxv(const float* in, float* out, size_t size)
+{
+    // Find the max value
+    float max = -3.4028235e38;
+    for (size_t i = 0; i < size; i++)
+        if (in[i] > max)
+            max = in[i];
+    // exp(v - max) all values
+    for (size_t i = 0; i < size; i++)
+        out[i] = exp(in[i] - max);
+    // sum them
+    float sum = 0.0f;
+    for (size_t i = 0; i < size; i++)
+        sum += out[i];
+    // divide every value by the sum
+    sum = 1.0f / sum;
+    for (size_t i = 0; i < size; i++)
+        out[i] = out[i] * sum;
+}
