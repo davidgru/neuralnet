@@ -93,7 +93,9 @@ int main()
     /* use sgd optimizer */
     const optimizer_impl_t* optimizer = &sgd_optimizer; 
     sgd_config_t optimizer_config = {
-        .learning_rate = 0.01f
+        .learning_rate = 1e-3f,
+        .weight_reg_kind = SGD_WEIGHT_REG_L2,
+        .weight_reg_strength = 1e-4f
     };
 
 
