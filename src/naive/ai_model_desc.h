@@ -94,6 +94,16 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
 
 
 /**
+ * @brief Add a droupout layer.
+ * 
+ * @param desc          The model descriptor.
+ * @param dropout_rate  The dropout rate
+ * @return uint32_t 
+ */
+uint32_t ai_model_desc_add_dropout_layer(ai_model_desc_t* desc, float dropout_rate);
+
+
+/**
  * @brief Add a linear aka fully connected aka dense layer.
  * 
  * @param desc              The model descriptor.

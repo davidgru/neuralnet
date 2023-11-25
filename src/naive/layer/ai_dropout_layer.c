@@ -12,8 +12,8 @@ typedef struct dropout_layer_t {
 
 static uint32_t dropout_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
     const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
-static uint32_t dropout_layer_forward(void* private_data, const tensor_t* input,
-    tensor_t* out_output);
+static uint32_t dropout_layer_forward(void* private_data, layer_forward_kind_t forward_kind,
+    const tensor_t* input, tensor_t* out_output);
 static uint32_t dropout_layer_backward(void* private_data, const tensor_t* input, const tensor_t* output,
     const tensor_t* prev_gradient, tensor_t* out_gradient);
 static uint32_t dropout_layer_calc_output_shape(tensor_shape_t* out_output_shape, const void* create_info,
@@ -65,6 +65,7 @@ static uint32_t dropout_layer_init(
 
 static uint32_t dropout_layer_forward(
     void* private_data,
+    layer_forward_kind_t forward_kind,
     const tensor_t* input,
     tensor_t* out_output
 )
@@ -80,17 +81,19 @@ static uint32_t dropout_layer_forward(
     float* output_data = tensor_get_data(out_output);
 
 
-    uint32_t is_training = 1; /* TODO: make it part of the base layer */
-    if (is_training != 0) {
-        for (size_t i = 0; i < size; i++) {
-            float should_drop = (float)(AI_RandomUniform(0.0f, 1.0f) > dropout_layer->dropout_rate);
-            output_data[i] = input_data[i] * should_drop;
-        }
-    } else {
+    if (forward_kind == LAYER_FORWARD_INFERENCE) {
         /* Scale down the activations */
         for (size_t i = 0; i < size; i++) {
             output_data[i] = input_data[i] * (1.0f - dropout_layer->dropout_rate);
         }
+    } else if (forward_kind == LAYER_FORWARD_TRAINING) {
+        /* randomly drop connections */
+        for (size_t i = 0; i < size; i++) {
+            float should_keep = (float)(AI_RandomUniform(0.0f, 1.0f) > dropout_layer->dropout_rate);
+            output_data[i] = input_data[i] * should_keep;
+        }
+    } else {
+        /* Error */
     }
 }
 

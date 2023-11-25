@@ -4,7 +4,7 @@
 #include "ai_layer.h"
 
 
-struct layer_impl {
+struct layer_s {
     tensor_shape_t input_shape;
     tensor_t output_mem;
     tensor_t gradient_mem;
@@ -13,7 +13,6 @@ struct layer_impl {
     const tensor_t* input;
     const layer_info_t* primitive_info;
     void* private_data;
-    uint8_t is_training;
 };
 
 
@@ -29,7 +28,7 @@ uint32_t layer_create(
 {
     const layer_info_t* primitive_info = layer_info_from_kind(create_info->type);
 
-    *layer = (layer_t)malloc(sizeof(struct layer_impl));
+    *layer = (layer_t)malloc(sizeof(struct layer_s));
     if (*layer == NULL) {
         return 1;
     }
@@ -86,7 +85,7 @@ uint32_t layer_get_param_refs(layer_t layer, layer_param_ref_list_t* out_param_r
 }
 
 
-uint32_t layer_forward(layer_t layer, const tensor_t* input, tensor_t** out_output)
+uint32_t layer_forward(layer_t layer, layer_forward_kind_t forward_kind, const tensor_t* input, tensor_t** out_output)
 {
     const tensor_shape_t* input_shape = tensor_get_shape(input);
 
@@ -95,7 +94,7 @@ uint32_t layer_forward(layer_t layer, const tensor_t* input, tensor_t** out_outp
     output_shape.dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
     tensor_from_memory(&layer->output, &output_shape, tensor_get_data(&layer->output_mem));
 
-    layer->primitive_info->forward_func(layer->private_data, input, &layer->output);
+    layer->primitive_info->forward_func(layer->private_data, forward_kind, input, &layer->output);
     
     layer->input = input; /* remember input for backward pass */
 

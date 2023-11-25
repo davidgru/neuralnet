@@ -100,6 +100,20 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
 }
 
 
+uint32_t ai_model_desc_add_dropout_layer(ai_model_desc_t* desc, float dropout_rate)
+{
+    AI_DropoutLayerCreateInfo* dropout_create_info =
+        (AI_DropoutLayerCreateInfo*)malloc(sizeof(AI_DropoutLayerCreateInfo));
+    dropout_create_info->dropout_rate = dropout_rate;
+
+    AI_LayerCreateInfo create_info = {
+        .type = AI_DROPOUT_LAYER,
+        .create_info = (void*)dropout_create_info
+    };
+    return model_desc_add_create_info(desc, &create_info);
+}
+
+
 uint32_t ai_model_desc_add_linear_layer(
     ai_model_desc_t* desc,
     size_t output_size,
@@ -220,6 +234,13 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
                 printf("* pooling\t(kernel: (%zu,%zu), algorithm: %d)\n",
                     pooling_create_info->kernel_width, pooling_create_info->kernel_width,
                     pooling_create_info->pooling_operation);
+                break;
+            }
+            case AI_DROPOUT_LAYER:
+            {
+                AI_DropoutLayerCreateInfo* dropout_create_info =
+                    (AI_DropoutLayerCreateInfo*)current_info->create_info;
+                printf("* dropout\t(rate: %f)\n", dropout_create_info->dropout_rate);
                 break;
             }
             default:

@@ -17,8 +17,8 @@ typedef struct pooling_layer_t {
 
 static uint32_t pooling_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
     const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
-static uint32_t pooling_layer_forward(void* private_data, const tensor_t* input,
-    tensor_t* out_output);
+static uint32_t pooling_layer_forward(void* private_data, layer_forward_kind_t forward_kind,
+    const tensor_t* input, tensor_t* out_output);
 static uint32_t pooling_layer_backward(void* private_data, const tensor_t* input, const tensor_t* output,
     const tensor_t* prev_gradient, tensor_t* out_gradient);
 uint32_t pooling_layer_calc_output_shape(tensor_shape_t* out_output_shape, const void* create_info,
@@ -97,9 +97,9 @@ static uint32_t pooling_layer_init(
 }
 
 
-
 static uint32_t pooling_layer_forward(
     void* private_data,
+    layer_forward_kind_t forward_kind,
     const tensor_t* input,
     tensor_t* out_output
 )

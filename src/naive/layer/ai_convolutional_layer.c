@@ -34,8 +34,8 @@ static uint32_t conv_layer_init(void* private_data, const AI_LayerCreateInfo* cr
 static uint32_t conv_layer_get_params(void* private_data,
     layer_param_ref_list_t* out_layer_params);
 static uint32_t conv_layer_deinit(void* private_data);
-static uint32_t conv_layer_forward(void* private_data, const tensor_t* input,
-    tensor_t* out_output);
+static uint32_t conv_layer_forward(void* private_data, layer_forward_kind_t forward_kind,
+    const tensor_t* input, tensor_t* out_output);
 static uint32_t conv_layer_backward(void* private_data, const tensor_t* input, const tensor_t* output,
     const tensor_t* prev_gradient, tensor_t* out_gradient);
 uint32_t conv_layer_calc_output_shape(tensor_shape_t* out_output_shape, const void* create_info,
@@ -143,6 +143,7 @@ static uint32_t conv_layer_deinit(void* private_data)
 
 static uint32_t conv_layer_forward(
     void* private_data,
+    layer_forward_kind_t forward_kind,
     const tensor_t* input,
     tensor_t* out_output
 )

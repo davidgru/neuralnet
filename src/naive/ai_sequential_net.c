@@ -49,13 +49,18 @@ void ai_sequential_network_create(
 }
 
 
-void ai_sequential_network_forward(ai_sequential_network_t* net, const tensor_t* input, tensor_t** out_output)
+void ai_sequential_network_forward(
+    ai_sequential_network_t* net,
+    layer_forward_kind_t forward_kind,
+    const tensor_t* input,
+    tensor_t** out_output
+)
 {
     const tensor_t* current_input = input;
     tensor_t* output = NULL;
 
     for (size_t i = 0; i < net->num_layers; i++) {
-        layer_forward(net->layers[i], current_input, &output);
+        layer_forward(net->layers[i], forward_kind, current_input, &output);
         current_input = output;
     }
 
@@ -93,7 +98,7 @@ void ai_sequential_network_test(
         tensor_from_memory(&input_tensor, &test_input_shape, input);
 
         tensor_t* output;
-        ai_sequential_network_forward(net, &input_tensor, &output);
+        ai_sequential_network_forward(net, LAYER_FORWARD_INFERENCE, &input_tensor, &output);
 
         test_accuracy += AI_LossAccuracy(loss, output, label);
         test_loss += AI_LossCompute(loss, output, label);
@@ -182,7 +187,7 @@ void ai_sequential_network_train(
             tensor_from_memory(&input_tensor, &train_input_shape, input);
 
             tensor_t* output;
-            ai_sequential_network_forward(net, &input_tensor, &output);
+            ai_sequential_network_forward(net, LAYER_FORWARD_TRAINING, &input_tensor, &output);
 
             /* Loss */
             train_accuracy += AI_LossAccuracy(&loss, output, label);

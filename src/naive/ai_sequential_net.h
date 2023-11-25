@@ -40,7 +40,12 @@ void ai_sequential_network_create(
 );
 
 
-void ai_sequential_network_forward(ai_sequential_network_t* net, const tensor_t* input, tensor_t** out_output);
+void ai_sequential_network_forward(
+    ai_sequential_network_t* net,
+    layer_forward_kind_t forward_kind,
+    const tensor_t* input,
+    tensor_t** out_output
+);
 
 
 void ai_sequential_network_test(

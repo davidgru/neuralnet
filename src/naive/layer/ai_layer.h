@@ -24,6 +24,12 @@ typedef struct layer_param_ref_list {
 } layer_param_ref_list_t;
 
 
+typedef enum {
+    LAYER_FORWARD_INFERENCE,
+    LAYER_FORWARD_TRAINING,
+} layer_forward_kind_t;
+
+
 
 typedef uint32_t (*layer_init_func_t)(
     void* private_data,
@@ -41,6 +47,7 @@ typedef uint32_t (*layer_get_param_func_t)(
 
 typedef uint32_t (*layer_forward_func_t)(
     void* private_data,
+    layer_forward_kind_t forward_kind,
     const tensor_t* input,
     tensor_t* out_output
 );
@@ -82,7 +89,7 @@ extern const layer_info_t pooling_layer_info;
 
 
 
-typedef struct layer_impl* layer_t;
+typedef struct layer_s* layer_t;
 
 
 uint32_t layer_create(
@@ -99,7 +106,12 @@ const tensor_shape_t* layer_get_output_shape(layer_t layer);
 uint32_t layer_get_param_refs(layer_t layer, layer_param_ref_list_t* out_param_refs);
 
 
-uint32_t layer_forward(layer_t layer, const tensor_t* input, tensor_t** out_output);
+uint32_t layer_forward(
+    layer_t layer,
+    layer_forward_kind_t forward_kind,
+    const tensor_t* input,
+    tensor_t** out_output
+);
 
 
 uint32_t layer_backward(layer_t layer, const tensor_t* prev_gradient, tensor_t** out_gradient);
