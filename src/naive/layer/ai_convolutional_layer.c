@@ -54,6 +54,15 @@ const layer_info_t convolutional_layer_info = {
 };
 
 
+static void conv2d(const float* input, const float* kernel, float* output, int32_t input_height,
+    int32_t input_width, int32_t kernel_height, int32_t kernel_width, int32_t stride_y,
+    int32_t stride_x, int32_t padding_y, int32_t padding_x, int32_t dilation_y, int32_t dilation_x);
+static void conv2d_flip(const float* input, const float* kernel, float* output, int32_t input_height,
+    int32_t input_width, int32_t kernel_height, int32_t kernel_width, int32_t stride_y,
+    int32_t stride_x, int32_t padding_y, int32_t padding_x, int32_t dilation_y, int32_t dilation_x);
+
+
+
 static uint32_t conv_layer_init(
     void* private_data,
     const AI_LayerCreateInfo* create_info,
@@ -184,7 +193,7 @@ static uint32_t conv_layer_forward(
                 const float* _x = x + n * input_width * input_height * input_channels + j * input_width * input_height;
                 const float* _w = w + i * filter_size + j * filter_width * filter_width;
                 // Do a convolution with the one input channel and one filter channel to produce part of one output feature map.
-                AI_MatrixConvolution(_x, _w, _y, input_width, input_height, filter_width, filter_width, 1, 1);
+                conv2d(_x, _w, _y, input_height, input_width, filter_width, filter_width, 1, 1, 0, 0, 1, 1);
             }
             // Add the bias to every element of the feature map
             AI_VectorAddScalar(y, b[i], output_size);
@@ -240,8 +249,8 @@ static uint32_t conv_layer_backward(
             for (size_t j = 0; j < output_channels; j++) {
                 const float* _dy = dy + n * output_size * output_channels + j * output_size;
                 const float* _w = w + j + filter_size + i * filter_width * filter_width;
-                AI_MatrixConvolutionPaddedRotateFilter(_dy, _w, _dx, output_width, output_height,
-                    filter_width, filter_width, 1, 1, filter_width - 1, filter_width - 1, 0, 0);
+                conv2d_flip(_w, _dy, _dx, filter_width, filter_width, output_height, output_width,
+                    1, 1, output_height - 1, output_width - 1, 1, 1);
             }
         }
     }
@@ -254,8 +263,7 @@ static uint32_t conv_layer_backward(
             for (size_t j = 0; j < output_channels; j++) {
                 const float* _dy = dy + n * output_size * output_channels + j * output_size;
                 float* _dw = dw + j * filter_size + i * filter_width * filter_width;
-                AI_MatrixConvolutionPadded(_x, _dy, _dw, input_width, input_height, output_width,
-                    output_height, 1, 1, 0, 0, 0, 0);
+                conv2d(_x, _dy, _dw, input_height, input_width, output_height, output_width, 1, 1, 0, 0, 1, 1);
             }
         }
     }
@@ -288,4 +296,117 @@ uint32_t conv_layer_calc_output_shape(
         - conv_create_info->filter_width + 1;
     
     return 0;
+}
+
+
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define div_ceil(a, b) (((a) + (b) - 1) / (b))
+
+
+static void conv2d(
+    const float* input,
+    const float* kernel,
+    float* output,
+    int32_t input_height,
+    int32_t input_width,
+    int32_t kernel_height,
+    int32_t kernel_width,
+    int32_t stride_y,
+    int32_t stride_x,
+    int32_t padding_y,
+    int32_t padding_x,
+    int32_t dilation_y,
+    int32_t dilation_x
+)
+{
+    /* in case set to zero as "default" */
+    stride_y = stride_y ? stride_y : 1;
+    stride_x = stride_x ? stride_x : 1;
+    dilation_x = dilation_x ? dilation_x : 1;
+    dilation_y = dilation_y ? dilation_y : 1;
+
+
+    int32_t output_height = (input_height + 2 * padding_y - dilation_y * (kernel_height - 1) - 1)
+        / stride_y + 1;
+    int32_t output_width = (input_width + 2 * padding_x - dilation_x * (kernel_width - 1) - 1)
+        / stride_y + 1;
+
+    for (int32_t r = 0; r < output_height; r++) {
+        for (int32_t c = 0; c < output_width; c++) {
+            int32_t data_r = (int32_t)r * stride_y - padding_y;
+            int32_t data_c = (int32_t)c * stride_x - padding_x;
+        
+            /* calculate the bounds of the kernel to skip the elements that are in the padding */
+            int32_t kr_start = max(0, div_ceil(-data_r, dilation_y));
+            int32_t kr_end = min(kernel_height, div_ceil(input_height - data_r, dilation_y));
+            int32_t kc_start = max(0, div_ceil(-data_c, dilation_x));
+            int32_t kc_end = min(kernel_width, div_ceil(input_width - data_c, dilation_x));
+            
+            for (int32_t kr = kr_start; kr < kr_end; kr++) { 
+                for (int32_t kc = kc_start; kc < kc_end; kc++) {
+                    
+                    int32_t data_rk = data_r + kr * dilation_y;
+                    int32_t data_ck = data_c + kc * dilation_x;
+            
+                    output[r * output_width + c] += input[data_rk * input_width + data_ck]
+                        * kernel[kr * kernel_width + kc];
+                }
+            }
+        }
+    }
+}
+
+
+static void conv2d_flip(
+    const float* input,
+    const float* kernel,
+    float* output,
+    int32_t input_height,
+    int32_t input_width,
+    int32_t kernel_height,
+    int32_t kernel_width,
+    int32_t stride_y,
+    int32_t stride_x,
+    int32_t padding_y,
+    int32_t padding_x,
+    int32_t dilation_y,
+    int32_t dilation_x
+)
+{
+    /* in case set to zero as "default" */
+    stride_y = stride_y ? stride_y : 1;
+    stride_x = stride_x ? stride_x : 1;
+    dilation_x = dilation_x ? dilation_x : 1;
+    dilation_y = dilation_y ? dilation_y : 1;
+
+
+    int32_t output_height = (input_height + 2 * padding_y - dilation_y * (kernel_height - 1) - 1)
+        / stride_y + 1;
+    int32_t output_width = (input_width + 2 * padding_x - dilation_x * (kernel_width - 1) - 1)
+        / stride_y + 1;
+
+    for (int32_t r = 0; r < output_height; r++) {
+        for (int32_t c = 0; c < output_width; c++) {
+            int32_t data_r = (int32_t)r * stride_y - padding_y;
+            int32_t data_c = (int32_t)c * stride_x - padding_x;
+        
+            /* calculate the bounds of the kernel to skip the elements that are in the padding */
+            int32_t kr_start = max(0, div_ceil(-data_r, dilation_y));
+            int32_t kr_end = min(kernel_height, div_ceil(input_height - data_r, dilation_y));
+            int32_t kc_start = max(0, div_ceil(-data_c, dilation_x));
+            int32_t kc_end = min(kernel_width, div_ceil(input_width - data_c, dilation_x));
+            
+            for (int32_t kr = kr_start; kr < kr_end; kr++) { 
+                for (int32_t kc = kc_start; kc < kc_end; kc++) {
+                    
+                    int32_t data_rk = data_r + kr * dilation_y;
+                    int32_t data_ck = data_c + kc * dilation_x;
+            
+                    output[r * output_width + c] += input[data_rk * input_width + data_ck]
+                        * kernel[(kernel_height - kr - 1) * kernel_width + (kernel_width - kc - 1)];
+                }
+            }
+        }
+    }
 }

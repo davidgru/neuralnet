@@ -146,67 +146,6 @@ void AI_VectorCopy(float* v1, const float* v2, size_t size)
 }
 
 
-// Convolution operation
-void AI_MatrixConvolution(const float* m1, const float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY)
-{
-    size_t owidth = (mwidth - kwidth) / strideX + 1;
-    size_t oheight = (mheight - kheight) / strideY + 1;
-
-    for (size_t r = 0; r < oheight; r++)
-        for (size_t kr = 0; kr < kheight; kr++)
-            for (size_t kc = 0; kc < kwidth; kc++)
-                for (size_t c = 0; c < owidth; c++)
-                    output[r * owidth + c] += m1[(r * strideY + kr) * mwidth + (c * strideX + kc)] * kernel[kr * kwidth + kc];
-}
-
-
-// Convolution operation with padding and dilation
-void AI_MatrixConvolutionPadded(const float* m1, const float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY, size_t padX, size_t padY, size_t dilationX, size_t dilationY)
-{
-    size_t owidth = (mwidth - kwidth + 2 * padX) / strideX + 1;
-    size_t oheight = (mheight - kheight + 2 * padY) / strideY + 1;
-
-    for (size_t r = 0; r < oheight; r++) {
-        for (size_t c = 0; c < owidth; c++) {
-            float sum = 0.0f;
-            for (size_t kr = 0; kr < kheight; kr++) {
-                for (size_t kc = 0; kc < kwidth; kc++) {
-                    int32_t dataR = (int32_t)r * strideY + kr;
-                    int32_t dataC = (int32_t)c * strideX + kc;
-                    dataR = dataR - padY;
-                    dataC = dataC - padX;
-                    if (dataR > -1 && dataC > -1 && dataR < mheight && dataC < mwidth)
-                        sum += m1[dataR * mwidth + dataC] * kernel[kr * kwidth + kc];
-                }
-            }
-            output[r * owidth + c] += sum;
-        }
-    }
-}
-
-
-// Convolution operation with padding and dilation and a 180° rotated kernel
-void AI_MatrixConvolutionPaddedRotateFilter(const float* m1, const float* kernel, float* output, size_t mwidth, size_t mheight, size_t kwidth, size_t kheight, size_t strideX, size_t strideY, size_t padX, size_t padY, size_t dilationX, size_t dilationY)
-{
-    size_t owidth = (mwidth - kwidth + 2 * padX) / strideX + 1;
-    size_t oheight = (mheight - kheight + 2 * padY) / strideY + 1;
-
-    for (size_t r = 0; r < oheight; r++) {
-        for (size_t kr = 0; kr < kheight; kr++) {
-            for (size_t kc = 0; kc < kwidth; kc++) {
-                for (size_t c = 0; c < owidth; c++) {
-                    int32_t dataR = (int32_t)r * strideY + kr;
-                    int32_t dataC = (int32_t)c * strideX + kc;
-                    dataR = dataR - padY;
-                    dataC = dataC - padX;
-                    if (dataR > -1 && dataC > -1 && dataR < mheight && dataC < mwidth)
-                            output[r * owidth + c] += m1[dataR * mwidth + dataC] * kernel[(kheight - kr - 1) * kwidth + (kwidth - kc - 1)];
-                }
-            }
-        }
-    }
-}
-
 
 // Sums all elements of v together
 float AI_Sum(const float* v, size_t size)
