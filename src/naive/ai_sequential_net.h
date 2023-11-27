@@ -53,6 +53,7 @@ void ai_sequential_network_forward(
 void ai_sequential_network_test(
     ai_sequential_network_t* net,
     dataset_t test_set,
+    size_t batch_size,
     AI_Loss* loss,
     float* out_accuracy,
     float* out_loss

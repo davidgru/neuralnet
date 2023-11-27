@@ -73,6 +73,7 @@ void ai_sequential_network_forward(
 void ai_sequential_network_test(
     ai_sequential_network_t* net,
     dataset_t test_set,
+    size_t batch_size,
     AI_Loss* loss,
     float* out_accuracy,
     float* out_loss
@@ -83,7 +84,7 @@ void ai_sequential_network_test(
 
     tensor_t* current_inputs = NULL;
     uint8_t* current_targets = NULL;
-    dataset_iteration_begin(test_set, 1, false, &current_inputs, &current_targets);
+    dataset_iteration_begin(test_set, batch_size, false, &current_inputs, &current_targets);
 
     uint32_t iteration = 0;
     while (current_inputs != NULL) {
@@ -144,7 +145,7 @@ void ai_sequential_network_train(
     LOG_TRACE("Performing initial test\n");
     float test_accuracy;
     float test_loss;
-    ai_sequential_network_test(net, test_set, &loss,
+    ai_sequential_network_test(net, test_set, batch_size, &loss,
         &test_accuracy, &test_loss);
 
     if (callback) {
@@ -203,7 +204,7 @@ void ai_sequential_network_train(
 
 
         /* Test */
-        ai_sequential_network_test(net, test_set, &loss,
+        ai_sequential_network_test(net, test_set, batch_size, &loss,
             &test_accuracy, &test_loss);
 
 

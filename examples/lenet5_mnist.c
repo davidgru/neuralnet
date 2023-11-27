@@ -95,18 +95,18 @@ int main()
 
 
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
+    const char* mnist_path = ;
 
 
     /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
         after one epoch and an accuracy of ~98.5% after 10 epochs */
     size_t num_epochs = 10;
-    size_t batch_size = 1;
+    size_t batch_size = 32;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_MSE;
     /* use sgd optimizer */
     const optimizer_impl_t* optimizer = &sgd_optimizer; 
     sgd_config_t optimizer_config = {
-        .learning_rate = 1e-3f,
+        .learning_rate = 1e-1f,
         .weight_reg_kind = SGD_WEIGHT_REG_NONE,
         .weight_reg_strength = 0.0f
     };
