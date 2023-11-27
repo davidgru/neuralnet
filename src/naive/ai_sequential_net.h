@@ -3,6 +3,8 @@
 
 #include "tensor.h"
 
+#include "dataset.h"
+
 #include "ai_model_desc.h"
 #include "layer/ai_base_layer.h"
 #include "util/ai_loss.h"
@@ -34,7 +36,7 @@ typedef void (*ai_training_callback_t)(ai_training_info_t * progress_info);
 
 void ai_sequential_network_create(
     ai_sequential_network_t** net,
-    tensor_shape_t* input_shape,
+    const tensor_shape_t* input_shape,
     size_t max_batch_size,
     ai_model_desc_t* desc
 );
@@ -50,9 +52,7 @@ void ai_sequential_network_forward(
 
 void ai_sequential_network_test(
     ai_sequential_network_t* net,
-    float* test_data,
-    uint8_t* test_labels,
-    size_t test_set_size,
+    dataset_t test_set,
     AI_Loss* loss,
     float* out_accuracy,
     float* out_loss
@@ -61,12 +61,8 @@ void ai_sequential_network_test(
 
 void ai_sequential_network_train(
     ai_sequential_network_t* net,
-    float* train_data,
-    float* test_data,
-    uint8_t* train_labels,
-    uint8_t* test_labels,
-    size_t train_dataset_size,
-    size_t test_dataset_size,
+    dataset_t train_set,
+    dataset_t test_set,
     size_t num_epochs,
     size_t batch_size,
     const optimizer_impl_t* optimizer_impl,

@@ -100,10 +100,10 @@ void AI_VectorAdd(float* v1, const float* v2, size_t size)
         v1[i] += v2[i];
 }
 
-void AI_VectorScaleAdd(float* dest, const float* source, float scale, size_t size)
+void AI_VectorScaledAdd(float* dest, const float* source, float scale, size_t size)
 {
     for (size_t i = 0; i < size; i++)
-        v1[i] += scale * v2[i];
+        dest[i] += scale * source[i];
 }
 
 

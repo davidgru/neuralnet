@@ -18,7 +18,7 @@
 
 void ai_sequential_network_create(
     ai_sequential_network_t** net,
-    tensor_shape_t* input_shape,
+    const tensor_shape_t* input_shape,
     size_t max_batch_size,
     ai_model_desc_t* desc
 )
@@ -72,9 +72,7 @@ void ai_sequential_network_forward(
 
 void ai_sequential_network_test(
     ai_sequential_network_t* net,
-    float* test_data,
-    uint8_t* test_labels,
-    size_t test_set_size,
+    dataset_t test_set,
     AI_Loss* loss,
     float* out_accuracy,
     float* out_loss
@@ -83,40 +81,37 @@ void ai_sequential_network_test(
     float test_accuracy = 0.0f;
     float test_loss = 0.0f;
 
+    tensor_t* current_inputs = NULL;
+    uint8_t* current_targets = NULL;
+    dataset_iteration_begin(test_set, 1, false, &current_inputs, &current_targets);
 
-    tensor_shape_t test_input_shape = net->input_shape;
-    test_input_shape.dims[TENSOR_BATCH_DIM] = 1; /* use batch size of 1 for testing for now */
+    uint32_t iteration = 0;
+    while (current_inputs != NULL) {
 
-    size_t input_size = tensor_size_from_shape(&test_input_shape);
+        /* forward */
+        tensor_t* current_output = NULL;
+        ai_sequential_network_forward(net, LAYER_FORWARD_INFERENCE, current_inputs, &current_output);
 
+        /* metrics */
+        test_accuracy += AI_LossAccuracy(loss, current_output, current_targets);
+        test_loss += AI_LossCompute(loss, current_output, current_targets);
+    
+        /* prepare next round */
+        dataset_iteration_next(test_set, &current_inputs, &current_targets);
 
-    for (uint32_t j = 0; j < test_set_size; j++) {
-        float* input = test_data + j * input_size;
-        uint8_t* label = test_labels + j;
-
-        tensor_t input_tensor;
-        tensor_from_memory(&input_tensor, &test_input_shape, input);
-
-        tensor_t* output;
-        ai_sequential_network_forward(net, LAYER_FORWARD_INFERENCE, &input_tensor, &output);
-
-        test_accuracy += AI_LossAccuracy(loss, output, label);
-        test_loss += AI_LossCompute(loss, output, label);
+        iteration++;
     }
 
-    *out_accuracy = test_accuracy / (float)test_set_size;
-    *out_loss = test_loss / (float)test_set_size;
+    const size_t dataset_size = dataset_get_shape(test_set)->dims[TENSOR_BATCH_DIM];
+    *out_accuracy = test_accuracy / (float)dataset_size;
+    *out_loss = test_loss / (float)dataset_size;
 }
 
 
 void ai_sequential_network_train(
     ai_sequential_network_t* net,
-    float* train_data,
-    float* test_data,
-    uint8_t* train_labels,
-    uint8_t* test_labels,
-    size_t train_dataset_size,
-    size_t test_dataset_size,
+    dataset_t train_set,
+    dataset_t test_set,
     size_t num_epochs,
     size_t batch_size,
     const optimizer_impl_t* optimizer_impl,
@@ -149,7 +144,7 @@ void ai_sequential_network_train(
     LOG_TRACE("Performing initial test\n");
     float test_accuracy;
     float test_loss;
-    ai_sequential_network_test(net, test_data, test_labels, test_dataset_size, &loss,
+    ai_sequential_network_test(net, test_set, &loss,
         &test_accuracy, &test_loss);
 
     if (callback) {
@@ -174,28 +169,22 @@ void ai_sequential_network_train(
         float train_loss = 0.0f;
         float train_accuracy = 0.0f;
 
-        /* Train one epoch */
-        // set_batch_size(net, batch_size);
-        // set_is_training(net, 1);
-        for (uint32_t j = 0; j < train_dataset_size; j += batch_size) {
+        tensor_t* current_inputs = NULL;
+        uint8_t* current_targets = NULL;
+        dataset_iteration_begin(train_set, batch_size, true, &current_inputs, &current_targets);
 
-            float* input = train_data + j * input_size / batch_size;
-            uint8_t* label = train_labels + j;
-
-            /* Forward pass */
-            tensor_t input_tensor;
-            tensor_from_memory(&input_tensor, &train_input_shape, input);
-
+        while(current_inputs != NULL) {
+            
             tensor_t* output;
-            ai_sequential_network_forward(net, LAYER_FORWARD_TRAINING, &input_tensor, &output);
+            ai_sequential_network_forward(net, LAYER_FORWARD_TRAINING, current_inputs, &output);
 
             /* Loss */
-            train_accuracy += AI_LossAccuracy(&loss, output, label);
-            train_loss += AI_LossCompute(&loss, output, label);
+            train_accuracy += AI_LossAccuracy(&loss, output, current_targets);
+            train_loss += AI_LossCompute(&loss, output, current_targets);
 
             /* Backward pass */
             tensor_t* gradient;
-            AI_LossBackward(&loss, output, label, &gradient);
+            AI_LossBackward(&loss, output, current_targets, &gradient);
 
             for (int32_t k = net->num_layers - 1; k >= 0; k--) {
                 tensor_t* next_gradient;
@@ -204,13 +193,19 @@ void ai_sequential_network_train(
             }
 
             optimizer_step(optimizer);
+
+            dataset_iteration_next(train_set, &current_inputs, &current_targets);
         }
-        train_loss = train_loss / train_dataset_size;
-        train_accuracy = train_accuracy / train_dataset_size;
-        
+
+        const size_t train_set_size = dataset_get_shape(train_set)->dims[TENSOR_BATCH_DIM];
+        train_loss = train_loss / (float)train_set_size;
+        train_accuracy = train_accuracy / (float)train_set_size;
+
+
         /* Test */
-        ai_sequential_network_test(net, test_data, test_labels, test_dataset_size, &loss,
+        ai_sequential_network_test(net, test_set, &loss,
             &test_accuracy, &test_loss);
+
 
         if (callback) {
             ai_training_info_t progress_info = {

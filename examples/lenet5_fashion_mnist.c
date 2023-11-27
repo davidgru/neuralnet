@@ -20,11 +20,14 @@
 #include "config_info.h"
 #include "log.h"
 
+#include "dataset.h"
+#include "mnist.h"
+
 #include "optimizer/ai_optimizer.h"
 #include "optimizer/ai_sgd.h"
 
 
-ai_sequential_network_t* create_lenet5(tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
+ai_sequential_network_t* create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
 {
     ai_model_desc_t* desc = NULL;
     ai_sequential_network_t* model = NULL;
@@ -85,12 +88,12 @@ int main()
 
 
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = ;
+    const char* mnist_path = "/home/david/projects/neuralnet/datasets/fashion_mnist";
 
 
     /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
         after one epoch and an accuracy of ~98.5% after 10 epochs */
-    size_t num_epochs = 10;
+    size_t num_epochs = 100;
     size_t batch_size = 1;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
@@ -98,7 +101,7 @@ int main()
     sgd_config_t optimizer_config = {
         .learning_rate = 2e-3f,
         .weight_reg_kind = SGD_WEIGHT_REG_L2,
-        .weight_reg_strength = 1e-4,
+        .weight_reg_strength = 1e-3,
     };
     float dropout_rate = 0.25f;
 
@@ -109,26 +112,33 @@ int main()
 
     /* Load mnist with a padding of two because lenet expects 32x32 input and the naive
         convolutional layers do not support padding at this time. */
-    if (AI_MnistDatasetLoad(&mnist, mnist_path, 2) != 0) {
+    dataset_t train_set;
+    dataset_t test_set;
+    mnist_create_info_t mnist_train_info = {
+        .path = mnist_path,
+        .dataset_kind = MNIST_TRAIN_SET,
+        .padding = 2
+    };
+    mnist_create_info_t mnist_test_info = {
+        .path = mnist_path,
+        .dataset_kind = MNIST_TEST_SET,
+        .padding = 2
+    };
+
+    if (dataset_create(&train_set, &mnist_dataset, &mnist_train_info)
+        || dataset_create(&test_set, &mnist_dataset, &mnist_test_info)) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
         return 1;
     }
     LOG_INFO("Successfully loaded mnist\n");
 
 
-    tensor_shape_t input_shape = {
-        .dims[TENSOR_BATCH_DIM] = batch_size,
-        .dims[TENSOR_CHANNEL_DIM] = 1,
-        .dims[TENSOR_HEIGHT_DIM] = mnist.image_height,
-        .dims[TENSOR_WIDTH_DIM] = mnist.image_width
-    };
-    lenet5 = create_lenet5(&input_shape, dropout_rate, batch_size);
+    lenet5 = create_lenet5(dataset_get_shape(train_set), dropout_rate, batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 
 
-    ai_sequential_network_train(lenet5, mnist.train_images, mnist.test_images, mnist.train_labels,
-        mnist.test_labels, mnist.num_train_images, mnist.num_test_images, num_epochs, batch_size,
+    ai_sequential_network_train(lenet5, train_set, test_set, num_epochs, batch_size,
         optimizer, &optimizer_config, loss_type, train_callback);
 
 

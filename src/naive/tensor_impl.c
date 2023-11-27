@@ -71,6 +71,5 @@ uint32_t tensor_destory(tensor_t* tensor)
     if (tensor->data != NULL) {
         free(tensor->data);
     }
-    free(tensor);
     return 0;
 }
