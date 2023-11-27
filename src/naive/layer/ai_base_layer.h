@@ -92,15 +92,6 @@ typedef struct AI_PoolingLayerCreateInfo {
 } AI_PoolingLayerCreateInfo;
 
 
-/* Use to initialise a convolutional layer */
-
-typedef struct AI_ConvolutionalLayerCreateInfo {
-    size_t output_channels;
-    size_t filter_width;
-    AI_ConvLayerWeightInit weight_init;
-    AI_ConvLayerBiasInit bias_init;
-} AI_ConvolutionalLayerCreateInfo;
-
 /* Use to initialise a dropout layer */
 
 typedef struct AI_DropoutLayerCreateInfo {

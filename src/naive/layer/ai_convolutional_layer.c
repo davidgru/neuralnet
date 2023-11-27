@@ -20,11 +20,22 @@
 #define CONV_WEIGHT_WIDTH_DIM           3
 
 
+#define conv_output_size(input_size, kernel_size, stride, dilation, padding) \
+    (((input_size) + 2 * (padding) - (dilation) * ((kernel_size) - 1) - 1) / (stride) + 1)
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define div_ceil(a, b) (((a) + (b) - 1) / (b))
+
+
 typedef struct convolutional_layer_t {
     tensor_t weights;
     tensor_t bias;
     tensor_t d_weights;
     tensor_t d_bias;
+
+    size_t stride_y;
+    size_t stride_x;
+
     layer_param_ref_t param_refs[NUM_CONV_LAYER_PARAMS];
 } convolutional_layer_t;
 
@@ -71,14 +82,14 @@ static uint32_t conv_layer_init(
 )
 {
     convolutional_layer_t* conv_layer = (convolutional_layer_t*)private_data;
-    AI_ConvolutionalLayerCreateInfo* conv_create_info =
-        (AI_ConvolutionalLayerCreateInfo*)create_info;
+    convolutional_layer_create_info_t* conv_create_info =
+        (convolutional_layer_create_info_t*)create_info;
 
 
     tensor_shape_t weights_shape = {
         .dims[CONV_WEIGHT_OUTPUT_CHANNEL_DIM] = output_shape->dims[TENSOR_CHANNEL_DIM],
         .dims[CONV_WEIGHT_INPUT_CHANNEL_DIM] = input_shape->dims[TENSOR_CHANNEL_DIM],
-        .dims[CONV_WEIGHT_HEIGHT_DIM] = conv_create_info->filter_width,
+        .dims[CONV_WEIGHT_HEIGHT_DIM] = conv_create_info->filter_height,
         .dims[CONV_WEIGHT_WIDTH_DIM] = conv_create_info->filter_width
     };
     tensor_allocate(&conv_layer->weights, &weights_shape);
@@ -93,6 +104,8 @@ static uint32_t conv_layer_init(
     tensor_allocate(&conv_layer->bias, &bias_shape);
     tensor_allocate(&conv_layer->d_bias, &bias_shape);
 
+    conv_layer->stride_y = conv_create_info->stride_y;
+    conv_layer->stride_x = conv_create_info->stride_x;
 
     /* need to register the params for the optimizer */
     conv_layer->param_refs[CONV_LAYER_WEIGHTS_PARAM].param = &conv_layer->weights;
@@ -179,10 +192,11 @@ static uint32_t conv_layer_forward(
     const size_t output_channels = output_shape->dims[TENSOR_CHANNEL_DIM];
     const size_t output_height = output_shape->dims[TENSOR_HEIGHT_DIM];
     const size_t output_width = output_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t filter_height = weights_shape->dims[CONV_WEIGHT_WIDTH_DIM];
     const size_t filter_width = weights_shape->dims[CONV_WEIGHT_WIDTH_DIM];
 
     const size_t output_size = output_width * output_height;
-    const size_t filter_size = filter_width * filter_width * input_channels;
+    const size_t filter_size = filter_width * filter_height * input_channels;
 
 
     memset(y, 0, output_size * output_channels * batch_size * sizeof(float));
@@ -191,9 +205,10 @@ static uint32_t conv_layer_forward(
             float* _y = y + n * output_size * output_channels + i * output_size;
             for (size_t j = 0; j < input_channels; j++) {
                 const float* _x = x + n * input_width * input_height * input_channels + j * input_width * input_height;
-                const float* _w = w + i * filter_size + j * filter_width * filter_width;
+                const float* _w = w + i * filter_size + j * filter_width * filter_height;
                 // Do a convolution with the one input channel and one filter channel to produce part of one output feature map.
-                conv2d(_x, _w, _y, input_height, input_width, filter_width, filter_width, 1, 1, 0, 0, 1, 1);
+                conv2d(_x, _w, _y, input_height, input_height, filter_width, filter_width,
+                    conv_layer->stride_y, conv_layer->stride_x, 0, 0, 1, 1);
             }
             // Add the bias to every element of the feature map
             AI_VectorAddScalar(y, b[i], output_size);
@@ -234,11 +249,12 @@ static uint32_t conv_layer_backward(
     const size_t output_channels = output_shape->dims[TENSOR_CHANNEL_DIM];
     const size_t output_height = output_shape->dims[TENSOR_HEIGHT_DIM];
     const size_t output_width = output_shape->dims[TENSOR_WIDTH_DIM];
+    const size_t filter_height = weights_shape->dims[CONV_WEIGHT_WIDTH_DIM];
     const size_t filter_width = weights_shape->dims[CONV_WEIGHT_WIDTH_DIM];
 
     const size_t input_size = input_width * input_height;
     const size_t output_size = output_width * output_height;
-    const size_t filter_size = filter_width * filter_width * input_channels;
+    const size_t filter_size = filter_height * filter_width * input_channels;
 
 
     // Calculate gradients with respect to the input and store in dx
@@ -248,9 +264,13 @@ static uint32_t conv_layer_backward(
             float* _dx = dx + n * input_size * input_channels + i * input_size;
             for (size_t j = 0; j < output_channels; j++) {
                 const float* _dy = dy + n * output_size * output_channels + j * output_size;
-                const float* _w = w + j + filter_size + i * filter_width * filter_width;
-                conv2d_flip(_w, _dy, _dx, filter_width, filter_width, output_height, output_width,
-                    1, 1, output_height - 1, output_width - 1, 1, 1);
+                const float* _w = w + j + filter_size + i * filter_height * filter_width;
+                /* dx = conv2d(w, flip(dy),
+                            dilation: (stride_y,stride_x),
+                            padding: (output_height-1,output_width-1)) */
+                conv2d_flip(_w, _dy, _dx, filter_height, filter_width, output_height, output_width,
+                    1, 1, output_height - 1, output_width - 1, conv_layer->stride_y,
+                    conv_layer->stride_x);
             }
         }
     }
@@ -262,8 +282,10 @@ static uint32_t conv_layer_backward(
             const float* _x = x + n * input_size * input_channels + i * input_size;
             for (size_t j = 0; j < output_channels; j++) {
                 const float* _dy = dy + n * output_size * output_channels + j * output_size;
-                float* _dw = dw + j * filter_size + i * filter_width * filter_width;
-                conv2d(_x, _dy, _dw, input_height, input_width, output_height, output_width, 1, 1, 0, 0, 1, 1);
+                float* _dw = dw + j * filter_size + i * filter_height * filter_width;
+                /* dw = conv2d(x, dy, dilation: (stride_y, stride_x)) */
+                conv2d(_x, _dy, _dw, input_height, input_width, output_height, output_width, 1, 1,
+                    0, 0, conv_layer->stride_y, conv_layer->stride_x);
             }
         }
     }
@@ -285,23 +307,20 @@ uint32_t conv_layer_calc_output_shape(
     const tensor_shape_t* input_shape
 )
 {
-    AI_ConvolutionalLayerCreateInfo* conv_create_info =
-        (AI_ConvolutionalLayerCreateInfo*)create_info;
+    convolutional_layer_create_info_t* conv_create_info =
+        (convolutional_layer_create_info_t*)create_info;
 
     out_output_shape->dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
     out_output_shape->dims[TENSOR_CHANNEL_DIM] = conv_create_info->output_channels;
-    out_output_shape->dims[TENSOR_HEIGHT_DIM] = input_shape->dims[TENSOR_HEIGHT_DIM]
-        - conv_create_info->filter_width + 1;
-    out_output_shape->dims[TENSOR_WIDTH_DIM] = input_shape->dims[TENSOR_WIDTH_DIM]
-        - conv_create_info->filter_width + 1;
-    
+    out_output_shape->dims[TENSOR_HEIGHT_DIM] = conv_output_size(
+        input_shape->dims[TENSOR_HEIGHT_DIM], conv_create_info->filter_height,
+        conv_create_info->stride_y, 1, 0);
+    out_output_shape->dims[TENSOR_WIDTH_DIM] = conv_output_size(input_shape->dims[TENSOR_WIDTH_DIM],
+        conv_create_info->filter_width, conv_create_info->stride_y, 1, 0);
     return 0;
 }
 
 
-#define max(a, b) ((a) > (b) ? (a) : (b))
-#define min(a, b) ((a) < (b) ? (a) : (b))
-#define div_ceil(a, b) (((a) + (b) - 1) / (b))
 
 
 static void conv2d(
@@ -327,10 +346,10 @@ static void conv2d(
     dilation_y = dilation_y ? dilation_y : 1;
 
 
-    int32_t output_height = (input_height + 2 * padding_y - dilation_y * (kernel_height - 1) - 1)
-        / stride_y + 1;
-    int32_t output_width = (input_width + 2 * padding_x - dilation_x * (kernel_width - 1) - 1)
-        / stride_y + 1;
+    int32_t output_height = conv_output_size(input_height, kernel_height, stride_y, dilation_y,
+        padding_y);
+    int32_t output_width = conv_output_size(input_width, kernel_width, stride_x, dilation_x,
+        padding_x);
 
     for (int32_t r = 0; r < output_height; r++) {
         for (int32_t c = 0; c < output_width; c++) {
@@ -380,12 +399,11 @@ static void conv2d_flip(
     dilation_x = dilation_x ? dilation_x : 1;
     dilation_y = dilation_y ? dilation_y : 1;
 
-
-    int32_t output_height = (input_height + 2 * padding_y - dilation_y * (kernel_height - 1) - 1)
-        / stride_y + 1;
-    int32_t output_width = (input_width + 2 * padding_x - dilation_x * (kernel_width - 1) - 1)
-        / stride_y + 1;
-
+    int32_t output_height = conv_output_size(input_height, kernel_height, stride_y, dilation_y,
+        padding_y);
+    int32_t output_width = conv_output_size(input_width, kernel_width, stride_x, dilation_x,
+        padding_x);
+    
     for (int32_t r = 0; r < output_height; r++) {
         for (int32_t c = 0; c < output_width; c++) {
             int32_t data_r = (int32_t)r * stride_y - padding_y;

@@ -7,6 +7,8 @@
 
 #include "log.h"
 
+#include "layer/ai_convolutional_layer.h"
+
 
 /* Helper function to append any layer to the model descriptor. */
 static uint32_t model_desc_add_create_info(ai_model_desc_t* desc, AI_LayerCreateInfo* create_info);
@@ -70,25 +72,18 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
     AI_ConvLayerBiasInit bias_init
 )
 {
-    if (kernel_height != kernel_width) {
-        LOG_ERROR("Non-squared kernels are not supported by convolution operation.\n");
-        return 1;
-    }
-
-    if (stride_x != 1 || stride_y != 1) {
-        LOG_ERROR("Only stride of 1 is supported by convolution operation.\n");
-        return 1;
-    }
-
     if (padding_top != 0 || padding_left != 0 || padding_bottom != 0 || padding_right != 0) {
         LOG_ERROR("Only zero padding is supported by convolution operation.\n");
         return 1;
     }
 
-    AI_ConvolutionalLayerCreateInfo* conv_create_info =
-        (AI_ConvolutionalLayerCreateInfo*)malloc(sizeof(AI_ConvolutionalLayerCreateInfo));
+    convolutional_layer_create_info_t* conv_create_info =
+        (convolutional_layer_create_info_t*)malloc(sizeof(convolutional_layer_create_info_t));
     conv_create_info->output_channels = output_channels;
-    conv_create_info->filter_width = kernel_height;
+    conv_create_info->filter_height = kernel_height;
+    conv_create_info->filter_width = kernel_width;
+    conv_create_info->stride_y = stride_y;
+    conv_create_info->stride_x = stride_x;
     conv_create_info->weight_init = weight_init;
     conv_create_info->bias_init = bias_init;
 
@@ -219,11 +214,12 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
             }
             case AI_CONVOLUTIONAL_LAYER:
             {
-                AI_ConvolutionalLayerCreateInfo* conv_create_info = 
-                    (AI_ConvolutionalLayerCreateInfo*)current_info->create_info;
+                convolutional_layer_create_info_t* conv_create_info = 
+                    (convolutional_layer_create_info_t*)current_info->create_info;
                 printf("* conv\t\t(filters: %d, kernel: (%zu,%zu), stride: (%zu,%zu)" 
                     ", padding: (%zu,%zu,%zu,%zu))\n", conv_create_info->output_channels,
-                    conv_create_info->filter_width, conv_create_info->filter_width, 1, 1, 0, 0, 0,
+                    conv_create_info->filter_height, conv_create_info->filter_width,
+                    conv_create_info->stride_y, conv_create_info->stride_x, 0, 0, 0,
                     0);
                 break;
             }

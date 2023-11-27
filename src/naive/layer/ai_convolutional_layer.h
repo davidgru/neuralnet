@@ -1,12 +1,15 @@
 #pragma once
 
-#include "ai_base_layer.h"
-
-uint32_t convolutional_layer_init(AI_Layer** layer, void* create_info, AI_Layer* prev_layer);
+#include "ai_layer.h"
 
 
-uint32_t convolutional_layer_calc_output_shape(
-    tensor_shape_t* out_output_shape,
-    const void* create_info,
-    const tensor_shape_t* input_shape
-);
+typedef struct {
+    size_t output_channels;
+    size_t filter_height;
+    size_t filter_width;
+    size_t stride_y;
+    size_t stride_x;
+    AI_ConvLayerWeightInit weight_init;
+    AI_ConvLayerBiasInit bias_init;
+} convolutional_layer_create_info_t;
+
