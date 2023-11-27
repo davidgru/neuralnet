@@ -211,7 +211,7 @@ static uint32_t conv_layer_forward(
                     conv_layer->stride_y, conv_layer->stride_x, 0, 0, 1, 1);
             }
             // Add the bias to every element of the feature map
-            AI_VectorAddScalar(y, b[i], output_size);
+            AI_VectorAddScalar(_y, b[i], output_size);
         }
     }
 }
@@ -316,7 +316,7 @@ uint32_t conv_layer_calc_output_shape(
         input_shape->dims[TENSOR_HEIGHT_DIM], conv_create_info->filter_height,
         conv_create_info->stride_y, 1, 0);
     out_output_shape->dims[TENSOR_WIDTH_DIM] = conv_output_size(input_shape->dims[TENSOR_WIDTH_DIM],
-        conv_create_info->filter_width, conv_create_info->stride_y, 1, 0);
+        conv_create_info->filter_width, conv_create_info->stride_x, 1, 0);
     return 0;
 }
 
