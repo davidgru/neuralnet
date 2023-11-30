@@ -25,6 +25,7 @@
 
 #include "optimizer/ai_optimizer.h"
 #include "optimizer/ai_sgd.h"
+#include "optimizer/ai_rmsprop.h"
 
 
 ai_sequential_network_t* create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
@@ -94,13 +95,19 @@ int main()
     /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
         after one epoch and an accuracy of ~98.5% after 10 epochs */
     size_t num_epochs = 100;
-    size_t batch_size = 1;
+    size_t batch_size = 32;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
-    const optimizer_impl_t* optimizer = &sgd_optimizer;
-    sgd_config_t optimizer_config = {
-        .learning_rate = 2e-3f,
-        .weight_reg_kind = SGD_WEIGHT_REG_L2,
+    const optimizer_impl_t* optimizer = &rmsprop_optimizer;
+    // sgd_config_t optimizer_config = {
+    //     .learning_rate = 2e-2f,
+    //     .weight_reg_kind = SGD_WEIGHT_REG_L2,
+    //     .weight_reg_strength = 1e-3,
+    // };
+    rmsprop_config_t optimizer_config = {
+        .learning_rate = 1e-3f,
+        .gamma = 0.9f,
+        .weight_reg_kind = WEIGHT_REG_L2,
         .weight_reg_strength = 1e-3,
     };
     float dropout_rate = 0.25f;

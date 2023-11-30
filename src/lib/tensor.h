@@ -65,6 +65,14 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
 
 
 /**
+ * @brief Set the tensor buffer to all zeroes.
+ * 
+ * @param tensor    A tensor
+*/
+uint32_t tensor_set_zero(tensor_t* tensor);
+
+
+/**
  * @brief Get number of tensor elements.
  * 
  * @param tensor    A tensor

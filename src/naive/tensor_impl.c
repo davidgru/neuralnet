@@ -1,4 +1,5 @@
 #include <malloc.h>
+#include <string.h>
 
 #include "log.h"
 
@@ -45,6 +46,13 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
     tensor->shape = *shape;
     tensor->data = mem;
     return 0;
+}
+
+
+uint32_t tensor_set_zero(tensor_t* tensor)
+{
+    const tensor_shape_t* shape = tensor_get_shape(tensor);
+    memset(tensor->data, 0, tensor_size_from_shape(shape) * sizeof(float));
 }
 
 

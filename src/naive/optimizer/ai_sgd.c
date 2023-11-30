@@ -6,7 +6,7 @@
 
 typedef struct {
     float learning_rate;
-    sgd_weight_regularizaton_kind_t weight_reg_kind;
+    weight_regularizaton_kind_t weight_reg_kind;
     float weight_reg_strength;
 } sgd_t;
 
@@ -48,15 +48,15 @@ static uint32_t sgd_update_params(void* private_data, layer_param_ref_list_t* pa
         
         /* regularization step */
         switch (sgd->weight_reg_kind) {
-            case SGD_WEIGHT_REG_NONE:
+            case WEIGHT_REG_NONE:
             {
                 /* No regularization to be applied. */
                 break;
             }
-            case SGD_WEIGHT_REG_L1:
+            case WEIGHT_REG_L1:
                 LOG_ERROR("sgd: unsupported weight reg kind\n");
                 return 1;
-            case SGD_WEIGHT_REG_L2:
+            case WEIGHT_REG_L2:
             {
                 /* params -= learning_rate * weight_reg_strength * 2 * params */
                 AI_VectorScaledAdd(param_data, param_data,

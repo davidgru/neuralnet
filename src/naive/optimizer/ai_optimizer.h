@@ -7,6 +7,14 @@
 typedef void optimizer_config_t;
 
 
+typedef enum {
+    WEIGHT_REG_NONE,
+    WEIGHT_REG_L1,
+    WEIGHT_REG_L2
+} weight_regularizaton_kind_t;
+
+
+
 typedef uint32_t (*optimizer_init_func_t)(
     void* private_data,
     const optimizer_config_t* create_info
