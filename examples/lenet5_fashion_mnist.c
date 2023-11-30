@@ -24,8 +24,9 @@
 #include "mnist.h"
 
 #include "optimizer/ai_optimizer.h"
-#include "optimizer/ai_sgd.h"
+#include "optimizer/ai_adam.h"
 #include "optimizer/ai_rmsprop.h"
+#include "optimizer/ai_sgd.h"
 
 
 ai_sequential_network_t* create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
@@ -98,17 +99,24 @@ int main()
     size_t batch_size = 32;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
-    const optimizer_impl_t* optimizer = &rmsprop_optimizer;
+    const optimizer_impl_t* optimizer = &adam_optimizer;
     // sgd_config_t optimizer_config = {
     //     .learning_rate = 2e-2f,
     //     .weight_reg_kind = SGD_WEIGHT_REG_L2,
     //     .weight_reg_strength = 1e-3,
     // };
-    rmsprop_config_t optimizer_config = {
-        .learning_rate = 1e-3f,
-        .gamma = 0.9f,
+    // rmsprop_config_t optimizer_config = {
+    //     .learning_rate = 2e-4f,
+    //     .gamma = 0.9f,
+    //     .weight_reg_kind = WEIGHT_REG_L2,
+    //     .weight_reg_strength = 1e-3,
+    // };
+    adam_config_t optimizer_config = {
+        .learning_rate = 2e-4f,
+        .gamma1 = 0.9f,
+        .gamma2 = 0.999f,
         .weight_reg_kind = WEIGHT_REG_L2,
-        .weight_reg_strength = 1e-3,
+        .weight_reg_strength = 1e-3f,
     };
     float dropout_rate = 0.25f;
 
