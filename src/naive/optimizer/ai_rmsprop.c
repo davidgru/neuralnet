@@ -7,7 +7,7 @@
 
 #include "ai_rmsprop.h"
 
-#include <stdio.h>
+
 typedef struct {
     float learning_rate;
     float gamma;
@@ -23,7 +23,7 @@ static uint32_t rmsprop_update_params(void* private_data, layer_param_ref_list_t
 
 
 /* For numerical stability */
-#define EPS 1e-7f
+#define EPS 1e-8f
 
 
 /* v = gamma * v + (1 - gamma) * gradient  */
@@ -106,12 +106,6 @@ static uint32_t rmsprop_update_params(void* private_data, layer_param_ref_list_t
         /* eltwise v = gamma * v + (1 - gamma) * g * g */
         mean_square_update(running_squared_mean, gradient_scratch, rmsprop->gamma, param_size);
 
-        // if (i == 4) {
-        //     for (size_t i = 0; i < param_size; i++) {
-        //         printf("%f ", running_squared_mean[i]);
-        //     }
-        //     printf("\n");
-        // }
         /* eltwise update step is w <- w - lr / sqrt(v + eps) * g */
         param_update_step(param_data, running_squared_mean, gradient_scratch, rmsprop->learning_rate, param_size);
     }
