@@ -13,3 +13,5 @@ typedef struct {
     AI_ConvLayerBiasInit bias_init;
 } convolutional_layer_create_info_t;
 
+
+extern const layer_info_t convolutional_layer_info;

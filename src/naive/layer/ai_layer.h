@@ -69,7 +69,7 @@ typedef uint32_t (*layer_calc_output_size_func_t)(
 
 
 
-typedef struct layer_info {
+typedef struct {
     layer_init_func_t init_func;
     layer_get_param_func_t get_param_func;
     layer_deinit_func_t deinit_func;
@@ -81,12 +81,7 @@ typedef struct layer_info {
 } layer_info_t;
 
 
-extern const layer_info_t activation_layer_info;
-extern const layer_info_t convolutional_layer_info;
-extern const layer_info_t dropout_layer_info;
-extern const layer_info_t linear_layer_info;
-extern const layer_info_t pooling_layer_info;
-
+typedef void layer_create_info_t;
 
 
 typedef struct layer_s* layer_t;
@@ -94,7 +89,8 @@ typedef struct layer_s* layer_t;
 
 uint32_t layer_create(
     layer_t* layer,
-    const AI_LayerCreateInfo* create_info,
+    const layer_info_t* layer_impl,
+    const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
     size_t max_batch_size
 );

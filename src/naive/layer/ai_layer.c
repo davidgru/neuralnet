@@ -11,35 +11,31 @@ struct layer_s {
     tensor_t output;
     tensor_t gradient;
     const tensor_t* input;
-    const layer_info_t* primitive_info;
+    const layer_info_t* impl;
     void* private_data;
 };
 
 
-static const layer_info_t* layer_info_from_kind(AI_LayerKind layer_kind);
-
-
 uint32_t layer_create(
     layer_t* layer,
-    const AI_LayerCreateInfo* create_info,
+    const layer_info_t* layer_impl,
+    const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
     size_t max_batch_size
 )
 {
-    const layer_info_t* primitive_info = layer_info_from_kind(create_info->type);
-
     *layer = (layer_t)malloc(sizeof(struct layer_s));
     if (*layer == NULL) {
         return 1;
     }
     
     (*layer)->input_shape = *input_shape;
-    (*layer)->primitive_info = primitive_info;
+    (*layer)->impl = layer_impl;
 
 
     /* get the output shape of the primitive. Needed for memory allocation */
     tensor_shape_t output_shape;
-    primitive_info->calc_output_size(&output_shape, create_info->create_info, input_shape);
+    layer_impl->calc_output_size(&output_shape, create_info, input_shape);
 
 
     /* allocate owned resources for the maximum batch size. The input batch size must always be
@@ -54,12 +50,12 @@ uint32_t layer_create(
 
 
     /* initialize layer private data */
-    (*layer)->private_data = malloc(primitive_info->layer_private_size);
+    (*layer)->private_data = malloc(layer_impl->layer_private_size);
     if ((*layer)->private_data == NULL) {
         free (*layer);
         return 1;
     }
-    primitive_info->init_func((*layer)->private_data, create_info->create_info, input_shape,
+    layer_impl->init_func((*layer)->private_data, create_info, input_shape,
         &output_shape);
 
     return 0;
@@ -74,11 +70,11 @@ const tensor_shape_t* layer_get_output_shape(layer_t layer)
 
 uint32_t layer_get_param_refs(layer_t layer, layer_param_ref_list_t* out_param_refs)
 {
-    if (layer->primitive_info->get_param_func == NULL) {
+    if (layer->impl->get_param_func == NULL) {
         out_param_refs->param_refs = NULL;
         out_param_refs->num_params = 0;
     } else {
-        layer->primitive_info->get_param_func(layer->private_data, out_param_refs);
+        layer->impl->get_param_func(layer->private_data, out_param_refs);
     }
 
     return 0;    
@@ -94,11 +90,14 @@ uint32_t layer_forward(layer_t layer, layer_forward_kind_t forward_kind, const t
     output_shape.dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
     tensor_from_memory(&layer->output, &output_shape, tensor_get_data(&layer->output_mem));
 
-    layer->primitive_info->forward_func(layer->private_data, forward_kind, input, &layer->output);
+    layer->impl->forward_func(layer->private_data, forward_kind, input, &layer->output);
     
     layer->input = input; /* remember input for backward pass */
 
-    *out_output = &layer->output;
+    if (out_output != NULL) {
+        *out_output = &layer->output;
+    }
+
     return 0;
 }
 
@@ -112,10 +111,12 @@ uint32_t layer_backward(layer_t layer, const tensor_t* prev_gradient, tensor_t**
     gradient_shape.dims[TENSOR_BATCH_DIM] = prev_grad_shape->dims[TENSOR_BATCH_DIM];
     tensor_from_memory(&layer->gradient, &gradient_shape, tensor_get_data(&layer->gradient_mem));
 
-    layer->primitive_info->backward_func(layer->private_data, layer->input, &layer->output,
+    layer->impl->backward_func(layer->private_data, layer->input, &layer->output,
         prev_gradient, &layer->gradient);
 
-    *out_gradient = &layer->gradient;
+    if (out_gradient != NULL) {
+        *out_gradient = &layer->gradient;
+    }
     return 0;
 }
 
@@ -128,45 +129,4 @@ uint32_t layer_destroy(layer_t layer)
         free(layer->private_data);
         free(layer);
     }
-}
-
-
-static const layer_info_t* layer_info_from_kind(AI_LayerKind layer_kind)
-{
-    const layer_info_t* layer_info;
-
-    switch (layer_kind) {
-        case AI_ACTIVATION_LAYER:
-        {
-            layer_info = &activation_layer_info;
-            break;
-        }
-        case AI_CONVOLUTIONAL_LAYER:
-        {
-            layer_info = &convolutional_layer_info;
-            break;
-        }
-        case AI_DROPOUT_LAYER:
-        {
-            layer_info = &dropout_layer_info;
-            break;
-        }
-        case AI_LINEAR_LAYER:
-        {
-            layer_info = &linear_layer_info;
-            break;
-        }
-        case AI_POOLING_LAYER:
-        {
-            layer_info = &pooling_layer_info;
-            break;
-        }
-        default:
-        {
-            layer_info = NULL;
-            break;
-        }
-    }
-
-    return layer_info;
 }

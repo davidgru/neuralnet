@@ -13,8 +13,6 @@
 #include "tensor.h"
 #include "tensor_impl.h"
 
-#include "ai_model_desc.h"
-#include "ai_sequential_net.h"
 
 #include "dataset.h"
 #include "mnist.h"
@@ -26,10 +24,16 @@
 #include "optimizer/ai_sgd.h"
 
 
-ai_sequential_network_t* create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
+#include "layer/ai_layer.h"
+#include "ai_model_desc.h"
+#include "sequential_model.h"
+#include "layer_utils.h"
+
+
+layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
 {
     ai_model_desc_t* desc = NULL;
-    ai_sequential_network_t* model = NULL;
+    layer_t model = NULL;
 
 
     /* Allocate resources for the model descriptor. */
@@ -57,7 +61,11 @@ ai_sequential_network_t* create_lenet5(const tensor_shape_t* input_shape, size_t
     ai_model_desc_dump(desc);
 
 
-    ai_sequential_network_create(&model, input_shape, batch_size, desc);
+    sequential_model_create_info_t create_info = {
+        .desc = desc,
+        .max_batch_size = batch_size,
+    };
+    layer_create(&model, &sequential_model_info, &create_info, input_shape, batch_size);
 
     return model;
 }
@@ -91,11 +99,10 @@ void train_callback(ai_training_info_t* p)
 
 int main()
 {
-    ai_sequential_network_t* lenet5;
-
+    layer_t lenet5;
 
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = ;
+    const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
 
 
     /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
@@ -107,7 +114,7 @@ int main()
     const optimizer_impl_t* optimizer = &sgd_optimizer; 
     sgd_config_t optimizer_config = {
         .learning_rate = 1e-1f,
-        .weight_reg_kind = SGD_WEIGHT_REG_NONE,
+        .weight_reg_kind = WEIGHT_REG_NONE,
         .weight_reg_strength = 0.0f
     };
 
@@ -132,13 +139,10 @@ int main()
     LOG_INFO("Created the model. Start training...\n");
 
 
-
-    ai_sequential_network_train(lenet5, train_set, test_set, num_epochs, batch_size,
-        optimizer, &optimizer_config, loss_type, train_callback);
+    ai_module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer, &optimizer_config, loss_type, train_callback);
 
 
     /* Free resources */
-    ai_sequential_network_destroy(lenet5);
     dataset_destroy(train_set);
     dataset_destroy(test_set);
 

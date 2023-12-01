@@ -4,6 +4,9 @@
 #include "ai_optimizer.h"
 
 
+#include <log.h>
+
+
 struct optimizer_s {
     optimizer_impl_t impl;
     layer_param_ref_list_t param_refs;

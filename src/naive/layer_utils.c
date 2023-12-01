@@ -1,0 +1,136 @@
+#include "layer_utils.h"
+
+#include "log.h"
+
+
+void ai_module_test(
+    layer_t layer,
+    dataset_t test_set,
+    size_t batch_size,
+    AI_Loss* loss,
+    float* out_accuracy,
+    float* out_loss
+)
+{
+    float test_accuracy = 0.0f;
+    float test_loss = 0.0f;
+
+    tensor_t* current_inputs = NULL;
+    uint8_t* current_targets = NULL;
+    dataset_iteration_begin(test_set, batch_size, false, &current_inputs, &current_targets);
+
+    uint32_t iteration = 0;
+    while (current_inputs != NULL) {
+
+        /* forward */
+        tensor_t* current_output = NULL;
+        layer_forward(layer, LAYER_FORWARD_INFERENCE, current_inputs, &current_output);
+
+        /* metrics */
+        test_accuracy += AI_LossAccuracy(loss, current_output, current_targets);
+        test_loss += AI_LossCompute(loss, current_output, current_targets);
+    
+        /* prepare next round */
+        dataset_iteration_next(test_set, &current_inputs, &current_targets);
+
+        iteration++;
+    }
+
+    const size_t dataset_size = dataset_get_shape(test_set)->dims[TENSOR_BATCH_DIM];
+    *out_accuracy = test_accuracy / (float)dataset_size;
+    *out_loss = test_loss / (float)dataset_size;
+}
+
+
+void ai_module_train(
+    layer_t layer,
+    dataset_t train_set,
+    dataset_t test_set,
+    size_t num_epochs,
+    size_t batch_size,
+    const optimizer_impl_t* optimizer_impl,
+    const optimizer_config_t* optimizer_config,
+    AI_LossFunctionEnum loss_type,
+    ai_training_callback_t callback
+)
+{
+    /* initialize loss */
+    AI_Loss loss;
+    AI_LossInit(&loss, layer_get_output_shape(layer), batch_size, loss_type);
+    
+
+    /* set up the optimizer */
+    optimizer_t optimizer;
+    layer_param_ref_list_t param_refs;
+    optimizer_create(&optimizer, optimizer_impl, optimizer_config);
+    layer_get_param_refs(layer, &param_refs);
+    optimizer_add_params(optimizer, &param_refs);
+
+
+    LOG_TRACE("Performing initial test\n");
+    float test_accuracy;
+    float test_loss;
+    // ai_module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
+
+    if (callback) {
+        ai_training_info_t progress_info = {
+            .epoch = 0,
+            .train_loss = 0.0f,
+            .train_accuracy = 0.0f,
+            .test_loss = test_loss,
+            .test_accuracy = test_accuracy
+        };
+        callback(&progress_info);
+    }
+
+
+    LOG_TRACE("Starting training loop\n");
+    for (size_t i = 0; i < num_epochs; i++) {
+        LOG_TRACE("Epoch: %d\n", i + 1);
+
+        float train_loss = 0.0f;
+        float train_accuracy = 0.0f;
+
+        tensor_t* current_inputs = NULL;
+        uint8_t* current_targets = NULL;
+        dataset_iteration_begin(train_set, batch_size, true, &current_inputs, &current_targets);
+
+        while(current_inputs != NULL) {
+            
+            tensor_t* output;
+            layer_forward(layer, LAYER_FORWARD_TRAINING, current_inputs, &output);
+
+            /* Loss */
+            train_accuracy += AI_LossAccuracy(&loss, output, current_targets);
+            train_loss += AI_LossCompute(&loss, output, current_targets);
+
+            /* Backward pass */
+            tensor_t* gradient;
+            AI_LossBackward(&loss, output, current_targets, &gradient);
+            layer_backward(layer, gradient, NULL);
+            optimizer_step(optimizer);
+
+            dataset_iteration_next(train_set, &current_inputs, &current_targets);
+        }
+
+        const size_t train_set_size = dataset_get_shape(train_set)->dims[TENSOR_BATCH_DIM];
+        train_loss = train_loss / (float)train_set_size;
+        train_accuracy = train_accuracy / (float)train_set_size;
+
+
+        /* Test */
+        ai_module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
+
+        if (callback) {
+            ai_training_info_t progress_info = {
+                .epoch = i + 1,
+                .train_loss = train_loss,
+                .train_accuracy = train_accuracy,
+                .test_loss = test_loss,
+                .test_accuracy = test_accuracy
+            };
+            callback(&progress_info);
+        }
+
+    }
+}

@@ -5,13 +5,21 @@
 #include <stdint.h>
 
 #include "layer/ai_base_layer.h"
+#include "layer/ai_layer.h"
 #include "util/ai_weight_init.h"
 #include "util/ai_loss.h"
 
 
-typedef struct ai_model_desc_t {
+typedef struct {
+    const layer_info_t* layer_impl;
+    layer_create_info_t* create_info;
+    AI_LayerKind layer_kind;
+} model_desc_entry_t;
+
+
+typedef struct {
     size_t num_layers;
-    AI_LayerCreateInfo* create_infos;
+    model_desc_entry_t* entries;
 } ai_model_desc_t;
 
 

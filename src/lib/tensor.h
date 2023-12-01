@@ -65,6 +65,16 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
 
 
 /**
+ * @brief Copy tensor data between two allocated tensors
+ * 
+ * @param tensor_to     Source tensor of the copy operation
+ * @param tensor_from   Target tensor of the copy operation
+ * @return uint32_t 
+ */
+uint32_t tensor_copy(tensor_t* tensor_to, const tensor_t* tensor_from);
+
+
+/**
  * @brief Set the tensor buffer to all zeroes.
  * 
  * @param tensor    A tensor
