@@ -1,6 +1,7 @@
 #pragma once
 
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -13,21 +14,13 @@
 #include "layer/pooling_layer.h"
 
 
-/* Leaving LayerKind in here but remove in future. */
-typedef enum LayerKind {
-    INPUT_LAYER = 0,
-    ACTIVATION_LAYER = 1,
-    LINEAR_LAYER = 2,
-    CONVOLUTIONAL_LAYER = 3,
-    POOLING_LAYER = 4,
-    DROPOUT_LAYER = 5,
-} LayerKind;
-
-
 typedef struct {
     const layer_impl_t* layer_impl;
-    layer_create_info_t* create_info;
-    LayerKind layer_kind;
+    bool allocated;
+    union {
+        layer_create_info_t* mutable;
+        const layer_create_info_t* _const;
+    } create_info;
 } model_desc_entry_t;
 
 
@@ -44,6 +37,20 @@ typedef struct {
  * @return uint32_t 
  */
 uint32_t model_desc_create(model_desc_t** desc);
+
+
+/**
+ * @brief Add any layer.
+ * 
+ * @param desc          The model descriptor.
+ * @param create_info   The create_info for the model to be added.
+ * @return uint32_t 
+ */
+uint32_t model_desc_add_layer(
+    model_desc_t* desc,
+    const layer_impl_t* impl,
+    const layer_create_info_t* create_info
+);
 
 
 /**

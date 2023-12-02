@@ -83,7 +83,7 @@ static uint32_t sequential_model_init(
 
     for (size_t i = 0; i < desc->num_layers; i++) {
         const layer_impl_t* layer_impl = desc->entries[i].layer_impl;
-        const layer_create_info_t* create_info = desc->entries[i].create_info;
+        const layer_create_info_t* create_info = desc->entries[i].create_info._const;
         layer_create(&model->layers[i], layer_impl, create_info, current_output_shape,
             model_create_info->max_batch_size);
         current_output_shape = layer_get_output_shape(model->layers[i]);
@@ -202,7 +202,7 @@ static uint32_t sequential_model_calc_output_shape(
     tensor_shape_t current_input_shape = *input_shape;
     for (size_t i = 0; i < desc->num_layers; i++) {
         desc->entries[i].layer_impl->calc_output_size(out_output_shape,
-            desc->entries[i].create_info, &current_input_shape);
+            desc->entries[i].create_info._const, &current_input_shape);
         current_input_shape = *out_output_shape;
     }
 

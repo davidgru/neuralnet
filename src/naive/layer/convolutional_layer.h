@@ -18,4 +18,5 @@ typedef struct {
 } convolutional_layer_create_info_t;
 
 
+extern const convolutional_layer_create_info_t conv_default_config;
 extern const layer_impl_t convolutional_layer_impl;

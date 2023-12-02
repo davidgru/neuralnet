@@ -35,25 +35,56 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
     layer_t model = NULL;
 
 
+    /* Some default configurations */
+    activation_layer_create_info_t act_config = {
+        .activation_function = ACTIVATION_FUNCTION_TANH,
+    };
+
+    pooling_layer_create_info_t pool_config = {
+        .kernel_width = 2,
+        .pooling_operation = POOLING_AVERAGE,
+    };
+    linear_layer_create_info_t linear_default_config = {
+        .weight_init = linear_weight_init_xavier,
+        .bias_init = linear_bias_init_zeros,
+    };
+
+
     /* Allocate resources for the model descriptor. */
     model_desc_create(&desc);
 
-    model_desc_add_convolutional_layer(desc, 6, 5, 1, 2, conv_weight_init_xavier, conv_bias_init_zeros);
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
-    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_AVERAGE);
 
-    model_desc_add_convolutional_layer(desc, 16, 5, 1, 0, conv_weight_init_xavier, conv_bias_init_zeros);
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
-    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_AVERAGE);
+    convolutional_layer_create_info_t conv1_config = conv_default_config;
+    conv1_config.output_channels = 6;
+    conv1_config.filter_height = 5;
+    conv1_config.filter_width = 5;
+    conv1_config.padding_y = 2;
+    conv1_config.padding_x = 2;
+    model_desc_add_layer(desc, &convolutional_layer_impl, &conv1_config);
+    model_desc_add_layer(desc, &activation_layer_impl, &act_config);
+    model_desc_add_layer(desc, &pooling_layer_impl, &pool_config);
 
-    model_desc_add_linear_layer(desc, 120, linear_weight_init_xavier, linear_bias_init_zeros);
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
+    convolutional_layer_create_info_t conv2_config = conv_default_config;
+    conv2_config.output_channels = 16;
+    conv2_config.filter_height = 5;
+    conv2_config.filter_width = 5;
+    model_desc_add_layer(desc, &convolutional_layer_impl, &conv2_config);
+    model_desc_add_layer(desc, &activation_layer_impl, &act_config);
+    model_desc_add_layer(desc, &pooling_layer_impl, &pool_config);
 
-    model_desc_add_linear_layer(desc, 84, linear_weight_init_xavier, linear_bias_init_zeros);
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
+    linear_layer_create_info_t linear1_config = linear_default_config;
+    linear1_config.output_size = 120;
+    model_desc_add_layer(desc, &linear_layer_impl, &linear1_config);
+    model_desc_add_layer(desc, &activation_layer_impl, &act_config);
 
-    model_desc_add_linear_layer(desc, 10, linear_weight_init_xavier, linear_bias_init_zeros);
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_SIGMOID);
+    linear_layer_create_info_t linear2_config = linear_default_config;
+    linear2_config.output_size = 84;
+    model_desc_add_layer(desc, &linear_layer_impl, &linear2_config);
+    model_desc_add_layer(desc, &activation_layer_impl, &act_config);
+
+    linear_layer_create_info_t linear3_config = linear_default_config;
+    linear3_config.output_size = 10;
+    model_desc_add_layer(desc, &linear_layer_impl, &linear3_config);
 
 
     /* Print a model overview to stdout. */
@@ -108,11 +139,11 @@ int main()
         after one epoch and an accuracy of ~98.5% after 10 epochs */
     size_t num_epochs = 10;
     size_t batch_size = 32;
-    LossFunctionEnum loss_type = LOSS_FUNCTION_MSE;
+    LossFunctionEnum loss_type = LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
     const optimizer_impl_t* optimizer = &sgd_optimizer; 
     sgd_config_t optimizer_config = {
-        .learning_rate = 1e-1f,
+        .learning_rate = 1e-2f,
         .weight_reg_kind = WEIGHT_REG_NONE,
         .weight_reg_strength = 0.0f
     };

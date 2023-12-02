@@ -20,7 +20,22 @@ uint32_t model_desc_create(model_desc_t** desc)
     (*desc)->entries = NULL;
     return 0;
 }
-    
+
+
+uint32_t model_desc_add_layer(
+    model_desc_t* desc,
+    const layer_impl_t* impl,
+    const layer_create_info_t* create_info
+)
+{
+    model_desc_entry_t entry = {
+        .layer_impl = impl,
+        .create_info._const = create_info,
+        .allocated = false,
+    };
+    return model_desc_add_entry(desc, &entry);
+}
+
 
 uint32_t model_desc_add_activation_layer(
     model_desc_t* desc,
@@ -34,7 +49,7 @@ uint32_t model_desc_add_activation_layer(
     model_desc_entry_t entry = {
         .layer_impl = &activation_layer_impl,
         .create_info = activation_create_info,
-        .layer_kind = ACTIVATION_LAYER,
+        .allocated = true,
     };
     return model_desc_add_entry(desc, &entry);
 }
@@ -85,8 +100,8 @@ uint32_t model_desc_add_convolutional_layer_ext(
 
     model_desc_entry_t entry = {
         .layer_impl = &convolutional_layer_impl,
-        .create_info = conv_create_info,
-        .layer_kind = CONVOLUTIONAL_LAYER,
+        .create_info.mutable = conv_create_info,
+        .allocated = true,
     };
     return model_desc_add_entry(desc, &entry);
 }
@@ -100,8 +115,8 @@ uint32_t model_desc_add_dropout_layer(model_desc_t* desc, float dropout_rate)
 
     model_desc_entry_t entry = {
         .layer_impl = &dropout_layer_impl,
-        .create_info = dropout_create_info,
-        .layer_kind = DROPOUT_LAYER,
+        .create_info.mutable = dropout_create_info,
+        .allocated = true,
     };
     return model_desc_add_entry(desc, &entry);
 }
@@ -122,8 +137,8 @@ uint32_t model_desc_add_linear_layer(
 
     model_desc_entry_t entry = {
         .layer_impl = &linear_layer_impl,
-        .create_info = linear_create_info,
-        .layer_kind = LINEAR_LAYER,
+        .create_info.mutable = linear_create_info,
+        .allocated = true,
     };
     return model_desc_add_entry(desc, &entry);
 }
@@ -177,8 +192,8 @@ uint32_t model_desc_add_pooling_layer_ext(
 
     model_desc_entry_t entry = {
         .layer_impl = &pooling_layer_impl,
-        .create_info = pooling_create_info,
-        .layer_kind = POOLING_LAYER,
+        .create_info.mutable = pooling_create_info,
+        .allocated = true,
     };
     return model_desc_add_entry(desc, &entry);
 }
@@ -197,53 +212,40 @@ uint32_t model_desc_dump(model_desc_t* desc)
     printf("********************************************************************************\n");
     for (size_t i = 0; i < desc->num_layers; i++) {
         model_desc_entry_t* current_info = &desc->entries[i];
-        switch (current_info->layer_kind) {
-            case ACTIVATION_LAYER:
-            {
-                activation_layer_create_info_t* activation_create_info =
-                    (activation_layer_create_info_t*)current_info->create_info;
-                printf("* activation\t(type: %d)\n", activation_create_info->activation_function);
-                break;
-            }
-            case LINEAR_LAYER:
-            {
-                linear_layer_create_info_t* linear_create_info = 
-                    (linear_layer_create_info_t*)current_info->create_info;
-                printf("* linear\t(nodes: %zu)\n", linear_create_info->output_size);
-                break;
-            }
-            case CONVOLUTIONAL_LAYER:
-            {
-                convolutional_layer_create_info_t* conv_create_info = 
-                    (convolutional_layer_create_info_t*)current_info->create_info;
-                printf("* conv\t\t(filters: %d, kernel: (%zu,%zu), stride: (%zu,%zu)" 
-                    ", padding: (%zu,%zu,%zu,%zu))\n", conv_create_info->output_channels,
-                    conv_create_info->filter_height, conv_create_info->filter_width,
-                    conv_create_info->stride_y, conv_create_info->stride_x, 0, 0, 0,
-                    0);
-                break;
-            }
-            case POOLING_LAYER:
-            {
-                pooling_layer_create_info_t* pooling_create_info = 
-                    (pooling_layer_create_info_t*)current_info->create_info;
-                printf("* pooling\t(kernel: (%zu,%zu), algorithm: %d)\n",
-                    pooling_create_info->kernel_width, pooling_create_info->kernel_width,
-                    pooling_create_info->pooling_operation);
-                break;
-            }
-            case DROPOUT_LAYER:
-            {
-                dropout_layer_create_info_t* dropout_create_info =
-                    (dropout_layer_create_info_t*)current_info->create_info;
-                printf("* dropout\t(rate: %f)\n", dropout_create_info->dropout_rate);
-                break;
-            }
-            default:
-            {
-                printf("* unknown\n");
-                break;
-            }
+
+        if (current_info->layer_impl == &activation_layer_impl) {
+            const activation_layer_create_info_t* activation_create_info =
+                (const activation_layer_create_info_t*)current_info->create_info._const;
+            printf("* activation\t(type: %d)\n", activation_create_info->activation_function);
+        }
+        else if (current_info->layer_impl == &convolutional_layer_impl){
+            const convolutional_layer_create_info_t* conv_create_info = 
+                (const convolutional_layer_create_info_t*)current_info->create_info._const;
+            printf("* conv\t\t(filters: %d, kernel: (%zu,%zu), stride: (%zu,%zu)" 
+                ", padding: (%zu,%zu,%zu,%zu))\n", conv_create_info->output_channels,
+                conv_create_info->filter_height, conv_create_info->filter_width,
+                conv_create_info->stride_y, conv_create_info->stride_x, 0, 0, 0,
+                0);    
+        }
+        else if (current_info->layer_impl == &dropout_layer_impl){
+            const dropout_layer_create_info_t* dropout_create_info =
+                (dropout_layer_create_info_t*)current_info->create_info._const;
+            printf("* dropout\t(rate: %f)\n", dropout_create_info->dropout_rate);
+        }
+        else if (current_info->layer_impl == &linear_layer_impl){
+            const linear_layer_create_info_t* linear_create_info = 
+                (const linear_layer_create_info_t*)current_info->create_info._const;
+            printf("* linear\t(nodes: %zu)\n", linear_create_info->output_size);
+        }
+        else if (current_info->layer_impl == &pooling_layer_impl){
+            const pooling_layer_create_info_t* pooling_create_info = 
+                (const pooling_layer_create_info_t*)current_info->create_info._const;
+            printf("* pooling\t(kernel: (%zu,%zu), algorithm: %d)\n",
+                pooling_create_info->kernel_width, pooling_create_info->kernel_width,
+                pooling_create_info->pooling_operation);
+        }
+        else {
+            printf("* unknown\n");
         }
     }
     printf("********************************************************************************\n");
@@ -253,7 +255,9 @@ uint32_t model_desc_dump(model_desc_t* desc)
 uint32_t model_desc_destroy(model_desc_t* desc)
 {
     for (size_t i = 0; i < desc->num_layers; i++) {
-        free(desc->entries[i].create_info);
+        if (desc->entries[i].allocated) {
+            free(desc->entries[i].create_info.mutable);
+        }
     }
     free(desc->entries);
     free(desc);

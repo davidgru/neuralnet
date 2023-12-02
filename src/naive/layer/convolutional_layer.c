@@ -77,6 +77,20 @@ static uint32_t conv_layer_calc_output_shape(
 );
 
 
+
+const convolutional_layer_create_info_t conv_default_config = {
+    .output_channels = 0,
+    .filter_height = 0,
+    .filter_width = 0,
+    .stride_y = 1,
+    .stride_x = 1,
+    .padding_y = 0,
+    .padding_x = 0,
+    .weight_init = conv_weight_init_xavier,
+    .bias_init = conv_bias_init_zeros,
+};
+
+
 const layer_impl_t convolutional_layer_impl = {
     .init_func = conv_layer_init,
     .get_param_func = conv_layer_get_params,
