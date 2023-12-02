@@ -248,7 +248,7 @@ static uint32_t conv_layer_forward(
                 // Do a convolution with the one input channel and one filter channel to produce part of one output feature map.
                 conv2d(_x, _w, _y, input_height, input_height, filter_width, filter_width,
                     conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
-                    conv_layer->padding_y, 1, 1, 0, 0);
+                    conv_layer->padding_x, 1, 1, 0, 0);
             }
             // Add the bias to every element of the feature map
             VectorAddScalar(_y, b[i], output_size);
