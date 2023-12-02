@@ -1,7 +1,7 @@
 /* Based on: http://cs231n.stanford.edu/handouts/linear-backprop.pdf */
 #include <malloc.h>
 #include <string.h>
-#if defined(AI_USE_AVX)
+#if defined(USE_AVX)
 #include <immintrin.h>
 #endif
 
@@ -9,7 +9,7 @@
 #include "tensor_impl.h"
 #include "log.h"
 
-#include "ai_linear_layer.h"
+#include "linear_layer.h"
 
 
 #define NUM_LINEAR_LAYER_PARAMS 2
@@ -202,7 +202,7 @@ static uint32_t linear_layer_forward(
     /* output += bias */
     for (size_t i = 0; i < batch_size; i++) {
         float* batch_output = output_data + i * output_size;
-        AI_VectorAdd(batch_output, bias, output_size);
+        VectorAdd(batch_output, bias, output_size);
     }
 }
 
@@ -245,14 +245,14 @@ static uint32_t linear_layer_backward(
     matrix_product_t1(input_data, prev_gradient_data, d_weights, per_batch_input_size, output_channels,
         batch_size);
     /* d_weights /= batch_size */
-    AI_VectorScale(d_weights, (1.0f / batch_size), weights_size);
+    VectorScale(d_weights, (1.0f / batch_size), weights_size);
     
     /* Calculate gradient of bias */
     memset(d_bias, 0, output_channels * sizeof(float));
     for (size_t i = 0; i < batch_size; i++) {
-        AI_VectorAdd(d_bias, prev_gradient_data + i * output_channels, output_channels);
+        VectorAdd(d_bias, prev_gradient_data + i * output_channels, output_channels);
     }
-    AI_VectorScale(d_bias, (1.0f / batch_size), output_channels);
+    VectorScale(d_bias, (1.0f / batch_size), output_channels);
 }
 
 
@@ -275,7 +275,7 @@ static uint32_t linear_layer_calc_output_shape(
 }
 
 
-#if defined(AI_USE_AVX)
+#if defined(USE_AVX)
 
 
 // AVX accelerated matrix product: output = m1 * m2

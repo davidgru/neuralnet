@@ -13,16 +13,16 @@ void dump_compile_time_config()
 
     printf("Library was compiled with the following configuration:\n");
 
-#if defined(AI_LOG_LEVEL)
-    printf("    AI_LOG_LEVEL=" XSTR(AI_LOG_LEVEL) "\n");
+#if defined(LOG_LEVEL)
+    printf("    LOG_LEVEL=" XSTR(LOG_LEVEL) "\n");
 #endif
 
-#if defined(AI_DEBUG)
-    printf("    AI_DEBUG=" XSTR(AI_DEBUG) "\n");
+#if defined(DEBUG)
+    printf("    DEBUG=" XSTR(DEBUG) "\n");
 #endif
 
-#if defined(AI_USE_AVX)
-    printf("    AI_USE_AVX=" XSTR(AI_USE_AVX) "\n");
+#if defined(USE_AVX)
+    printf("    USE_AVX=" XSTR(USE_AVX) "\n");
 #endif
 
 };

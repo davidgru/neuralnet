@@ -5,7 +5,7 @@
 #include "log.h"
 #include "util/ai_math.h"
 
-#include "ai_adam.h"
+#include "adam.h"
 
 
 typedef struct {
@@ -111,7 +111,7 @@ static uint32_t adam_update_params(void* private_data, layer_param_ref_list_t* p
         size_t param_size = tensor_size_from_shape(tensor_get_shape(param));
 
         /* gradient_scratch = gradient + regularization */
-        AI_VectorCopy(gradient_scratch, gradient_data, param_size);
+        VectorCopy(gradient_scratch, gradient_data, param_size);
         switch (adam->weight_reg_kind) {
             case WEIGHT_REG_NONE:
             {
@@ -124,7 +124,7 @@ static uint32_t adam_update_params(void* private_data, layer_param_ref_list_t* p
             case WEIGHT_REG_L2:
             {
                 /* params -= learning_rate * weight_reg_strength * 2 * params */
-                AI_VectorScaledAdd(gradient_scratch, param_data,
+                VectorScaledAdd(gradient_scratch, param_data,
                     2.0f * adam->weight_reg_strength, param_size);
                 break;
             }
@@ -137,8 +137,8 @@ static uint32_t adam_update_params(void* private_data, layer_param_ref_list_t* p
         mean_square_update(running_squared_mean, gradient_scratch, adam->gamma1, param_size);
 
         /* gradient momentum update: m <- gamma2 * m + (1 - gamma2) * g */
-        AI_VectorScale(running_gradient, adam->gamma2, param_size);
-        AI_VectorScaledAdd(running_gradient, gradient_scratch, 1.0f - adam->gamma2, param_size);
+        VectorScale(running_gradient, adam->gamma2, param_size);
+        VectorScaledAdd(running_gradient, gradient_scratch, 1.0f - adam->gamma2, param_size);
         
         /* eltwise update step is w <- w - (lr * c2) / (c1 * sqrt(v + eps)) * g */
         param_update_step(adam, param_data, running_squared_mean, running_gradient, param_size);

@@ -5,7 +5,7 @@
 #include "log.h"
 #include "util/ai_math.h"
 
-#include "ai_rmsprop.h"
+#include "rmsprop.h"
 
 
 typedef struct {
@@ -102,7 +102,7 @@ static uint32_t rmsprop_update_params(void* private_data, layer_param_ref_list_t
         size_t param_size = tensor_size_from_shape(tensor_get_shape(param));
 
         /* gradient_scratch = gradient + regularization */
-        AI_VectorCopy(gradient_scratch, gradient_data, param_size);
+        VectorCopy(gradient_scratch, gradient_data, param_size);
         switch (rmsprop->weight_reg_kind) {
             case WEIGHT_REG_NONE:
             {
@@ -115,7 +115,7 @@ static uint32_t rmsprop_update_params(void* private_data, layer_param_ref_list_t
             case WEIGHT_REG_L2:
             {
                 /* params -= learning_rate * weight_reg_strength * 2 * params */
-                AI_VectorScaledAdd(gradient_scratch, param_data,
+                VectorScaledAdd(gradient_scratch, param_data,
                     2.0f * rmsprop->weight_reg_strength, param_size);
                 break;
             }

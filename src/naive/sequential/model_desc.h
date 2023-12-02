@@ -4,37 +4,37 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "core/ai_layer.h"
+#include "core/layer.h"
 
-#include "layer/ai_activation_layer.h"
-#include "layer/ai_convolutional_layer.h"
-#include "layer/ai_dropout_layer.h"
-#include "layer/ai_linear_layer.h"
-#include "layer/ai_pooling_layer.h"
+#include "layer/activation_layer.h"
+#include "layer/convolutional_layer.h"
+#include "layer/dropout_layer.h"
+#include "layer/linear_layer.h"
+#include "layer/pooling_layer.h"
 
 
-/* Leaving AI_LayerKind in here but remove in future. */
-typedef enum AI_LayerKind {
-    AI_INPUT_LAYER = 0,
-    AI_ACTIVATION_LAYER = 1,
-    AI_LINEAR_LAYER = 2,
-    AI_CONVOLUTIONAL_LAYER = 3,
-    AI_POOLING_LAYER = 4,
-    AI_DROPOUT_LAYER = 5,
-} AI_LayerKind;
+/* Leaving LayerKind in here but remove in future. */
+typedef enum LayerKind {
+    INPUT_LAYER = 0,
+    ACTIVATION_LAYER = 1,
+    LINEAR_LAYER = 2,
+    CONVOLUTIONAL_LAYER = 3,
+    POOLING_LAYER = 4,
+    DROPOUT_LAYER = 5,
+} LayerKind;
 
 
 typedef struct {
     const layer_impl_t* layer_impl;
     layer_create_info_t* create_info;
-    AI_LayerKind layer_kind;
+    LayerKind layer_kind;
 } model_desc_entry_t;
 
 
 typedef struct {
     size_t num_layers;
     model_desc_entry_t* entries;
-} ai_model_desc_t;
+} model_desc_t;
 
 
 /**
@@ -43,7 +43,7 @@ typedef struct {
  * @param desc          Reference to the descriptor. Memory will be allocated.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_create(ai_model_desc_t** desc);
+uint32_t model_desc_create(model_desc_t** desc);
 
 
 /**
@@ -53,8 +53,8 @@ uint32_t ai_model_desc_create(ai_model_desc_t** desc);
  * @param activation_function   The type of activation function used by the layer.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_add_activation_layer(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_activation_layer(
+    model_desc_t* desc,
     activation_function_kind_t activation_function
 );
 
@@ -71,14 +71,14 @@ uint32_t ai_model_desc_add_activation_layer(
  * @param bias_init         The function used to initialize the bias of the layer.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_add_convolutional_layer(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_convolutional_layer(
+    model_desc_t* desc,
     size_t output_channels,
     size_t kernel_size,
     size_t stride,
     size_t padding,
-    AI_ConvLayerWeightInit weight_init,
-    AI_ConvLayerBiasInit bias_init
+    conv_weight_init_func_t weight_init,
+    conv_bias_init_func_t bias_init
 );
 
 
@@ -99,8 +99,8 @@ uint32_t ai_model_desc_add_convolutional_layer(
  * @param bias_init         The function used to initialize the bias of the layer.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_add_convolutional_layer_ext(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_convolutional_layer_ext(
+    model_desc_t* desc,
     size_t output_channels,
     size_t kernel_height,
     size_t kernel_width,
@@ -110,8 +110,8 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
     size_t padding_left,
     size_t padding_bottom,
     size_t padding_right,
-    AI_ConvLayerWeightInit weight_init,
-    AI_ConvLayerBiasInit bias_init
+    conv_weight_init_func_t weight_init,
+    conv_bias_init_func_t bias_init
 );
 
 
@@ -122,7 +122,7 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
  * @param dropout_rate  The dropout rate
  * @return uint32_t 
  */
-uint32_t ai_model_desc_add_dropout_layer(ai_model_desc_t* desc, float dropout_rate);
+uint32_t model_desc_add_dropout_layer(model_desc_t* desc, float dropout_rate);
 
 
 /**
@@ -134,11 +134,11 @@ uint32_t ai_model_desc_add_dropout_layer(ai_model_desc_t* desc, float dropout_ra
  * @param bias_init         The function used to initialize the bias of the layer.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_add_linear_layer(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_linear_layer(
+    model_desc_t* desc,
     size_t output_size,
-    AI_FCLayerWeightInit weight_init,
-    AI_FCLayerBiasInit bias_init
+    linear_weight_init_func_t weight_init,
+    linear_bias_init_func_t bias_init
 );
 
 
@@ -152,8 +152,8 @@ uint32_t ai_model_desc_add_linear_layer(
  * @param pooling_kind      The kind of pooling algorithm.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_add_pooling_layer(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_pooling_layer(
+    model_desc_t* desc,
     size_t kernel_size,
     size_t stride,
     size_t padding,
@@ -176,8 +176,8 @@ uint32_t ai_model_desc_add_pooling_layer(
  * @param pooling_kind      The kind of pooling algorithm.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_add_pooling_layer_ext(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_pooling_layer_ext(
+    model_desc_t* desc,
     size_t kernel_height,
     size_t kernel_width,
     size_t stride_y,
@@ -196,7 +196,7 @@ uint32_t ai_model_desc_add_pooling_layer_ext(
  * @param desc The model descriptor.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_dump(ai_model_desc_t* desc);
+uint32_t model_desc_dump(model_desc_t* desc);
 
 
 /**
@@ -205,4 +205,4 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc);
  * @param desc The model descriptor.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_destroy(ai_model_desc_t* desc);
+uint32_t model_desc_destroy(model_desc_t* desc);

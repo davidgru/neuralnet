@@ -1,12 +1,12 @@
 #pragma once
 
-#include "core/ai_layer.h"
+#include "core/layer.h"
 
 
 typedef enum {
-    AI_POOLING_AVERAGE,
-    AI_POOLING_MAX,
-    AI_POOLING_MIN,
+    POOLING_AVERAGE,
+    POOLING_MAX,
+    POOLING_MIN,
 } pooling_kind_t;
 
 typedef struct {

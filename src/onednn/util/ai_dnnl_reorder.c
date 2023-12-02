@@ -1,9 +1,9 @@
 
-#include "ai_dnnl_reorder.h"
+#include "dnnl_reorder.h"
 
 #define CHECK_DNNL(call) if (call) goto dnnl_error
 
-dnnl_status_t ai_dnnl_reorder_create(ai_dnnl_reorder_t* reorder, dnnl_memory_t src_mem, const dnnl_memory_desc_t* dst_md)
+dnnl_status_t dnnl_reorder_create(dnnl_reorder_t* reorder, dnnl_memory_t src_mem, const dnnl_memory_desc_t* dst_md)
 {
     reorder->src_mem = src_mem;
 
@@ -34,7 +34,7 @@ dnnl_error:
     return 1;
 }
 
-dnnl_status_t ai_dnnl_reorder_execute(ai_dnnl_reorder_t* reorder, dnnl_stream_t stream)
+dnnl_status_t dnnl_reorder_execute(dnnl_reorder_t* reorder, dnnl_stream_t stream)
 {
     if (reorder->need_reorder) {
         dnnl_exec_arg_t args[] = {
@@ -49,7 +49,7 @@ dnnl_error:
     return 1;
 }
 
-dnnl_status_t ai_dnnl_reorder_destroy(ai_dnnl_reorder_t* reorder)
+dnnl_status_t dnnl_reorder_destroy(dnnl_reorder_t* reorder)
 {
     if (reorder->need_reorder) {
         CHECK_DNNL(dnnl_primitive_destroy(reorder->primitive));

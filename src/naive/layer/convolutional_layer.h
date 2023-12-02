@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/ai_layer.h"
+#include "core/layer.h"
 
-#include "util/ai_weight_init.h"
+#include "util/weight_init.h"
 
 
 typedef struct {
@@ -11,8 +11,8 @@ typedef struct {
     size_t filter_width;
     size_t stride_y;
     size_t stride_x;
-    AI_ConvLayerWeightInit weight_init;
-    AI_ConvLayerBiasInit bias_init;
+    conv_weight_init_func_t weight_init;
+    conv_bias_init_func_t bias_init;
 } convolutional_layer_create_info_t;
 
 

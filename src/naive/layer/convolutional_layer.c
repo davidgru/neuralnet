@@ -5,7 +5,7 @@
 #include "tensor_impl.h"
 #include "log.h"
 
-#include "ai_convolutional_layer.h"
+#include "convolutional_layer.h"
 
 
 #define NUM_CONV_LAYER_PARAMS 2
@@ -230,7 +230,7 @@ static uint32_t conv_layer_forward(
                     conv_layer->stride_y, conv_layer->stride_x, 0, 0, 1, 1);
             }
             // Add the bias to every element of the feature map
-            AI_VectorAddScalar(_y, b[i], output_size);
+            VectorAddScalar(_y, b[i], output_size);
         }
     }
 }
@@ -308,13 +308,13 @@ static uint32_t conv_layer_backward(
             }
         }
     }
-    AI_VectorScale(dw, (1.0 / batch_size), filter_size * output_channels);
+    VectorScale(dw, (1.0 / batch_size), filter_size * output_channels);
 
     // Adjust output channel bias
     for (size_t n = 0; n < batch_size; n++) {
         const float* _dy = dy + n * output_channels * output_size;
         for (size_t i = 0; i < output_channels; i++) {
-            db[i] = (1.0 / batch_size) * AI_Sum(_dy + i * output_size, output_size);
+            db[i] = (1.0 / batch_size) * Sum(_dy + i * output_size, output_size);
         }
     }
 }

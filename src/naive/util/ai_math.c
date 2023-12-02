@@ -1,20 +1,20 @@
 
-#include "ai_math.h"
-
 #include <math.h>
 #include <string.h>
-#if defined(AI_USE_AVX)
+#if defined(USE_AVX)
 #include <immintrin.h>
 #endif
+
+#include "ai_math.h"
 
 
 #define MIN(a, b) (((a) < (b)) ? a : b)
 
 
-#if defined(AI_USE_AVX)
+#if defined(USE_AVX)
 
 
-void AI_VectorAdd(float* v1, const float* v2, size_t size)
+void VectorAdd(float* v1, const float* v2, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
     size_t i = 0;
@@ -29,7 +29,7 @@ void AI_VectorAdd(float* v1, const float* v2, size_t size)
 }
 
 
-void AI_VectorScaledAdd(float* v1, const float* v2, float scale, size_t size)
+void VectorScaledAdd(float* v1, const float* v2, float scale, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
     size_t i = 0;
@@ -48,7 +48,7 @@ void AI_VectorScaledAdd(float* v1, const float* v2, float scale, size_t size)
 }
 
 
-void AI_VectorSub(float* v1, const float* v2, size_t size)
+void VectorSub(float* v1, const float* v2, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
     size_t i = 0;
@@ -63,7 +63,7 @@ void AI_VectorSub(float* v1, const float* v2, size_t size)
 }
 
 
-void AI_VectorMul(float* v1, const float* v2, size_t size)
+void VectorMul(float* v1, const float* v2, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
     size_t i = 0;
@@ -78,7 +78,7 @@ void AI_VectorMul(float* v1, const float* v2, size_t size)
 }
 
 
-void AI_VectorScale(float* v, float f, size_t size)
+void VectorScale(float* v, float f, size_t size)
 {
     size_t s_unroll = size / 8 * 8;
     size_t i = 0;
@@ -94,34 +94,34 @@ void AI_VectorScale(float* v, float f, size_t size)
 #else
 
 
-void AI_VectorAdd(float* v1, const float* v2, size_t size)
+void VectorAdd(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] += v2[i];
 }
 
-void AI_VectorScaledAdd(float* dest, const float* source, float scale, size_t size)
+void VectorScaledAdd(float* dest, const float* source, float scale, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         dest[i] += scale * source[i];
 }
 
 
-void AI_VectorSub(float* v1, const float* v2, size_t size)
+void VectorSub(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] -= v2[i];
 }
 
 
-void AI_VectorMul(float* v1, const float* v2, size_t size)
+void VectorMul(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] *= v2[i];    
 }
 
 
-void AI_VectorScale(float* v, float f, size_t size)
+void VectorScale(float* v, float f, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v[i] *= f;
@@ -131,7 +131,7 @@ void AI_VectorScale(float* v, float f, size_t size)
 #endif
 
 
-void AI_VectorAddScalar(float* v, float s, size_t size)
+void VectorAddScalar(float* v, float s, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v[i] += s;
@@ -139,7 +139,7 @@ void AI_VectorAddScalar(float* v, float s, size_t size)
 
 
 // Copies all elements of v2 to v1
-void AI_VectorCopy(float* v1, const float* v2, size_t size)
+void VectorCopy(float* v1, const float* v2, size_t size)
 {
     for (size_t i = 0; i < size; i++)
         v1[i] = v2[i];
@@ -148,7 +148,7 @@ void AI_VectorCopy(float* v1, const float* v2, size_t size)
 
 
 // Sums all elements of v together
-float AI_Sum(const float* v, size_t size)
+float Sum(const float* v, size_t size)
 {
     float sum = 0.0f;
     for (size_t i = 0; i < size; i++)
@@ -158,7 +158,7 @@ float AI_Sum(const float* v, size_t size)
 
 
 // Calculate the mean of a vector
-float AI_Mean(float* v, size_t size)
+float Mean(float* v, size_t size)
 {
     float sum = 0.0f;
     for (size_t i = 0; i < size; i++) {
@@ -169,7 +169,7 @@ float AI_Mean(float* v, size_t size)
 
 
 // Calculate the stddev of a vector (pass mean)
-float AI_StddevM(float* v, size_t size, float mean)
+float StddevM(float* v, size_t size, float mean)
 {
     float squared_sum = 0.0f;
     for (size_t i = 0; i < size; i++) {
@@ -181,8 +181,8 @@ float AI_StddevM(float* v, size_t size, float mean)
 
 
 // Calculate the stddev of a vector (mean is calculated internally)
-float AI_Stddev(float* v, size_t size)
+float Stddev(float* v, size_t size)
 {
-    float mean = AI_Mean(v, size);
-    return AI_StddevM(v, size, mean);
+    float mean = Mean(v, size);
+    return StddevM(v, size, mean);
 }

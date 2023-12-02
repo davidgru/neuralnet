@@ -1,18 +1,18 @@
 
-#include "ai_dnnl_convolutional_layer.h"
+#include "dnnl_convolutional_layer.h"
 
 
-#include "../ai_util/ai_random.h"
+#include "../random.h"
 
-#include "../ai_util/ai_dnnl_util.h"
-#include "../ai_util/ai_dnnl_reorder.h"
-#include "../ai_util/ai_dnnl_assert.h"
+#include "../util/dnnl_util.h"
+#include "../util/dnnl_reorder.h"
+#include "../util/dnnl_assert.h"
 
 #include <malloc.h>
 #include <math.h>
 
-typedef struct ai_dnnl_convolutional_layer_t {
-    ai_dnnl_layer_t hdr;
+typedef struct dnnl_convolutional_layer_t {
+    dnnl_layer_t hdr;
 
     size_t KH;
     size_t KW;
@@ -26,8 +26,8 @@ typedef struct ai_dnnl_convolutional_layer_t {
     float learning_rate;
     int32_t dummy;
 
-    ai_dnnl_convolutional_layer_weight_init_kind_t weight_init;
-    ai_dnnl_convolutional_layer_bias_init_kind_t bias_init;
+    dnnl_convolutional_layer_weight_init_kind_t weight_init;
+    dnnl_convolutional_layer_bias_init_kind_t bias_init;
 
     // common memory
     dnnl_memory_t weights_mem;
@@ -53,23 +53,23 @@ typedef struct ai_dnnl_convolutional_layer_t {
     dnnl_memory_t bwd_weights_diff_weights_mem;
     
     // reorders
-    ai_dnnl_reorder_t fwd_reorder_src;
-    ai_dnnl_reorder_t fwd_reorder_weights;
-    ai_dnnl_reorder_t bwd_data_reorder_diff_dst;
-    ai_dnnl_reorder_t bwd_data_reorder_weights;
-    ai_dnnl_reorder_t bwd_weights_reorder_src;
-    ai_dnnl_reorder_t bwd_weights_reorder_diff_dst;
-    ai_dnnl_reorder_t bwd_weights_reorder_diff_weights;
+    dnnl_reorder_t fwd_reorder_src;
+    dnnl_reorder_t fwd_reorder_weights;
+    dnnl_reorder_t bwd_data_reorder_diff_dst;
+    dnnl_reorder_t bwd_data_reorder_weights;
+    dnnl_reorder_t bwd_weights_reorder_src;
+    dnnl_reorder_t bwd_weights_reorder_diff_dst;
+    dnnl_reorder_t bwd_weights_reorder_diff_weights;
 
 
-} ai_dnnl_convolutional_layer_t;
+} dnnl_convolutional_layer_t;
 
 
-static uint32_t conv_layer_fwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* prev_layer);
-static uint32_t conv_layer_bwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* next_layer);
-static uint32_t conv_layer_fwd(ai_dnnl_layer_t* layer);
-static uint32_t conv_layer_bwd(ai_dnnl_layer_t* layer);
-static uint32_t conv_layer_destroy(ai_dnnl_layer_t* layer);
+static uint32_t conv_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_layer);
+static uint32_t conv_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* next_layer);
+static uint32_t conv_layer_fwd(dnnl_layer_t* layer);
+static uint32_t conv_layer_bwd(dnnl_layer_t* layer);
+static uint32_t conv_layer_destroy(dnnl_layer_t* layer);
 
 
 typedef float(*conv_weight_init_fn)(size_t KH, size_t KW, size_t IC);
@@ -81,7 +81,7 @@ static float conv_bias_init_zeros(size_t KH, size_t KW, size_t IC);
 
 
 // Utility function to get a weight init function given an enum value
-static conv_weight_init_fn get_weight_init_function(ai_dnnl_convolutional_layer_weight_init_kind_t weight_init)
+static conv_weight_init_fn get_weight_init_function(dnnl_convolutional_layer_weight_init_kind_t weight_init)
 {
     static conv_weight_init_fn t[] = {
         conv_weight_init_xavier,
@@ -91,7 +91,7 @@ static conv_weight_init_fn get_weight_init_function(ai_dnnl_convolutional_layer_
 }
 
 // Utility function to get a bias init function given an enum value
-static conv_bias_init_fn get_bias_init_function(ai_dnnl_convolutional_layer_bias_init_kind_t bias_init)
+static conv_bias_init_fn get_bias_init_function(dnnl_convolutional_layer_bias_init_kind_t bias_init)
 {
     static conv_bias_init_fn t[] = {
         conv_bias_init_zeros
@@ -100,13 +100,13 @@ static conv_bias_init_fn get_bias_init_function(ai_dnnl_convolutional_layer_bias
 }
 
 
-uint32_t ai_dnnl_convolutional_layer_create(ai_dnnl_layer_t** layer, void* create_info)
+uint32_t dnnl_convolutional_layer_create(dnnl_layer_t** layer, void* create_info)
 {
     // Allocate memory for the layer
-    *layer = (ai_dnnl_layer_t*)malloc(sizeof(ai_dnnl_convolutional_layer_t));
+    *layer = (dnnl_layer_t*)malloc(sizeof(dnnl_convolutional_layer_t));
 
-    ai_dnnl_convolutional_layer_t* l = (ai_dnnl_convolutional_layer_t*)*layer;
-    ai_dnnl_convolutional_layer_create_info_t* i = (ai_dnnl_convolutional_layer_create_info_t*)create_info;
+    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)*layer;
+    dnnl_convolutional_layer_create_info_t* i = (dnnl_convolutional_layer_create_info_t*)create_info;
 
     // Set hyperparameters of the layer
     l->hdr.OC = i->OC;
@@ -133,9 +133,9 @@ uint32_t ai_dnnl_convolutional_layer_create(ai_dnnl_layer_t** layer, void* creat
 }
 
 
-uint32_t conv_layer_fwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* prev_layer)
+uint32_t conv_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_layer)
 {
-    ai_dnnl_convolutional_layer_t* l = (ai_dnnl_convolutional_layer_t*)layer;
+    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
 
     // Set input and output tensor dimensions
     l->hdr.N = prev_layer->N;
@@ -153,7 +153,7 @@ uint32_t conv_layer_fwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* prev_
     // 1. Create a convolution fwd primitive
 
     // 1.1 Create memory descs for all inputs and outputs
-    const dnnl_memory_desc_t* src_md = ai_dnnl_memory_get_memory_desc(l->hdr.src_mem);
+    const dnnl_memory_desc_t* src_md = dnnl_memory_get_memory_desc(l->hdr.src_mem);
     
     dnnl_dims_t weights_dims = { l->hdr.OC, l->hdr.IC, l->KH, l->KW };
     dnnl_dims_t bias_dims = { l->hdr.OC };
@@ -186,22 +186,22 @@ uint32_t conv_layer_fwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* prev_
     CHECK_DNNL(dnnl_memory_create(&l->bias_mem, &bias_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
     // Init weights
     conv_weight_init_fn weight_init = get_weight_init_function(l->weight_init);
-    float* weights = ai_dnnl_memory_get_data_handle(l->weights_mem);
+    float* weights = dnnl_memory_get_data_handle(l->weights_mem);
     for (size_t i = 0; i < l->hdr.OC * l->hdr.IC * l->KH * l->KW; i++)
         weights[i] = weight_init(l->KH, l->KW, l->hdr.IC);
     // Init bias
     conv_bias_init_fn bias_init = get_bias_init_function(l->bias_init);
-    float* bias = ai_dnnl_memory_get_data_handle(l->bias_mem);
+    float* bias = dnnl_memory_get_data_handle(l->bias_mem);
     for (size_t i = 0; i < l->hdr.OC; i++)
         bias[i] = bias_init(l->KH, l->KW, l->hdr.IC);
 
     // 3. Set up reorder between src and fwd_src memory
     const dnnl_memory_desc_t* fwd_src_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_src_md, 0);
-    CHECK_DNNL(ai_dnnl_reorder_create(&l->fwd_reorder_src, l->hdr.src_mem, fwd_src_md));
+    CHECK_DNNL(dnnl_reorder_create(&l->fwd_reorder_src, l->hdr.src_mem, fwd_src_md));
     l->fwd_src_mem = l->fwd_reorder_src.dst_mem;
     // 4. Set up reorder between weights and fwd_weights memory
     const dnnl_memory_desc_t* fwd_weights_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_weights_md, 0);
-    CHECK_DNNL(ai_dnnl_reorder_create(&l->fwd_reorder_weights, l->weights_mem, fwd_weights_md));
+    CHECK_DNNL(dnnl_reorder_create(&l->fwd_reorder_weights, l->weights_mem, fwd_weights_md));
     l->fwd_weights_mem = l->fwd_reorder_weights.dst_mem;
 
     // 5. Create output memory
@@ -220,20 +220,20 @@ dnnl_error:
 }
 
 
-uint32_t conv_layer_bwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* next_layer)
+uint32_t conv_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* next_layer)
 {
-    ai_dnnl_convolutional_layer_t* l = (ai_dnnl_convolutional_layer_t*)layer;
+    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
 
     l->hdr.diff_dst_mem = next_layer->diff_src_mem;
 
-    const_dnnl_primitive_desc_t fwd_pd = ai_dnnl_primitive_get_primitive_desc(l->fwd);
+    const_dnnl_primitive_desc_t fwd_pd = dnnl_primitive_get_primitive_desc(l->fwd);
 
     // 1. bwd data
 
     // 1.1 Create a convolution bwd data primitive
     // 1.1.1 Create memory descs for involved memory
-    const dnnl_memory_desc_t* src_md = ai_dnnl_memory_get_memory_desc(l->hdr.src_mem);
-    const dnnl_memory_desc_t* weights_md = ai_dnnl_memory_get_memory_desc(l->weights_mem);
+    const dnnl_memory_desc_t* src_md = dnnl_memory_get_memory_desc(l->hdr.src_mem);
+    const dnnl_memory_desc_t* weights_md = dnnl_memory_get_memory_desc(l->weights_mem);
     
     dnnl_dims_t diff_dst_dims = { l->hdr.N, l->hdr.OC, l->hdr.OH, l->hdr.OW };
 
@@ -256,12 +256,12 @@ uint32_t conv_layer_bwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* next_
 
     // 1.2 Set up reorder between diff_dst and bwd_data_diff_dst
     const dnnl_memory_desc_t* bwd_data_diff_dst_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_diff_dst_md, 0);
-    CHECK_DNNL(ai_dnnl_reorder_create(&l->bwd_data_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_data_diff_dst_md));
+    CHECK_DNNL(dnnl_reorder_create(&l->bwd_data_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_data_diff_dst_md));
     l->bwd_data_diff_dst_mem = l->bwd_data_reorder_diff_dst.dst_mem;
 
     // 1.3 Set up reorder between weights and bwd_data_weights
     const dnnl_memory_desc_t* bwd_data_weights_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_weights_md, 0);
-    CHECK_DNNL(ai_dnnl_reorder_create(&l->bwd_data_reorder_weights, l->fwd_weights_mem, bwd_data_weights_md));
+    CHECK_DNNL(dnnl_reorder_create(&l->bwd_data_reorder_weights, l->fwd_weights_mem, bwd_data_weights_md));
     l->bwd_data_weights_mem = l->bwd_data_reorder_weights.dst_mem;
 
     // 1.4 Create diff_src mem
@@ -291,22 +291,22 @@ uint32_t conv_layer_bwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* next_
 
     // 2.2 Create diff weights/bias mem
     const dnnl_memory_desc_t* bwd_weights_diff_weights_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_diff_weights_md, 0);
-    const dnnl_memory_desc_t* bwd_weights_diff_bias_md = ai_dnnl_memory_get_memory_desc(l->bias_mem);
+    const dnnl_memory_desc_t* bwd_weights_diff_bias_md = dnnl_memory_get_memory_desc(l->bias_mem);
     CHECK_DNNL(dnnl_memory_create(&l->bwd_weights_diff_weights_mem, bwd_weights_diff_weights_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
     CHECK_DNNL(dnnl_memory_create(&l->diff_bias_mem, bwd_weights_diff_bias_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
 
     // 2.3 Set up reorder between fwd_src and bwd_weights_src
     const dnnl_memory_desc_t* bwd_weights_src_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_src_md, 0);
-    CHECK_DNNL(ai_dnnl_reorder_create(&l->bwd_weights_reorder_src, l->fwd_src_mem, bwd_weights_src_md));
+    CHECK_DNNL(dnnl_reorder_create(&l->bwd_weights_reorder_src, l->fwd_src_mem, bwd_weights_src_md));
     l->bwd_weights_src_mem = l->bwd_weights_reorder_src.dst_mem;
 
     // 2.4 Set up reorder between diff_dst and bwd_weights_diff_dst
     const dnnl_memory_desc_t* bwd_weights_diff_dst_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_diff_dst_md, 0);
-    CHECK_DNNL(ai_dnnl_reorder_create(&l->bwd_weights_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_weights_diff_dst_md));
+    CHECK_DNNL(dnnl_reorder_create(&l->bwd_weights_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_weights_diff_dst_md));
     l->bwd_weights_diff_dst_mem = l->bwd_weights_reorder_diff_dst.dst_mem;
 
     // 2.5 Set up reorder between bwd_weights_diff_weights and diff_weights
-    CHECK_DNNL(ai_dnnl_reorder_create(&l->bwd_weights_reorder_diff_weights, l->bwd_weights_diff_weights_mem, weights_md));
+    CHECK_DNNL(dnnl_reorder_create(&l->bwd_weights_reorder_diff_weights, l->bwd_weights_diff_weights_mem, weights_md));
     l->diff_weights_mem = l->bwd_weights_reorder_diff_weights.dst_mem;
 
     // 3. Clean up
@@ -318,14 +318,14 @@ dnnl_error:
     return 1;
 }
 
-static uint32_t conv_layer_fwd(ai_dnnl_layer_t* layer)
+static uint32_t conv_layer_fwd(dnnl_layer_t* layer)
 {
-    ai_dnnl_convolutional_layer_t* l = (ai_dnnl_convolutional_layer_t*)layer;
+    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
 
     // 1. Reorder src
-    CHECK_DNNL(ai_dnnl_reorder_execute(&l->fwd_reorder_src, l->hdr.stream));
+    CHECK_DNNL(dnnl_reorder_execute(&l->fwd_reorder_src, l->hdr.stream));
     // 2. Reorder weights
-    CHECK_DNNL(ai_dnnl_reorder_execute(&l->fwd_reorder_weights, l->hdr.stream));
+    CHECK_DNNL(dnnl_reorder_execute(&l->fwd_reorder_weights, l->hdr.stream));
 
     // 3. Execute the convolution fwd primitive
     dnnl_exec_arg_t fwd_exec_args[] = {
@@ -345,16 +345,16 @@ dnnl_error:
 }
 
 
-static uint32_t conv_layer_bwd(ai_dnnl_layer_t* layer)
+static uint32_t conv_layer_bwd(dnnl_layer_t* layer)
 {
-    ai_dnnl_convolutional_layer_t* l = (ai_dnnl_convolutional_layer_t*)layer;
+    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
 
     // 1. bwd data
 
     // 1.1 Reorder weights
-    CHECK_DNNL(ai_dnnl_reorder_execute(&l->bwd_data_reorder_weights, l->hdr.stream));
+    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_data_reorder_weights, l->hdr.stream));
     // 1.2 Reorder diff dst
-    CHECK_DNNL(ai_dnnl_reorder_execute(&l->bwd_data_reorder_diff_dst, l->hdr.stream));
+    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_data_reorder_diff_dst, l->hdr.stream));
 
     // 1.3 Execute the convolution bwd data primitve
     dnnl_exec_arg_t bwd_data_exec_args[] = {
@@ -368,9 +368,9 @@ static uint32_t conv_layer_bwd(ai_dnnl_layer_t* layer)
     // 2. bwd weights
 
     // 2.1 Reorder src
-    CHECK_DNNL(ai_dnnl_reorder_execute(&l->bwd_weights_reorder_src, l->hdr.stream));
+    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_weights_reorder_src, l->hdr.stream));
     // 2.2 Reorder diff dst
-    CHECK_DNNL(ai_dnnl_reorder_execute(&l->bwd_weights_reorder_diff_dst, l->hdr.stream));
+    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_weights_reorder_diff_dst, l->hdr.stream));
 
     // 2.3 Execute the convolution bwd weights primitive
     dnnl_exec_arg_t bwd_weights_exec_args[] = {
@@ -383,19 +383,19 @@ static uint32_t conv_layer_bwd(ai_dnnl_layer_t* layer)
     CHECK_DNNL(dnnl_primitive_execute(l->bwd_weights, l->hdr.stream, 5, bwd_weights_exec_args));
 
     // 2.4 Reorder diff weights
-    CHECK_DNNL(ai_dnnl_reorder_execute(&l->bwd_weights_reorder_diff_weights, l->hdr.stream));
+    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_weights_reorder_diff_weights, l->hdr.stream));
 
     CHECK_DNNL(dnnl_stream_wait(l->hdr.stream));
 
     // 2.5 Update weights
-    float* weights = ai_dnnl_memory_get_data_handle(l->weights_mem);
-    float* diff_weights = ai_dnnl_memory_get_data_handle(l->diff_weights_mem);
+    float* weights = dnnl_memory_get_data_handle(l->weights_mem);
+    float* diff_weights = dnnl_memory_get_data_handle(l->diff_weights_mem);
     size_t weights_size = l->hdr.OC * l->hdr.IC * l->KH * l->KW;
     for (size_t i = 0; i < weights_size; i++)
         weights[i] -= l->learning_rate * diff_weights[i];
     // 2.6 Update bias
-    float* bias = ai_dnnl_memory_get_data_handle(l->bias_mem);
-    float* diff_bias = ai_dnnl_memory_get_data_handle(l->diff_bias_mem);
+    float* bias = dnnl_memory_get_data_handle(l->bias_mem);
+    float* diff_bias = dnnl_memory_get_data_handle(l->diff_bias_mem);
     for (size_t i = 0; i < l->hdr.OC; i++)
         bias[i] -= l->learning_rate * diff_bias[i];
 
@@ -405,9 +405,9 @@ dnnl_error:
 }
 
 
-static uint32_t conv_layer_destroy(ai_dnnl_layer_t* layer)
+static uint32_t conv_layer_destroy(dnnl_layer_t* layer)
 {
-    ai_dnnl_convolutional_layer_t* l = (ai_dnnl_convolutional_layer_t*)layer;
+    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
 
     CHECK_DNNL(dnnl_primitive_destroy(l->fwd));
     CHECK_DNNL(dnnl_primitive_destroy(l->bwd_data));
@@ -423,13 +423,13 @@ static uint32_t conv_layer_destroy(ai_dnnl_layer_t* layer)
 
     CHECK_DNNL(dnnl_memory_destroy(l->bwd_weights_diff_weights_mem));
 
-    CHECK_DNNL(ai_dnnl_reorder_destroy(&l->fwd_reorder_src));
-    CHECK_DNNL(ai_dnnl_reorder_destroy(&l->fwd_reorder_weights));
-    CHECK_DNNL(ai_dnnl_reorder_destroy(&l->bwd_data_reorder_weights));
-    CHECK_DNNL(ai_dnnl_reorder_destroy(&l->bwd_data_reorder_diff_dst));
-    CHECK_DNNL(ai_dnnl_reorder_destroy(&l->bwd_weights_reorder_src));
-    CHECK_DNNL(ai_dnnl_reorder_destroy(&l->bwd_weights_reorder_diff_weights));
-    CHECK_DNNL(ai_dnnl_reorder_destroy(&l->bwd_weights_reorder_diff_dst));
+    CHECK_DNNL(dnnl_reorder_destroy(&l->fwd_reorder_src));
+    CHECK_DNNL(dnnl_reorder_destroy(&l->fwd_reorder_weights));
+    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_data_reorder_weights));
+    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_data_reorder_diff_dst));
+    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_weights_reorder_src));
+    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_weights_reorder_diff_weights));
+    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_weights_reorder_diff_dst));
 
     free(l);
 
@@ -440,12 +440,12 @@ dnnl_error:
 
 static float conv_weight_init_xavier(size_t KH, size_t KW, size_t IC)
 {
-    return AI_RandomNormal(0.0f, sqrtf(1.0f / (KH * KW * IC)));
+    return RandomNormal(0.0f, sqrtf(1.0f / (KH * KW * IC)));
 }
 
 static float conv_weight_init_he(size_t KH, size_t KW, size_t IC)
 {
-    return AI_RandomNormal(0.0f, sqrtf(2.0f / (KH * KW * IC)));
+    return RandomNormal(0.0f, sqrtf(2.0f / (KH * KW * IC)));
 }
 
 static float conv_bias_init_zeros(size_t KH, size_t KW, size_t IC)

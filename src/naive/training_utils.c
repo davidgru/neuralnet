@@ -7,11 +7,11 @@
 #include "training_utils.h"
 
 
-void ai_module_test(
+void module_test(
     layer_t layer,
     dataset_t test_set,
     size_t batch_size,
-    AI_Loss* loss,
+    Loss* loss,
     float* out_accuracy,
     float* out_loss
 )
@@ -31,8 +31,8 @@ void ai_module_test(
         layer_forward(layer, LAYER_FORWARD_INFERENCE, current_inputs, &current_output);
 
         /* metrics */
-        test_accuracy += AI_LossAccuracy(loss, current_output, current_targets);
-        test_loss += AI_LossCompute(loss, current_output, current_targets);
+        test_accuracy += LossAccuracy(loss, current_output, current_targets);
+        test_loss += LossCompute(loss, current_output, current_targets);
     
         /* prepare next round */
         dataset_iteration_next(test_set, &current_inputs, &current_targets);
@@ -46,7 +46,7 @@ void ai_module_test(
 }
 
 
-void ai_module_train(
+void module_train(
     layer_t layer,
     dataset_t train_set,
     dataset_t test_set,
@@ -54,14 +54,14 @@ void ai_module_train(
     size_t batch_size,
     const optimizer_impl_t* optimizer_impl,
     const optimizer_config_t* optimizer_config,
-    AI_LossFunctionEnum loss_type,
+    LossFunctionEnum loss_type,
     size_t reduce_lr_after,
-    ai_training_callback_t callback
+    training_callback_t callback
 )
 {
     /* initialize loss */
-    AI_Loss loss;
-    AI_LossInit(&loss, layer_get_output_shape(layer), batch_size, loss_type);
+    Loss loss;
+    LossInit(&loss, layer_get_output_shape(layer), batch_size, loss_type);
 
 
     /* set up the optimizer */
@@ -83,10 +83,10 @@ void ai_module_train(
     LOG_TRACE("Performing initial test\n");
     float test_accuracy;
     float test_loss;
-    ai_module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
+    module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
 
     if (callback) {
-        ai_training_info_t progress_info = {
+        training_info_t progress_info = {
             .epoch = 0,
             .train_loss = 0.0f,
             .train_accuracy = 0.0f,
@@ -114,12 +114,12 @@ void ai_module_train(
             layer_forward(layer, LAYER_FORWARD_TRAINING, current_inputs, &output);
 
             /* Loss */
-            train_accuracy += AI_LossAccuracy(&loss, output, current_targets);
-            train_loss += AI_LossCompute(&loss, output, current_targets);
+            train_accuracy += LossAccuracy(&loss, output, current_targets);
+            train_loss += LossCompute(&loss, output, current_targets);
 
             /* Backward pass */
             tensor_t* gradient;
-            AI_LossBackward(&loss, output, current_targets, &gradient);
+            LossBackward(&loss, output, current_targets, &gradient);
             layer_backward(layer, gradient, NULL);
             optimizer_step(optimizer);
 
@@ -132,10 +132,10 @@ void ai_module_train(
 
 
         /* Test */
-        ai_module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
+        module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
 
         if (callback) {
-            ai_training_info_t progress_info = {
+            training_info_t progress_info = {
                 .epoch = i + 1,
                 .train_loss = train_loss,
                 .train_accuracy = train_accuracy,
@@ -170,5 +170,5 @@ void ai_module_train(
     }
 
     optimizer_destroy(optimizer);
-    AI_LossDeinit(&loss);
+    LossDeinit(&loss);
 }

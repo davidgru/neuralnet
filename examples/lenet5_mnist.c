@@ -20,45 +20,45 @@
 #include "config_info.h"
 #include "log.h"
 
-#include "optimizer/ai_optimizer.h"
-#include "optimizer/ai_sgd.h"
+#include "optimizer/optimizer.h"
+#include "optimizer/sgd.h"
 
 
-#include "core/ai_layer.h"
-#include "ai_model_desc.h"
-#include "sequential_model.h"
-#include "layer_utils.h"
+#include "core/layer.h"
+#include "sequential/model_desc.h"
+#include "sequential/sequential_model.h"
+#include "training_utils.h"
 
 
 layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
 {
-    ai_model_desc_t* desc = NULL;
+    model_desc_t* desc = NULL;
     layer_t model = NULL;
 
 
     /* Allocate resources for the model descriptor. */
-    ai_model_desc_create(&desc);
+    model_desc_create(&desc);
 
-    ai_model_desc_add_convolutional_layer(desc, 6, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
-    ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_AVERAGE);
+    model_desc_add_convolutional_layer(desc, 6, 5, 1, 0, conv_weight_init_xavier, conv_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
+    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_AVERAGE);
 
-    ai_model_desc_add_convolutional_layer(desc, 16, 5, 1, 0, AI_ConvWeightInitXavier, AI_ConvBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
-    ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_AVERAGE);
+    model_desc_add_convolutional_layer(desc, 16, 5, 1, 0, conv_weight_init_xavier, conv_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
+    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_AVERAGE);
 
-    ai_model_desc_add_linear_layer(desc, 120, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
+    model_desc_add_linear_layer(desc, 120, linear_weight_init_xavier, linear_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
 
-    ai_model_desc_add_linear_layer(desc, 84, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_TANH);
+    model_desc_add_linear_layer(desc, 84, linear_weight_init_xavier, linear_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
 
-    ai_model_desc_add_linear_layer(desc, 10, AI_LinearWeightInitXavier, AI_LinearBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_SIGMOID);
+    model_desc_add_linear_layer(desc, 10, linear_weight_init_xavier, linear_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_SIGMOID);
 
 
     /* Print a model overview to stdout. */
-    ai_model_desc_dump(desc);
+    model_desc_dump(desc);
 
 
     sequential_model_create_info_t create_info = {
@@ -84,7 +84,7 @@ dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind, size_t
 }
 
 
-void train_callback(ai_training_info_t* p)
+void train_callback(training_info_t* p)
 {
     printf("Epoch %" PRIi32 " | Train loss %f | Train accuracy %5.3f%% | Test loss %f "
         "| Test accuracy %5.3f%%\n",
@@ -109,7 +109,7 @@ int main()
         after one epoch and an accuracy of ~98.5% after 10 epochs */
     size_t num_epochs = 10;
     size_t batch_size = 32;
-    AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_MSE;
+    LossFunctionEnum loss_type = LOSS_FUNCTION_MSE;
     /* use sgd optimizer */
     const optimizer_impl_t* optimizer = &sgd_optimizer; 
     sgd_config_t optimizer_config = {
@@ -139,7 +139,7 @@ int main()
     LOG_INFO("Created the model. Start training...\n");
 
 
-    ai_module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer, &optimizer_config, loss_type, train_callback);
+    module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer, &optimizer_config, loss_type, train_callback);
 
 
     /* Free resources */

@@ -1,7 +1,7 @@
 #include "log.h"
 #include "util/ai_math.h"
 
-#include "ai_sgd.h"
+#include "sgd.h"
 
 
 typedef struct {
@@ -77,7 +77,7 @@ static uint32_t sgd_update_params(void* private_data, layer_param_ref_list_t* pa
             case WEIGHT_REG_L2:
             {
                 /* params -= learning_rate * weight_reg_strength * 2 * params */
-                AI_VectorScaledAdd(param_data, param_data,
+                VectorScaledAdd(param_data, param_data,
                     (-1.0f) * sgd->learning_rate * 2.0f * sgd->weight_reg_strength, param_size);
                 break;
             }
@@ -87,6 +87,6 @@ static uint32_t sgd_update_params(void* private_data, layer_param_ref_list_t* pa
         }
 
         /* main update step params -= learning_rate * gradient */
-        AI_VectorScaledAdd(param_data, gradient_data, (-1.0f) * sgd->learning_rate, param_size);
+        VectorScaledAdd(param_data, gradient_data, (-1.0f) * sgd->learning_rate, param_size);
     }
 }

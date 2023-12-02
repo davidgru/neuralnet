@@ -10,15 +10,15 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include "core/ai_layer.h"
-#include "core/ai_loss.h"
-#include "core/ai_optimizer.h"
+#include "core/layer.h"
+#include "core/loss.h"
+#include "core/optimizer.h"
 
-#include "optimizer/ai_adam.h"
-#include "optimizer/ai_rmsprop.h"
-#include "optimizer/ai_sgd.h"
+#include "optimizer/adam.h"
+#include "optimizer/rmsprop.h"
+#include "optimizer/sgd.h"
 
-#include "sequential/ai_model_desc.h"
+#include "sequential/model_desc.h"
 #include "sequential/sequential_model.h"
 
 #include "dataset.h"
@@ -33,34 +33,34 @@
 
 layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
 {
-    ai_model_desc_t* desc = NULL;
+    model_desc_t* desc = NULL;
     layer_t model = NULL;
 
 
     /* Allocate resources for the model descriptor. */
-    ai_model_desc_create(&desc);
+    model_desc_create(&desc);
 
-    ai_model_desc_add_convolutional_layer(desc, 6, 5, 1, 0, AI_ConvWeightInitHe, AI_ConvBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_RELU);
-    ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_MAX);
+    model_desc_add_convolutional_layer(desc, 6, 5, 1, 0, conv_weight_init_he, conv_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
-    ai_model_desc_add_convolutional_layer(desc, 16, 5, 1, 0, AI_ConvWeightInitHe, AI_ConvBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_RELU);
-    ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_MAX);
+    model_desc_add_convolutional_layer(desc, 16, 5, 1, 0, conv_weight_init_he, conv_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
-    ai_model_desc_add_linear_layer(desc, 120, AI_LinearWeightInitHe, AI_LinearBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_RELU);
-    ai_model_desc_add_dropout_layer(desc, dropout_rate);
+    model_desc_add_linear_layer(desc, 120, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_dropout_layer(desc, dropout_rate);
 
-    ai_model_desc_add_linear_layer(desc, 84, AI_LinearWeightInitHe, AI_LinearBiasInitZeros);
-    ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_RELU);
-    ai_model_desc_add_dropout_layer(desc, dropout_rate);
+    model_desc_add_linear_layer(desc, 84, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_dropout_layer(desc, dropout_rate);
 
-    ai_model_desc_add_linear_layer(desc, 10, AI_LinearWeightInitHe, AI_LinearBiasInitZeros);
+    model_desc_add_linear_layer(desc, 10, linear_weight_init_he, linear_bias_init_zeros);
 
 
     /* Print a model overview to stdout. */
-    ai_model_desc_dump(desc);
+    model_desc_dump(desc);
 
     sequential_model_create_info_t create_info = {
         .desc = desc,
@@ -69,13 +69,13 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, siz
     layer_create(&model, &sequential_model_impl, &create_info, input_shape, batch_size);
 
 
-    ai_model_desc_destroy(desc);
+    model_desc_destroy(desc);
     return model;
 }
 
 
 
-void train_callback(ai_training_info_t* p)
+void train_callback(training_info_t* p)
 {
     printf("Epoch %" PRIi32 " | Train loss %f | Train accuracy %5.3f%% | Test loss %f "
         "| Test accuracy %5.3f%%\n",
@@ -99,7 +99,7 @@ int main()
         after one epoch and an accuracy of ~98.5% after 10 epochs */
     size_t num_epochs = 10000;
     size_t batch_size = 32;
-    AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_CROSS_ENTROPY;
+    LossFunctionEnum loss_type = LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
     const optimizer_impl_t* optimizer = &rmsprop_optimizer;
     // sgd_config_t optimizer_config = {
@@ -156,7 +156,7 @@ int main()
     LOG_INFO("Created the model. Start training...\n");
 
 
-    ai_module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer,
+    module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer,
         &optimizer_config, loss_type, reduce_learning_rate_after, train_callback);
 
 

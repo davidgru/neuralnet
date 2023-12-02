@@ -1,16 +1,16 @@
 #pragma once
 
 
-#include "core/ai_layer.h"
+#include "core/layer.h"
 
 
 typedef enum {
-    AI_ACTIVATION_FUNCTION_SIGMOID,
-    AI_ACTIVATION_FUNCTION_TANH,
-    AI_ACTIVATION_FUNCTION_RELU,
-    AI_ACTIVATION_FUNCTION_LEAKY_RELU,
-    /* AI_ACTIVATION_FUNCTION_SOFTMAX, */
+    ACTIVATION_FUNCTION_SIGMOID,
+    ACTIVATION_FUNCTION_TANH,
+    ACTIVATION_FUNCTION_RELU,
+    ACTIVATION_FUNCTION_LEAKY_RELU,
 } activation_function_kind_t;
+
 
 typedef struct {
     activation_function_kind_t activation_function;

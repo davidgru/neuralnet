@@ -1,7 +1,7 @@
 #include <malloc.h>
 #include <string.h>
 
-#include "ai_pooling_layer.h"
+#include "pooling_layer.h"
 
 
 #define max(a, b) ((a > b) ? a : b)
@@ -80,15 +80,15 @@ static uint32_t pooling_layer_init(
     pooling_layer->kernel_width = pooling_create_info->kernel_width;
 
     switch(pooling_create_info->pooling_operation) {
-        case AI_POOLING_AVERAGE:
+        case POOLING_AVERAGE:
             pooling_layer->pooling_operation_func = pooling_operation_average;
             pooling_layer->pooling_operation_backward = pooling_operation_average_backward;
             break;
-        case AI_POOLING_MAX:
+        case POOLING_MAX:
             pooling_layer->pooling_operation_func = pooling_operation_max;
             pooling_layer->pooling_operation_backward = pooling_operation_max_backward;
             break;
-        case AI_POOLING_MIN:
+        case POOLING_MIN:
             pooling_layer->pooling_operation_func = pooling_operation_min;
             pooling_layer->pooling_operation_backward = pooling_operation_min_backward;
             break;

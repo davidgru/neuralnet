@@ -1,5 +1,5 @@
 
-#if defined(AI_LOG_LEVEL) && (AI_LOG_LEVEL >= 1)
+#if defined(LOG_LEVEL) && (LOG_LEVEL >= 1)
 
 
 #include <stdarg.h>
@@ -13,7 +13,7 @@
 static void log_internal(const char* prefix, const char* fmt, va_list args);
 
 
-#if (AI_LOG_LEVEL >= 4)
+#if (LOG_LEVEL >= 4)
 void log_trace(const char* fmt, ...)
 {
     va_list args;
@@ -23,7 +23,7 @@ void log_trace(const char* fmt, ...)
 }
 #endif
 
-#if (AI_LOG_LEVEL >= 3)
+#if (LOG_LEVEL >= 3)
 void log_info(const char* fmt, ...)
 {
     va_list args;
@@ -33,7 +33,7 @@ void log_info(const char* fmt, ...)
 }
 #endif
 
-#if (AI_LOG_LEVEL >= 2)
+#if (LOG_LEVEL >= 2)
 void log_warn(const char* fmt, ...)
 {
     va_list args;
@@ -43,7 +43,7 @@ void log_warn(const char* fmt, ...)
 }
 #endif
 
-#if (AI_LOG_LEVEL >= 1)
+#if (LOG_LEVEL >= 1)
 void log_error(const char* fmt, ...)
 {
     va_list args;

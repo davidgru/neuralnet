@@ -1,9 +1,9 @@
 
-#include "ai_dnnl_util.h"
+#include "dnnl_util.h"
 
 #include "dnnl.h"
 
-dnnl_status_t ai_dnnl_reorder_primitive_create(dnnl_primitive_t* reorder_primitive, const dnnl_memory_desc_t* src_md, const dnnl_memory_desc_t* dst_md, dnnl_engine_t engine, dnnl_primitive_attr_t attr)
+dnnl_status_t dnnl_reorder_primitive_create(dnnl_primitive_t* reorder_primitive, const dnnl_memory_desc_t* src_md, const dnnl_memory_desc_t* dst_md, dnnl_engine_t engine, dnnl_primitive_attr_t attr)
 {
     dnnl_status_t status = dnnl_success;
 
@@ -24,17 +24,17 @@ dnnl_status_t ai_dnnl_reorder_primitive_create(dnnl_primitive_t* reorder_primiti
 }
 
 
-dnnl_status_t ai_dnnl_reorder_set_up(dnnl_primitive_t* reorder_primitive, dnnl_memory_t src_mem, dnnl_memory_t* dst_mem, const dnnl_memory_desc_t* dst_md, bool* need_reorder, dnnl_engine_t engine)
+dnnl_status_t dnnl_reorder_set_up(dnnl_primitive_t* reorder_primitive, dnnl_memory_t src_mem, dnnl_memory_t* dst_mem, const dnnl_memory_desc_t* dst_md, bool* need_reorder, dnnl_engine_t engine)
 {
     dnnl_status_t status = dnnl_success;
 
     // Get memory desc of src mem
-    const dnnl_memory_desc_t* src_md = ai_dnnl_memory_get_memory_desc(src_mem);
+    const dnnl_memory_desc_t* src_md = dnnl_memory_get_memory_desc(src_mem);
     // Check if reorder is necessary
     *need_reorder = !dnnl_memory_desc_equal(src_md, dst_md);
     if (*need_reorder) {
         // Create reorder primitive and intermediate memory
-        status = ai_dnnl_reorder_primitive_create(reorder_primitive, src_md, dst_md, engine, 0);
+        status = dnnl_reorder_primitive_create(reorder_primitive, src_md, dst_md, engine, 0);
         if (status != dnnl_success)
             return status;
         status = dnnl_memory_create(dst_mem, dst_md, engine, DNNL_MEMORY_ALLOCATE);
@@ -48,7 +48,7 @@ dnnl_status_t ai_dnnl_reorder_set_up(dnnl_primitive_t* reorder_primitive, dnnl_m
 }
 
 
-dnnl_status_t ai_dnnl_reorder_primitive_execute(dnnl_primitive_t reorder_primitive, dnnl_memory_t src_mem, dnnl_memory_t dst_mem, dnnl_stream_t stream)
+dnnl_status_t dnnl_reorder_primitive_execute(dnnl_primitive_t reorder_primitive, dnnl_memory_t src_mem, dnnl_memory_t dst_mem, dnnl_stream_t stream)
 {
     dnnl_status_t status = dnnl_success;
     dnnl_exec_arg_t exec_args[2] = {
@@ -59,7 +59,7 @@ dnnl_status_t ai_dnnl_reorder_primitive_execute(dnnl_primitive_t reorder_primiti
 }
 
 
-dnnl_status_t ai_dnnl_reorder_once(dnnl_memory_t src_mem, dnnl_memory_t dst_mem, dnnl_stream_t stream)
+dnnl_status_t dnnl_reorder_once(dnnl_memory_t src_mem, dnnl_memory_t dst_mem, dnnl_stream_t stream)
 {
     dnnl_status_t status = dnnl_success;
 
@@ -84,12 +84,12 @@ dnnl_status_t ai_dnnl_reorder_once(dnnl_memory_t src_mem, dnnl_memory_t dst_mem,
         return status;
     }
     // Create a reorder primitive
-    status = ai_dnnl_reorder_primitive_create(&reorder, src_md, dst_md, engine, 0);
+    status = dnnl_reorder_primitive_create(&reorder, src_md, dst_md, engine, 0);
     if (status != dnnl_success) {
         return status;
     }
     // Execute the reorder primitive
-    status = ai_dnnl_reorder_primitive_execute(reorder, src_mem, dst_mem, stream);
+    status = dnnl_reorder_primitive_execute(reorder, src_mem, dst_mem, stream);
     if (status != dnnl_success) {
         dnnl_primitive_destroy(reorder);
         return status;
@@ -105,7 +105,7 @@ dnnl_status_t ai_dnnl_reorder_once(dnnl_memory_t src_mem, dnnl_memory_t dst_mem,
 }
 
 
-dnnl_status_t ai_dnnl_memory_create_from_dims(dnnl_memory_t* mem, int ndims, dnnl_dims_t dims, dnnl_data_type_t data_type, dnnl_format_tag_t tag, dnnl_engine_t engine)
+dnnl_status_t dnnl_memory_create_from_dims(dnnl_memory_t* mem, int ndims, dnnl_dims_t dims, dnnl_data_type_t data_type, dnnl_format_tag_t tag, dnnl_engine_t engine)
 {
     dnnl_status_t status = dnnl_success;
 
@@ -119,21 +119,21 @@ dnnl_status_t ai_dnnl_memory_create_from_dims(dnnl_memory_t* mem, int ndims, dnn
     return dnnl_memory_create(mem, &md, engine, DNNL_MEMORY_ALLOCATE);
 }
 
-dnnl_status_t ai_dnnl_memory_create_4_dims(dnnl_memory_t* mem, int64_t dim1, int64_t dim2, int64_t dim3, int64_t dim4, dnnl_data_type_t data_type, dnnl_format_tag_t tag, dnnl_engine_t engine)
+dnnl_status_t dnnl_memory_create_4_dims(dnnl_memory_t* mem, int64_t dim1, int64_t dim2, int64_t dim3, int64_t dim4, dnnl_data_type_t data_type, dnnl_format_tag_t tag, dnnl_engine_t engine)
 {
     dnnl_dims_t dims = { dim1, dim2, dim3, dim4 };
-    return ai_dnnl_memory_create_from_dims(mem, 4, dims, data_type, tag, engine);
+    return dnnl_memory_create_from_dims(mem, 4, dims, data_type, tag, engine);
 }
 
-dnnl_status_t ai_dnnl_create_memory_from_1_dim(dnnl_memory_t* mem, int64_t dim, dnnl_data_type_t data_type, dnnl_format_tag_t tag, dnnl_engine_t engine)
+dnnl_status_t dnnl_create_memory_from_1_dim(dnnl_memory_t* mem, int64_t dim, dnnl_data_type_t data_type, dnnl_format_tag_t tag, dnnl_engine_t engine)
 {
     dnnl_dims_t dims = { dim };
-    return ai_dnnl_memory_create_from_dims(mem, 1, dims, data_type, tag, engine);
+    return dnnl_memory_create_from_dims(mem, 1, dims, data_type, tag, engine);
 }
 
 
 
-const dnnl_memory_desc_t* ai_dnnl_memory_get_memory_desc(dnnl_memory_t mem)
+const dnnl_memory_desc_t* dnnl_memory_get_memory_desc(dnnl_memory_t mem)
 {
     const dnnl_memory_desc_t* md;
     dnnl_status_t status = dnnl_memory_get_memory_desc(mem, &md);
@@ -142,7 +142,7 @@ const dnnl_memory_desc_t* ai_dnnl_memory_get_memory_desc(dnnl_memory_t mem)
     return md;
 }
 
-float* ai_dnnl_memory_get_data_handle(dnnl_memory_t mem)
+float* dnnl_memory_get_data_handle(dnnl_memory_t mem)
 {
     void* handle = 0;
     dnnl_status_t status = dnnl_memory_get_data_handle(mem, &handle);
@@ -152,7 +152,7 @@ float* ai_dnnl_memory_get_data_handle(dnnl_memory_t mem)
 }
 
 
-const_dnnl_primitive_desc_t ai_dnnl_primitive_get_primitive_desc(dnnl_primitive_t primitive)
+const_dnnl_primitive_desc_t dnnl_primitive_get_primitive_desc(dnnl_primitive_t primitive)
 {
     const_dnnl_primitive_desc_t pd;
     dnnl_status_t status = dnnl_primitive_get_primitive_desc(primitive, &pd);

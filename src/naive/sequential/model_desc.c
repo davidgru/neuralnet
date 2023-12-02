@@ -3,27 +3,27 @@
 #include <malloc.h>
 #include <memory.h>
 
-#include "ai_model_desc.h"
+#include "model_desc.h"
 
 #include "log.h"
 
 
 /* Helper function to append any layer to the model descriptor. */
-static uint32_t model_desc_add_entry(ai_model_desc_t* desc, const model_desc_entry_t* entry);
+static uint32_t model_desc_add_entry(model_desc_t* desc, const model_desc_entry_t* entry);
 
 
 
-uint32_t ai_model_desc_create(ai_model_desc_t** desc)
+uint32_t model_desc_create(model_desc_t** desc)
 {
-    *desc = (ai_model_desc_t*)malloc(sizeof(ai_model_desc_t));
+    *desc = (model_desc_t*)malloc(sizeof(model_desc_t));
     (*desc)->num_layers = 0;
     (*desc)->entries = NULL;
     return 0;
 }
+    
 
-
-uint32_t ai_model_desc_add_activation_layer(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_activation_layer(
+    model_desc_t* desc,
     activation_function_kind_t activation_function
 )
 {
@@ -34,30 +34,30 @@ uint32_t ai_model_desc_add_activation_layer(
     model_desc_entry_t entry = {
         .layer_impl = &activation_layer_impl,
         .create_info = activation_create_info,
-        .layer_kind = AI_ACTIVATION_LAYER,
+        .layer_kind = ACTIVATION_LAYER,
     };
     return model_desc_add_entry(desc, &entry);
 }
 
 
-uint32_t ai_model_desc_add_convolutional_layer(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_convolutional_layer(
+    model_desc_t* desc,
     size_t output_channels,
     size_t kernel_size,
     size_t stride,
     size_t padding,
-    AI_ConvLayerWeightInit weight_init,
-    AI_ConvLayerBiasInit bias_init
+    conv_weight_init_func_t weight_init,
+    conv_bias_init_func_t bias_init
 )
 {
-    return ai_model_desc_add_convolutional_layer_ext(desc, output_channels,
+    return model_desc_add_convolutional_layer_ext(desc, output_channels,
         kernel_size, kernel_size, stride, stride, padding, padding, padding, padding, weight_init,
         bias_init);
 }
 
 
-uint32_t ai_model_desc_add_convolutional_layer_ext(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_convolutional_layer_ext(
+    model_desc_t* desc,
     size_t output_channels,
     size_t kernel_height,
     size_t kernel_width,
@@ -67,8 +67,8 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
     size_t padding_left,
     size_t padding_bottom,
     size_t padding_right,
-    AI_ConvLayerWeightInit weight_init,
-    AI_ConvLayerBiasInit bias_init
+    conv_weight_init_func_t weight_init,
+    conv_bias_init_func_t bias_init
 )
 {
     if (padding_top != 0 || padding_left != 0 || padding_bottom != 0 || padding_right != 0) {
@@ -89,13 +89,13 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
     model_desc_entry_t entry = {
         .layer_impl = &convolutional_layer_impl,
         .create_info = conv_create_info,
-        .layer_kind = AI_CONVOLUTIONAL_LAYER,
+        .layer_kind = CONVOLUTIONAL_LAYER,
     };
     return model_desc_add_entry(desc, &entry);
 }
 
 
-uint32_t ai_model_desc_add_dropout_layer(ai_model_desc_t* desc, float dropout_rate)
+uint32_t model_desc_add_dropout_layer(model_desc_t* desc, float dropout_rate)
 {
     dropout_layer_create_info_t* dropout_create_info =
         (dropout_layer_create_info_t*)malloc(sizeof(dropout_layer_create_info_t));
@@ -104,17 +104,17 @@ uint32_t ai_model_desc_add_dropout_layer(ai_model_desc_t* desc, float dropout_ra
     model_desc_entry_t entry = {
         .layer_impl = &dropout_layer_impl,
         .create_info = dropout_create_info,
-        .layer_kind = AI_DROPOUT_LAYER,
+        .layer_kind = DROPOUT_LAYER,
     };
     return model_desc_add_entry(desc, &entry);
 }
 
 
-uint32_t ai_model_desc_add_linear_layer(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_linear_layer(
+    model_desc_t* desc,
     size_t output_size,
-    AI_FCLayerWeightInit weight_init,
-    AI_FCLayerBiasInit bias_init
+    linear_weight_init_func_t weight_init,
+    linear_bias_init_func_t bias_init
 )
 {
     linear_layer_create_info_t* linear_create_info =
@@ -126,27 +126,27 @@ uint32_t ai_model_desc_add_linear_layer(
     model_desc_entry_t entry = {
         .layer_impl = &linear_layer_impl,
         .create_info = linear_create_info,
-        .layer_kind = AI_LINEAR_LAYER,
+        .layer_kind = LINEAR_LAYER,
     };
     return model_desc_add_entry(desc, &entry);
 }
 
 
-uint32_t ai_model_desc_add_pooling_layer(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_pooling_layer(
+    model_desc_t* desc,
     size_t kernel_size,
     size_t stride,
     size_t padding,
     pooling_kind_t pooling_kind
 )
 {
-    return ai_model_desc_add_pooling_layer_ext(desc, kernel_size, kernel_size, stride, stride,
+    return model_desc_add_pooling_layer_ext(desc, kernel_size, kernel_size, stride, stride,
         padding, padding, padding, padding, pooling_kind);
 }
 
 
-uint32_t ai_model_desc_add_pooling_layer_ext(
-    ai_model_desc_t* desc,
+uint32_t model_desc_add_pooling_layer_ext(
+    model_desc_t* desc,
     size_t kernel_height,
     size_t kernel_width,
     size_t stride_y,
@@ -181,7 +181,7 @@ uint32_t ai_model_desc_add_pooling_layer_ext(
     model_desc_entry_t entry = {
         .layer_impl = &pooling_layer_impl,
         .create_info = pooling_create_info,
-        .layer_kind = AI_POOLING_LAYER,
+        .layer_kind = POOLING_LAYER,
     };
     return model_desc_add_entry(desc, &entry);
 }
@@ -193,7 +193,7 @@ uint32_t ai_model_desc_add_pooling_layer_ext(
  * @param desc The model descriptor.
  * @return uint32_t 
  */
-uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
+uint32_t model_desc_dump(model_desc_t* desc)
 {
     printf("********************************************************************************\n");
     printf("* Printing model summary. #layers: %zu\n", desc->num_layers);
@@ -201,21 +201,21 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
     for (size_t i = 0; i < desc->num_layers; i++) {
         model_desc_entry_t* current_info = &desc->entries[i];
         switch (current_info->layer_kind) {
-            case AI_ACTIVATION_LAYER:
+            case ACTIVATION_LAYER:
             {
                 activation_layer_create_info_t* activation_create_info =
                     (activation_layer_create_info_t*)current_info->create_info;
                 printf("* activation\t(type: %d)\n", activation_create_info->activation_function);
                 break;
             }
-            case AI_LINEAR_LAYER:
+            case LINEAR_LAYER:
             {
                 linear_layer_create_info_t* linear_create_info = 
                     (linear_layer_create_info_t*)current_info->create_info;
                 printf("* linear\t(nodes: %zu)\n", linear_create_info->output_size);
                 break;
             }
-            case AI_CONVOLUTIONAL_LAYER:
+            case CONVOLUTIONAL_LAYER:
             {
                 convolutional_layer_create_info_t* conv_create_info = 
                     (convolutional_layer_create_info_t*)current_info->create_info;
@@ -226,7 +226,7 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
                     0);
                 break;
             }
-            case AI_POOLING_LAYER:
+            case POOLING_LAYER:
             {
                 pooling_layer_create_info_t* pooling_create_info = 
                     (pooling_layer_create_info_t*)current_info->create_info;
@@ -235,7 +235,7 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
                     pooling_create_info->pooling_operation);
                 break;
             }
-            case AI_DROPOUT_LAYER:
+            case DROPOUT_LAYER:
             {
                 dropout_layer_create_info_t* dropout_create_info =
                     (dropout_layer_create_info_t*)current_info->create_info;
@@ -253,7 +253,7 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
 }
 
 
-uint32_t ai_model_desc_destroy(ai_model_desc_t* desc)
+uint32_t model_desc_destroy(model_desc_t* desc)
 {
     for (size_t i = 0; i < desc->num_layers; i++) {
         free(desc->entries[i].create_info);
@@ -264,7 +264,7 @@ uint32_t ai_model_desc_destroy(ai_model_desc_t* desc)
 }
 
 
-static uint32_t model_desc_add_entry(ai_model_desc_t* desc, const model_desc_entry_t* entry)
+static uint32_t model_desc_add_entry(model_desc_t* desc, const model_desc_entry_t* entry)
 {
     /* reallocate and copy to grow dynamically */
     model_desc_entry_t* new_entries = (model_desc_entry_t*)calloc(desc->num_layers + 1, sizeof(model_desc_entry_t));

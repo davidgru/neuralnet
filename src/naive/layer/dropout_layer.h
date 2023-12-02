@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "core/ai_layer.h"
+#include "core/layer.h"
 
 
 typedef struct {

@@ -1,5 +1,5 @@
 
-#include "ai_dnnl_input_layer.h"
+#include "dnnl_input_layer.h"
 
 #include <malloc.h>
 
@@ -11,23 +11,23 @@
         if (status) { printf("dnnl_error: %d\n", status); goto error; }\
     }
 
-typedef struct ai_dnnl_input_layer_t {
-    ai_dnnl_layer_t hdr;
-} ai_dnnl_input_layer_t;
+typedef struct dnnl_input_layer_t {
+    dnnl_layer_t hdr;
+} dnnl_input_layer_t;
 
-static uint32_t input_layer_fwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* prev_layer);
-static uint32_t input_layer_bwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* next_layer);
-static uint32_t input_layer_fwd(ai_dnnl_layer_t* layer);
-static uint32_t input_layer_bwd(ai_dnnl_layer_t* layer);
-static uint32_t input_layer_destroy(ai_dnnl_layer_t* layer);
+static uint32_t input_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_layer);
+static uint32_t input_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* next_layer);
+static uint32_t input_layer_fwd(dnnl_layer_t* layer);
+static uint32_t input_layer_bwd(dnnl_layer_t* layer);
+static uint32_t input_layer_destroy(dnnl_layer_t* layer);
 
-uint32_t ai_dnnl_input_layer_create(ai_dnnl_layer_t** layer, void* create_info)
+uint32_t dnnl_input_layer_create(dnnl_layer_t** layer, void* create_info)
 {
-    *layer = (ai_dnnl_layer_t*)malloc(sizeof(ai_dnnl_input_layer_t));
+    *layer = (dnnl_layer_t*)malloc(sizeof(dnnl_input_layer_t));
 
-    ai_dnnl_input_layer_t* l = (ai_dnnl_input_layer_t*)*layer;
+    dnnl_input_layer_t* l = (dnnl_input_layer_t*)*layer;
 
-    ai_dnnl_input_layer_create_info_t* info = (ai_dnnl_input_layer_create_info_t*)create_info;
+    dnnl_input_layer_create_info_t* info = (dnnl_input_layer_create_info_t*)create_info;
 
     l->hdr.N = info->N;
     l->hdr.IC = info->C;
@@ -49,9 +49,9 @@ uint32_t ai_dnnl_input_layer_create(ai_dnnl_layer_t** layer, void* create_info)
     return 0;
 }
 
-static uint32_t input_layer_fwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* prev_layer)
+static uint32_t input_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_layer)
 {
-    ai_dnnl_input_layer_t* l = (ai_dnnl_input_layer_t*)layer;
+    dnnl_input_layer_t* l = (dnnl_input_layer_t*)layer;
 
     dnnl_memory_desc_t data_md;
     dnnl_dims_t data_dims = { l->hdr.N, l->hdr.IC, l->hdr.IH, l->hdr.IW };
@@ -66,28 +66,28 @@ error:
     return 1;
 }
 
-static uint32_t input_layer_bwd_pass_init(ai_dnnl_layer_t* layer, ai_dnnl_layer_t* next_layer)
+static uint32_t input_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* next_layer)
 {
     return 0;
 }
 
-static uint32_t input_layer_fwd(ai_dnnl_layer_t* layer)
+static uint32_t input_layer_fwd(dnnl_layer_t* layer)
 {
-    ai_dnnl_input_layer_t* l = (ai_dnnl_input_layer_t*)layer;
+    dnnl_input_layer_t* l = (dnnl_input_layer_t*)layer;
 
     l->hdr.dst_mem = l->hdr.src_mem;
 
     return 0;
 }
 
-static uint32_t input_layer_bwd(ai_dnnl_layer_t* layer)
+static uint32_t input_layer_bwd(dnnl_layer_t* layer)
 {
     return 0;
 }
 
-static uint32_t input_layer_destroy(ai_dnnl_layer_t* layer)
+static uint32_t input_layer_destroy(dnnl_layer_t* layer)
 {
-    ai_dnnl_input_layer_t* l = (ai_dnnl_input_layer_t*)layer;
+    dnnl_input_layer_t* l = (dnnl_input_layer_t*)layer;
 
     CHECK_DNNL(dnnl_memory_destroy(l->hdr.dst_mem));
 

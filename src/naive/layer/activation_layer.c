@@ -3,7 +3,7 @@
 
 #include "util/ai_math.h"
 
-#include "ai_activation_layer.h"
+#include "activation_layer.h"
 
 #include "log.h"
 
@@ -97,25 +97,22 @@ static uint32_t activation_layer_init(
         (activation_layer_create_info_t*)create_info;
 
     switch(activation_create_info->activation_function) {
-        case AI_ACTIVATION_FUNCTION_SIGMOID:
+        case ACTIVATION_FUNCTION_SIGMOID:
             activation_layer->activation_function = sigmoidv;
             activation_layer->derivative = dsigmoid;
             break;
-        case AI_ACTIVATION_FUNCTION_TANH:
+        case ACTIVATION_FUNCTION_TANH:
             activation_layer->activation_function = tanhv;
             activation_layer->derivative = dtanh;
             break;
-        case AI_ACTIVATION_FUNCTION_RELU:
+        case ACTIVATION_FUNCTION_RELU:
             activation_layer->activation_function = reluv;
             activation_layer->derivative = drelu;
             break;
-        case AI_ACTIVATION_FUNCTION_LEAKY_RELU:
+        case ACTIVATION_FUNCTION_LEAKY_RELU:
             activation_layer->activation_function = leaky_reluv;
             activation_layer->derivative = dleaky_relu;
             break;
-        /* case AI_ACTIVATION_FUNCTION_SOFTMAX: */
-        /*     activation_layer->activation_function = softmaxv; */
-        /*     activation_layer->derivative = dsoftmax; */
     }
 
     return 0;
@@ -174,7 +171,7 @@ static uint32_t activation_layer_backward(
     }
     
     /* Chain rule */
-    AI_VectorMul(gradient_data, prev_gradient_data, size);
+    VectorMul(gradient_data, prev_gradient_data, size);
 }
 
 

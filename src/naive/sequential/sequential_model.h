@@ -2,12 +2,12 @@
 
 #include <stddef.h>
 
-#include "core/ai_layer.h"
-#include "ai_model_desc.h"
+#include "core/layer.h"
+#include "model_desc.h"
 
 
 typedef struct {
-    ai_model_desc_t* desc;
+    model_desc_t* desc;
     size_t max_batch_size;
 } sequential_model_create_info_t;
 

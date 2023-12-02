@@ -1,8 +1,8 @@
 
-#include "ai_dnnl_loss.h"
+#include "dnnl_loss.h"
 
 
-#include "ai_dnnl_util.h"
+#include "dnnl_util.h"
 
 #include <malloc.h>
 #include <math.h>
@@ -16,58 +16,58 @@ static void loss_cross_entropy_bwd(float* dx, float* x, size_t size, uint8_t lab
 
 static uint32_t argmax(float* x, size_t size);
 
-static ai_dnnl_loss_fn_t get_loss_fn(ai_dnnl_loss_kind_t loss_kind)
+static dnnl_loss_fn_t get_loss_fn(dnnl_loss_kind_t loss_kind)
 {
-    static ai_dnnl_loss_fn_t t[] = {
+    static dnnl_loss_fn_t t[] = {
         loss_mse,
         loss_cross_entropy
     };
     return t[loss_kind];
 }
 
-static ai_dnnl_loss_derivative_fn_t get_loss_derivative_fn(ai_dnnl_loss_kind_t loss_kind)
+static dnnl_loss_derivative_fn_t get_loss_derivative_fn(dnnl_loss_kind_t loss_kind)
 {
-    static ai_dnnl_loss_derivative_fn_t t[] = {
+    static dnnl_loss_derivative_fn_t t[] = {
         loss_mse_bwd,
         loss_cross_entropy_bwd
     };
     return t[loss_kind];
 }
 
-uint32_t ai_dnnl_loss_create(ai_dnnl_loss_t** loss, ai_dnnl_loss_kind_t loss_kind)
+uint32_t dnnl_loss_create(dnnl_loss_t** loss, dnnl_loss_kind_t loss_kind)
 {
-    *loss = (ai_dnnl_loss_t*)malloc(sizeof(ai_dnnl_loss_t));
+    *loss = (dnnl_loss_t*)malloc(sizeof(dnnl_loss_t));
 
     (*loss)->fwd_fn = get_loss_fn(loss_kind);
     (*loss)->bwd_fn = get_loss_derivative_fn(loss_kind);
     
     // Create a reorder layer
-    ai_dnnl_layer_create_info_t reorder_create_info;
-    reorder_create_info.layer_kind = ai_dnnl_layer_kind_reorder;
+    dnnl_layer_create_info_t reorder_create_info;
+    reorder_create_info.layer_kind = dnnl_layer_kind_reorder;
     reorder_create_info.layer_create_info = 0;
 
-    uint32_t status = ai_dnnl_layer_create(&(*loss)->reorder_layer, &reorder_create_info);
+    uint32_t status = dnnl_layer_create(&(*loss)->reorder_layer, &reorder_create_info);
 
     return status;
 }
 
-uint32_t ai_dnnl_loss_init(ai_dnnl_loss_t* loss, ai_dnnl_layer_t* prev_layer)
+uint32_t dnnl_loss_init(dnnl_loss_t* loss, dnnl_layer_t* prev_layer)
 {
     loss->N = prev_layer->N;
     loss->C = prev_layer->OC;
     loss->H = prev_layer->OH;
     loss->W = prev_layer->OW;
 
-    ai_dnnl_layer_fwd_pass_init(loss->reorder_layer, prev_layer);
-    ai_dnnl_layer_bwd_pass_init(loss->reorder_layer, 0);
+    dnnl_layer_fwd_pass_init(loss->reorder_layer, prev_layer);
+    dnnl_layer_bwd_pass_init(loss->reorder_layer, 0);
 
-    loss->src = ai_dnnl_memory_get_data_handle(loss->reorder_layer->dst_mem);
-    loss->diff_src = ai_dnnl_memory_get_data_handle(loss->reorder_layer->diff_dst_mem);
+    loss->src = dnnl_memory_get_data_handle(loss->reorder_layer->dst_mem);
+    loss->diff_src = dnnl_memory_get_data_handle(loss->reorder_layer->diff_dst_mem);
 
     return 0;
 }
 
-uint32_t ai_dnnl_loss_acc(ai_dnnl_loss_t* loss, uint8_t* labels)
+uint32_t dnnl_loss_acc(dnnl_loss_t* loss, uint8_t* labels)
 {
     uint32_t acc = 0;
     const size_t strideN = loss->C * loss->H * loss->W;
@@ -76,7 +76,7 @@ uint32_t ai_dnnl_loss_acc(ai_dnnl_loss_t* loss, uint8_t* labels)
     return acc;
 }
 
-float ai_dnnl_loss_loss(ai_dnnl_loss_t* loss, uint8_t* labels)
+float dnnl_loss_loss(dnnl_loss_t* loss, uint8_t* labels)
 {
     float l = 0.0f;
     const size_t strideN = loss->C * loss->H * loss->W;
@@ -85,7 +85,7 @@ float ai_dnnl_loss_loss(ai_dnnl_loss_t* loss, uint8_t* labels)
     return l;
 }
 
-uint32_t ai_dnnl_loss_bwd(ai_dnnl_loss_t* loss, uint8_t* labels)
+uint32_t dnnl_loss_bwd(dnnl_loss_t* loss, uint8_t* labels)
 {
     const size_t strideN = loss->C * loss->H * loss->W;
     for (size_t n = 0; n < loss->N; n++)
@@ -93,9 +93,9 @@ uint32_t ai_dnnl_loss_bwd(ai_dnnl_loss_t* loss, uint8_t* labels)
     return 0;
 }
 
-uint32_t ai_dnnl_loss_destroy(ai_dnnl_loss_t* loss)
+uint32_t dnnl_loss_destroy(dnnl_loss_t* loss)
 {
-    uint32_t status = ai_dnnl_layer_destroy(loss->reorder_layer);
+    uint32_t status = dnnl_layer_destroy(loss->reorder_layer);
 
     free(loss);
 

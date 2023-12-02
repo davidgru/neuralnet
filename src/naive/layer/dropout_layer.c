@@ -1,8 +1,8 @@
 #include <malloc.h>
 
-#include "util/ai_random.h"
+#include "random.h"
 
-#include "ai_dropout_layer.h"
+#include "dropout_layer.h"
 
 
 typedef struct dropout_layer_t {
@@ -94,7 +94,7 @@ static uint32_t dropout_layer_forward(
     } else if (forward_kind == LAYER_FORWARD_TRAINING) {
         /* randomly drop connections */
         for (size_t i = 0; i < size; i++) {
-            float should_keep = (float)(AI_RandomUniform(0.0f, 1.0f) > dropout_layer->dropout_rate);
+            float should_keep = (float)(RandomUniform(0.0f, 1.0f) > dropout_layer->dropout_rate);
             output_data[i] = input_data[i] * should_keep;
         }
     } else {
