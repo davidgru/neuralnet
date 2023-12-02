@@ -71,11 +71,6 @@ uint32_t model_desc_add_convolutional_layer_ext(
     conv_bias_init_func_t bias_init
 )
 {
-    if (padding_top != 0 || padding_left != 0 || padding_bottom != 0 || padding_right != 0) {
-        LOG_ERROR("Only zero padding is supported by convolution operation.\n");
-        return 1;
-    }
-
     convolutional_layer_create_info_t* conv_create_info =
         (convolutional_layer_create_info_t*)malloc(sizeof(convolutional_layer_create_info_t));
     conv_create_info->output_channels = output_channels;
@@ -83,6 +78,8 @@ uint32_t model_desc_add_convolutional_layer_ext(
     conv_create_info->filter_width = kernel_width;
     conv_create_info->stride_y = stride_y;
     conv_create_info->stride_x = stride_x;
+    conv_create_info->padding_y = padding_top,
+    conv_create_info->padding_x = padding_left,
     conv_create_info->weight_init = weight_init;
     conv_create_info->bias_init = bias_init;
 

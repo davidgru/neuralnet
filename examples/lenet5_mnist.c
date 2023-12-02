@@ -38,7 +38,7 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
     /* Allocate resources for the model descriptor. */
     model_desc_create(&desc);
 
-    model_desc_add_convolutional_layer(desc, 6, 5, 1, 0, conv_weight_init_xavier, conv_bias_init_zeros);
+    model_desc_add_convolutional_layer(desc, 6, 5, 1, 2, conv_weight_init_xavier, conv_bias_init_zeros);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_TANH);
     model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_AVERAGE);
 
@@ -72,13 +72,13 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
 }
 
 
-dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind, size_t padding)
+dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind)
 {
     dataset_t dataset = NULL;
     mnist_create_info_t mnist_train_info = {
         .path = path,
         .dataset_kind = MNIST_TRAIN_SET,
-        .padding = padding
+        .padding = 0
     };
     dataset_create(&dataset, &mnist_dataset, &mnist_train_info);
     return dataset;
@@ -122,10 +122,8 @@ int main()
     dump_compile_time_config();
 
 
-    /* Load mnist with a padding of two because lenet expects 32x32 input and the naive
-        convolutional layers do not support padding at this time. */
-    dataset_t train_set = load_mnist(mnist_path, MNIST_TRAIN_SET, 2);
-    dataset_t test_set = load_mnist(mnist_path, MNIST_TEST_SET, 2);
+    dataset_t train_set = load_mnist(mnist_path, MNIST_TRAIN_SET);
+    dataset_t test_set = load_mnist(mnist_path, MNIST_TEST_SET);
     
     if (train_set == NULL || test_set == NULL) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
