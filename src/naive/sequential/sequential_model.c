@@ -101,7 +101,7 @@ static uint32_t sequential_model_init(
     }
 
     model->param_refs.param_refs = (layer_param_ref_t*)calloc(
-            model->param_refs.num_params, sizeof(layer_param_ref_t));
+        model->param_refs.num_params, sizeof(layer_param_ref_t));
     if (model->param_refs.param_refs == NULL) {
         return 1;
     }
@@ -141,6 +141,8 @@ static uint32_t sequential_model_deinit(layer_context_t* context)
     for (size_t i = 0; i < model->num_layers; i++) {
         layer_destroy(model->layers[i]);
     }
+    free(model->layers);
+
     if (model->param_refs.param_refs != NULL) {
         free(model->param_refs.param_refs);
     }
