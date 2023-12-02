@@ -18,25 +18,43 @@ typedef struct activation_layer_t {
 } activation_layer_t;
 
 
-static uint32_t activation_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
-    const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
-static uint32_t activation_layer_forward(void* private_data, layer_forward_kind_t forward_kind,
-    const tensor_t* input, tensor_t* out_output);
-static uint32_t activation_layer_backward(void* private_data, const tensor_t* input, const tensor_t* output,
-    const tensor_t* prev_gradient, tensor_t* out_gradient);
-static uint32_t activation_layer_calc_output_shape(tensor_shape_t* out_output_shape, const void* create_info,
-    const tensor_shape_t* input_shape);
+static uint32_t activation_layer_init(
+    layer_context_t* context,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape,
+    const tensor_shape_t* output_shape
+);
+
+static uint32_t activation_layer_forward(
+    layer_context_t* context,
+    layer_forward_kind_t forward_kind,
+    const tensor_t* input,
+    tensor_t* out_output
+);
+
+static uint32_t activation_layer_backward(
+    layer_context_t* context,
+    const tensor_t* input,
+    const tensor_t* output,
+    const tensor_t* prev_gradient,
+    tensor_t* out_gradient
+);
+
+static uint32_t activation_layer_calc_output_shape(
+    tensor_shape_t* out_output_shape,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape
+);
 
 
-const layer_info_t activation_layer_info = {
+const layer_impl_t activation_layer_impl = {
     .init_func = activation_layer_init,
     .get_param_func = NULL, /* no params */
     .deinit_func = NULL, /* not needed */
     .forward_func = activation_layer_forward,
     .backward_func = activation_layer_backward,
     .calc_output_size = activation_layer_calc_output_shape,
-    .info_func = NULL, /* not implemented */
-    .layer_private_size = sizeof(activation_layer_t)
+    .layer_context_size = sizeof(activation_layer_t)
 };
 
 
@@ -68,15 +86,15 @@ static void dsoftmaxv(const float* in, float* out, size_t size);
 
 
 static uint32_t activation_layer_init(
-    void* private_data,
-    const AI_LayerCreateInfo* create_info,
+    layer_context_t* context,
+    const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
     const tensor_shape_t* output_shape
 )
 {
-    activation_layer_t* activation_layer = (activation_layer_t*)private_data;
-    AI_ActivationLayerCreateInfo* activation_create_info =
-        (AI_ActivationLayerCreateInfo*)create_info;
+    activation_layer_t* activation_layer = (activation_layer_t*)context;
+    activation_layer_create_info_t* activation_create_info =
+        (activation_layer_create_info_t*)create_info;
 
     switch(activation_create_info->activation_function) {
         case AI_ACTIVATION_FUNCTION_SIGMOID:
@@ -105,15 +123,13 @@ static uint32_t activation_layer_init(
 
 
 static uint32_t activation_layer_forward(
-    void* private_data,
+    layer_context_t* context,
     layer_forward_kind_t forward_kind,
     const tensor_t* input,
     tensor_t* out_output
 )
 {
-    LOG_TRACE("activation layer forward pass\n");
-
-    activation_layer_t* activation_layer = (activation_layer_t*)private_data;    
+    activation_layer_t* activation_layer = (activation_layer_t*)context;    
 
 
     const tensor_shape_t* shape = tensor_get_shape(input);
@@ -134,14 +150,14 @@ static uint32_t activation_layer_forward(
 
 
 static uint32_t activation_layer_backward(
-    void* private_data,
+    layer_context_t* context,
     const tensor_t* input,
     const tensor_t* output,
     const tensor_t* prev_gradient,
     tensor_t* out_gradient
 )
 {
-    activation_layer_t* activation_layer = (activation_layer_t*)private_data;
+    activation_layer_t* activation_layer = (activation_layer_t*)context;
 
 
     const tensor_shape_t* shape = tensor_get_shape(out_gradient);
@@ -164,7 +180,7 @@ static uint32_t activation_layer_backward(
 
 static uint32_t activation_layer_calc_output_shape(
     tensor_shape_t* out_output_shape,
-    const void* create_info,
+    const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape
 )
 {

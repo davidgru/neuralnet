@@ -4,6 +4,10 @@
 #include "layer/ai_layer.h"
 
 
+#include "tensor.h"
+#include "tensor_impl.h"
+
+
 typedef void optimizer_config_t;
 
 

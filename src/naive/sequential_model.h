@@ -12,4 +12,4 @@ typedef struct {
 } sequential_model_create_info_t;
 
 
-const extern layer_info_t sequential_model_info;
+const extern layer_impl_t sequential_model_impl;

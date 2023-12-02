@@ -4,14 +4,30 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "layer/ai_base_layer.h"
 #include "layer/ai_layer.h"
 #include "util/ai_weight_init.h"
 #include "util/ai_loss.h"
 
+#include "layer/ai_activation_layer.h"
+#include "layer/ai_convolutional_layer.h"
+#include "layer/ai_dropout_layer.h"
+#include "layer/ai_linear_layer.h"
+#include "layer/ai_pooling_layer.h"
+
+
+/* Leaving AI_LayerKind in here but remove in future. */
+typedef enum AI_LayerKind {
+    AI_INPUT_LAYER = 0,
+    AI_ACTIVATION_LAYER = 1,
+    AI_LINEAR_LAYER = 2,
+    AI_CONVOLUTIONAL_LAYER = 3,
+    AI_POOLING_LAYER = 4,
+    AI_DROPOUT_LAYER = 5,
+} AI_LayerKind;
+
 
 typedef struct {
-    const layer_info_t* layer_impl;
+    const layer_impl_t* layer_impl;
     layer_create_info_t* create_info;
     AI_LayerKind layer_kind;
 } model_desc_entry_t;
@@ -41,7 +57,7 @@ uint32_t ai_model_desc_create(ai_model_desc_t** desc);
  */
 uint32_t ai_model_desc_add_activation_layer(
     ai_model_desc_t* desc,
-    AI_ActivationFunctionEnum activation_function
+    activation_function_kind_t activation_function
 );
 
 
@@ -143,7 +159,7 @@ uint32_t ai_model_desc_add_pooling_layer(
     size_t kernel_size,
     size_t stride,
     size_t padding,
-    AI_PoolingOperationEnum pooling_kind
+    pooling_kind_t pooling_kind
 );
 
 
@@ -172,7 +188,7 @@ uint32_t ai_model_desc_add_pooling_layer_ext(
     size_t padding_left,
     size_t padding_bottom,
     size_t padding_right,
-    AI_PoolingOperationEnum pooling_kind
+    pooling_kind_t pooling_kind
 );
 
 

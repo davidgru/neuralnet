@@ -70,7 +70,7 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, siz
         .desc = desc,
         .max_batch_size = batch_size,
     };
-    layer_create(&model, &sequential_model_info, &create_info, input_shape, batch_size);
+    layer_create(&model, &sequential_model_impl, &create_info, input_shape, batch_size);
 
 
     ai_model_desc_destroy(desc);

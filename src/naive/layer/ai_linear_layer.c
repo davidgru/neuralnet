@@ -1,10 +1,4 @@
-
 /* Based on: http://cs231n.stanford.edu/handouts/linear-backprop.pdf */
-
-
-#include "ai_linear_layer.h"
-#include "ai_layer.h"
-
 #include <malloc.h>
 #include <string.h>
 #if defined(AI_USE_AVX)
@@ -12,8 +6,10 @@
 #endif
 
 #include "util/ai_math.h"
-
+#include "tensor_impl.h"
 #include "log.h"
+
+#include "ai_linear_layer.h"
 
 
 #define NUM_LINEAR_LAYER_PARAMS 2
@@ -35,28 +31,50 @@ typedef struct linear_layer_t {
 } linear_layer_t;
 
 
-static uint32_t linear_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
-    const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
-static uint32_t linear_layer_get_params(void* private_data,
-    layer_param_ref_list_t* out_layer_params);
-static uint32_t linear_layer_deinit(void* private_data);
-static uint32_t linear_layer_forward(void* private_data, layer_forward_kind_t forward_kind,
-    const tensor_t* input, tensor_t* out_output);
-static uint32_t linear_layer_backward(void* private_data, const tensor_t* input, const tensor_t* output,
-    const tensor_t* prev_gradient, tensor_t* out_gradient);
-static uint32_t linear_layer_calc_output_shape(tensor_shape_t* out_output_shape, const void* create_info,
-    const tensor_shape_t* input_shape);
+static uint32_t linear_layer_init(
+    layer_context_t* context,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape,
+    const tensor_shape_t* output_shape
+);
+
+static uint32_t linear_layer_get_params(
+    layer_context_t* context,
+    layer_param_ref_list_t* out_layer_params
+);
+
+static uint32_t linear_layer_deinit(layer_context_t* context);
+
+static uint32_t linear_layer_forward(
+    layer_context_t* context,
+    layer_forward_kind_t forward_kind,
+    const tensor_t* input,
+    tensor_t* out_output
+);
+
+static uint32_t linear_layer_backward(
+    layer_context_t* context,
+    const tensor_t* input,
+    const tensor_t* output,
+    const tensor_t* prev_gradient,
+    tensor_t* out_gradient
+);
+
+static uint32_t linear_layer_calc_output_shape(
+    tensor_shape_t* out_output_shape,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape
+);
 
 
-const layer_info_t linear_layer_info = {
+const layer_impl_t linear_layer_impl = {
     .init_func = linear_layer_init,
     .get_param_func = linear_layer_get_params,
     .deinit_func = linear_layer_deinit,
     .forward_func = linear_layer_forward,
     .backward_func = linear_layer_backward,
     .calc_output_size = linear_layer_calc_output_shape,
-    .info_func = NULL,
-    .layer_private_size = sizeof(linear_layer_t)
+    .layer_context_size = sizeof(linear_layer_t)
 };
 
 
@@ -66,14 +84,14 @@ static void matrix_product_t2(const float* m1, const float* m2, float* output, s
 
 
 static uint32_t linear_layer_init(
-    void* private_data,
-    const AI_LayerCreateInfo* create_info,
+    layer_context_t* context,
+    const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
     const tensor_shape_t* output_shape
 )
 {
-    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
-    const AI_LinearLayerCreateInfo* linear_create_info = (AI_LinearLayerCreateInfo*)create_info;
+    linear_layer_t* linear_layer = (linear_layer_t*)context;
+    const linear_layer_create_info_t* linear_create_info = (linear_layer_create_info_t*)create_info;
 
 
     /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
@@ -130,11 +148,11 @@ static uint32_t linear_layer_init(
 
 
 static uint32_t linear_layer_get_params(
-    void* private_data,
+    layer_context_t* context,
     layer_param_ref_list_t* out_layer_params
 )
 {
-    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
+    linear_layer_t* linear_layer = (linear_layer_t*)context;
 
     out_layer_params->param_refs = linear_layer->param_refs;
     out_layer_params->num_params = NUM_LINEAR_LAYER_PARAMS;
@@ -142,9 +160,9 @@ static uint32_t linear_layer_get_params(
 }
 
 
-static uint32_t linear_layer_deinit(void* private_data)
+static uint32_t linear_layer_deinit(layer_context_t* context)
 {
-    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
+    linear_layer_t* linear_layer = (linear_layer_t*)context;
     
     tensor_destory(&linear_layer->weights);
     tensor_destory(&linear_layer->d_weights);
@@ -154,13 +172,13 @@ static uint32_t linear_layer_deinit(void* private_data)
 
 
 static uint32_t linear_layer_forward(
-    void* private_data,
+    layer_context_t* context,
     layer_forward_kind_t forward_kind,
     const tensor_t* input,
     tensor_t* out_output
 )
 {
-    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
+    linear_layer_t* linear_layer = (linear_layer_t*)context;
 
 
     const tensor_shape_t* input_shape = tensor_get_shape(input);
@@ -190,14 +208,14 @@ static uint32_t linear_layer_forward(
 
 
 static uint32_t linear_layer_backward(
-    void* private_data,
+    layer_context_t* context,
     const tensor_t* input,
     const tensor_t* output,
     const tensor_t* prev_gradient,
     tensor_t* out_gradient
 )
 {
-    linear_layer_t* linear_layer = (linear_layer_t*)private_data;
+    linear_layer_t* linear_layer = (linear_layer_t*)context;
 
 
     const tensor_shape_t* input_shape = tensor_get_shape(input);
@@ -240,11 +258,11 @@ static uint32_t linear_layer_backward(
 
 static uint32_t linear_layer_calc_output_shape(
     tensor_shape_t* out_output_shape,
-    const void* create_info,
+    const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape
 )
 {
-    AI_LinearLayerCreateInfo* linear_create_info = (AI_LinearLayerCreateInfo*)create_info;
+    linear_layer_create_info_t* linear_create_info = (linear_layer_create_info_t*)create_info;
 
     /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
         future. */

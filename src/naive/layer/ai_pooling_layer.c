@@ -1,12 +1,13 @@
-
-#include "ai_pooling_layer.h"
-#include "ai_layer.h"
-
 #include <malloc.h>
 #include <string.h>
 
+#include "ai_layer.h"
+#include "ai_pooling_layer.h"
+
+
 #define max(a, b) ((a > b) ? a : b)
 #define min(a, b) ((a < b) ? a : b)
+
 
 typedef struct pooling_layer_t {
     size_t kernel_width;
@@ -15,25 +16,43 @@ typedef struct pooling_layer_t {
 } pooling_layer_t;
 
 
-static uint32_t pooling_layer_init(void* private_data, const AI_LayerCreateInfo* create_info,
-    const tensor_shape_t* input_shape, const tensor_shape_t* output_shape);
-static uint32_t pooling_layer_forward(void* private_data, layer_forward_kind_t forward_kind,
-    const tensor_t* input, tensor_t* out_output);
-static uint32_t pooling_layer_backward(void* private_data, const tensor_t* input, const tensor_t* output,
-    const tensor_t* prev_gradient, tensor_t* out_gradient);
-uint32_t pooling_layer_calc_output_shape(tensor_shape_t* out_output_shape, const void* create_info,
-    const tensor_shape_t* input_shape);
+static uint32_t pooling_layer_init(
+    layer_context_t* context,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape,
+    const tensor_shape_t* output_shape
+);
+
+static uint32_t pooling_layer_forward(
+    layer_context_t* context,
+    layer_forward_kind_t forward_kind,
+    const tensor_t* input,
+    tensor_t* out_output
+);
+
+static uint32_t pooling_layer_backward(
+    layer_context_t* context,
+    const tensor_t* input,
+    const tensor_t* output,
+    const tensor_t* prev_gradient,
+    tensor_t* out_gradient
+);
+
+static uint32_t pooling_layer_calc_output_shape(
+    tensor_shape_t* out_output_shape,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape
+);
 
 
-const layer_info_t pooling_layer_info = {
+const layer_impl_t pooling_layer_impl = {
     .init_func = pooling_layer_init,
     .get_param_func = NULL, /* no params */
     .deinit_func = NULL,
     .forward_func = pooling_layer_forward,
     .backward_func = pooling_layer_backward,
     .calc_output_size = pooling_layer_calc_output_shape,
-    .info_func = NULL,
-    .layer_private_size = sizeof(pooling_layer_t),
+    .layer_context_size = sizeof(pooling_layer_t),
 };
 
 
@@ -46,34 +65,17 @@ static void pooling_operation_max_backward(const float* x, const float* dy, floa
 static void pooling_operation_min_backward(const float* x, const float* dy, float* dx, size_t input_width, size_t input_height, size_t kernel_width);
 
 
-uint32_t pooling_layer_calc_output_shape(
-    tensor_shape_t* out_output_shape,
-    const void* create_info,
-    const tensor_shape_t* input_shape
-)
-{
-    AI_PoolingLayerCreateInfo* pooling_create_info = (AI_PoolingLayerCreateInfo*)create_info;
-
-    out_output_shape->dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
-    out_output_shape->dims[TENSOR_CHANNEL_DIM] = input_shape->dims[TENSOR_CHANNEL_DIM];
-    out_output_shape->dims[TENSOR_HEIGHT_DIM] = input_shape->dims[TENSOR_HEIGHT_DIM]
-        / pooling_create_info->kernel_width;
-    out_output_shape->dims[TENSOR_WIDTH_DIM] = input_shape->dims[TENSOR_WIDTH_DIM]
-        / pooling_create_info->kernel_width;
-
-    return 0;
-}
 
 
 static uint32_t pooling_layer_init(
-    void* private_data,
-    const AI_LayerCreateInfo* create_info,
+    layer_context_t* context,
+    const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
     const tensor_shape_t* output_shape
 )
 {
-    pooling_layer_t* pooling_layer = (pooling_layer_t*)private_data;
-    AI_PoolingLayerCreateInfo* pooling_create_info = (AI_PoolingLayerCreateInfo*)create_info;
+    pooling_layer_t* pooling_layer = (pooling_layer_t*)context;
+    pooling_layer_create_info_t* pooling_create_info = (pooling_layer_create_info_t*)create_info;
 
 
     pooling_layer->kernel_width = pooling_create_info->kernel_width;
@@ -98,13 +100,13 @@ static uint32_t pooling_layer_init(
 
 
 static uint32_t pooling_layer_forward(
-    void* private_data,
+    layer_context_t* context,
     layer_forward_kind_t forward_kind,
     const tensor_t* input,
     tensor_t* out_output
 )
 {
-    pooling_layer_t* pooling_layer = (pooling_layer_t*)private_data;
+    pooling_layer_t* pooling_layer = (pooling_layer_t*)context;
 
 
     const tensor_shape_t* input_shape = tensor_get_shape(input);
@@ -139,14 +141,14 @@ static uint32_t pooling_layer_forward(
 
 
 static uint32_t pooling_layer_backward(
-    void* private_data,
+    layer_context_t* context,
     const tensor_t* input,
     const tensor_t* output,
     const tensor_t* prev_gradient,
     tensor_t* out_gradient
 )
 {
-    pooling_layer_t* pooling_layer = (pooling_layer_t*)private_data;
+    pooling_layer_t* pooling_layer = (pooling_layer_t*)context;
 
 
     const tensor_shape_t* input_shape = tensor_get_shape(input);
@@ -181,6 +183,25 @@ static uint32_t pooling_layer_backward(
                 d_feature_map_in, input_width, input_height, pooling_layer->kernel_width);
         }
     }
+}
+
+
+static uint32_t pooling_layer_calc_output_shape(
+    tensor_shape_t* out_output_shape,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape
+)
+{
+    pooling_layer_create_info_t* pooling_create_info = (pooling_layer_create_info_t*)create_info;
+
+    out_output_shape->dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
+    out_output_shape->dims[TENSOR_CHANNEL_DIM] = input_shape->dims[TENSOR_CHANNEL_DIM];
+    out_output_shape->dims[TENSOR_HEIGHT_DIM] = input_shape->dims[TENSOR_HEIGHT_DIM]
+        / pooling_create_info->kernel_width;
+    out_output_shape->dims[TENSOR_WIDTH_DIM] = input_shape->dims[TENSOR_WIDTH_DIM]
+        / pooling_create_info->kernel_width;
+
+    return 0;
 }
 
 

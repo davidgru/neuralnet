@@ -1,7 +1,12 @@
 #pragma once
 
-#include "ai_base_layer.h"
+
 #include "ai_layer.h"
 
 
-extern const layer_info_t dropout_layer_info;
+typedef struct {
+    float dropout_rate;
+} dropout_layer_create_info_t;
+
+
+extern const layer_impl_t dropout_layer_impl;

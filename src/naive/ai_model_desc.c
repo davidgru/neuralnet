@@ -7,12 +7,6 @@
 
 #include "log.h"
 
-#include "layer/ai_activation_layer.h"
-#include "layer/ai_convolutional_layer.h"
-#include "layer/ai_dropout_layer.h"
-#include "layer/ai_linear_layer.h"
-#include "layer/ai_pooling_layer.h"
-
 
 /* Helper function to append any layer to the model descriptor. */
 static uint32_t model_desc_add_entry(ai_model_desc_t* desc, const model_desc_entry_t* entry);
@@ -30,15 +24,15 @@ uint32_t ai_model_desc_create(ai_model_desc_t** desc)
 
 uint32_t ai_model_desc_add_activation_layer(
     ai_model_desc_t* desc,
-    AI_ActivationFunctionEnum activation_function
+    activation_function_kind_t activation_function
 )
 {
-    AI_ActivationLayerCreateInfo* activation_create_info =
-        (AI_ActivationLayerCreateInfo*)malloc(sizeof(AI_ActivationLayerCreateInfo));
+    activation_layer_create_info_t* activation_create_info =
+        (activation_layer_create_info_t*)malloc(sizeof(activation_layer_create_info_t));
     activation_create_info->activation_function = activation_function;
     
     model_desc_entry_t entry = {
-        .layer_impl = &activation_layer_info,
+        .layer_impl = &activation_layer_impl,
         .create_info = activation_create_info,
         .layer_kind = AI_ACTIVATION_LAYER,
     };
@@ -93,7 +87,7 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
     conv_create_info->bias_init = bias_init;
 
     model_desc_entry_t entry = {
-        .layer_impl = &convolutional_layer_info,
+        .layer_impl = &convolutional_layer_impl,
         .create_info = conv_create_info,
         .layer_kind = AI_CONVOLUTIONAL_LAYER,
     };
@@ -103,12 +97,12 @@ uint32_t ai_model_desc_add_convolutional_layer_ext(
 
 uint32_t ai_model_desc_add_dropout_layer(ai_model_desc_t* desc, float dropout_rate)
 {
-    AI_DropoutLayerCreateInfo* dropout_create_info =
-        (AI_DropoutLayerCreateInfo*)malloc(sizeof(AI_DropoutLayerCreateInfo));
+    dropout_layer_create_info_t* dropout_create_info =
+        (dropout_layer_create_info_t*)malloc(sizeof(dropout_layer_create_info_t));
     dropout_create_info->dropout_rate = dropout_rate;
 
     model_desc_entry_t entry = {
-        .layer_impl = &dropout_layer_info,
+        .layer_impl = &dropout_layer_impl,
         .create_info = dropout_create_info,
         .layer_kind = AI_DROPOUT_LAYER,
     };
@@ -123,14 +117,14 @@ uint32_t ai_model_desc_add_linear_layer(
     AI_FCLayerBiasInit bias_init
 )
 {
-    AI_LinearLayerCreateInfo* linear_create_info =
-        (AI_LinearLayerCreateInfo*)malloc(sizeof(AI_LinearLayerCreateInfo));
+    linear_layer_create_info_t* linear_create_info =
+        (linear_layer_create_info_t*)malloc(sizeof(linear_layer_create_info_t));
     linear_create_info->output_size = output_size;
     linear_create_info->weight_init = weight_init;
     linear_create_info->bias_init = bias_init;
 
     model_desc_entry_t entry = {
-        .layer_impl = &linear_layer_info,
+        .layer_impl = &linear_layer_impl,
         .create_info = linear_create_info,
         .layer_kind = AI_LINEAR_LAYER,
     };
@@ -143,7 +137,7 @@ uint32_t ai_model_desc_add_pooling_layer(
     size_t kernel_size,
     size_t stride,
     size_t padding,
-    AI_PoolingOperationEnum pooling_kind
+    pooling_kind_t pooling_kind
 )
 {
     return ai_model_desc_add_pooling_layer_ext(desc, kernel_size, kernel_size, stride, stride,
@@ -161,7 +155,7 @@ uint32_t ai_model_desc_add_pooling_layer_ext(
     size_t padding_left,
     size_t padding_bottom,
     size_t padding_right,
-    AI_PoolingOperationEnum pooling_kind
+    pooling_kind_t pooling_kind
 )
 {
     if (kernel_height != kernel_width) {
@@ -179,13 +173,13 @@ uint32_t ai_model_desc_add_pooling_layer_ext(
         return 1;
     }
 
-    AI_PoolingLayerCreateInfo* pooling_create_info =
-        (AI_PoolingLayerCreateInfo*)malloc(sizeof(AI_PoolingLayerCreateInfo));
+    pooling_layer_create_info_t* pooling_create_info =
+        (pooling_layer_create_info_t*)malloc(sizeof(pooling_layer_create_info_t));
     pooling_create_info->kernel_width = kernel_height;
     pooling_create_info->pooling_operation = pooling_kind;
 
     model_desc_entry_t entry = {
-        .layer_impl = &pooling_layer_info,
+        .layer_impl = &pooling_layer_impl,
         .create_info = pooling_create_info,
         .layer_kind = AI_POOLING_LAYER,
     };
@@ -209,15 +203,15 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
         switch (current_info->layer_kind) {
             case AI_ACTIVATION_LAYER:
             {
-                AI_ActivationLayerCreateInfo* activation_create_info =
-                    (AI_ActivationLayerCreateInfo*)current_info->create_info;
+                activation_layer_create_info_t* activation_create_info =
+                    (activation_layer_create_info_t*)current_info->create_info;
                 printf("* activation\t(type: %d)\n", activation_create_info->activation_function);
                 break;
             }
             case AI_LINEAR_LAYER:
             {
-                AI_LinearLayerCreateInfo* linear_create_info = 
-                    (AI_LinearLayerCreateInfo*)current_info->create_info;
+                linear_layer_create_info_t* linear_create_info = 
+                    (linear_layer_create_info_t*)current_info->create_info;
                 printf("* linear\t(nodes: %zu)\n", linear_create_info->output_size);
                 break;
             }
@@ -234,8 +228,8 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
             }
             case AI_POOLING_LAYER:
             {
-                AI_PoolingLayerCreateInfo* pooling_create_info = 
-                    (AI_PoolingLayerCreateInfo*)current_info->create_info;
+                pooling_layer_create_info_t* pooling_create_info = 
+                    (pooling_layer_create_info_t*)current_info->create_info;
                 printf("* pooling\t(kernel: (%zu,%zu), algorithm: %d)\n",
                     pooling_create_info->kernel_width, pooling_create_info->kernel_width,
                     pooling_create_info->pooling_operation);
@@ -243,8 +237,8 @@ uint32_t ai_model_desc_dump(ai_model_desc_t* desc)
             }
             case AI_DROPOUT_LAYER:
             {
-                AI_DropoutLayerCreateInfo* dropout_create_info =
-                    (AI_DropoutLayerCreateInfo*)current_info->create_info;
+                dropout_layer_create_info_t* dropout_create_info =
+                    (dropout_layer_create_info_t*)current_info->create_info;
                 printf("* dropout\t(rate: %f)\n", dropout_create_info->dropout_rate);
                 break;
             }

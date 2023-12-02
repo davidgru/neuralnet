@@ -8,7 +8,6 @@
 #include "tensor.h"
 #include "tensor_impl.h"
 
-#include "layer/ai_base_layer.h"
 
 
 typedef float(*AI_LossFunction)(const float* v, float* scratch_mem , size_t size, uint32_t label);
