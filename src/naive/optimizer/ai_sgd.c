@@ -13,10 +13,13 @@ typedef struct {
 
 static uint32_t sgd_init(void* private_data, const optimizer_config_t* create_info);
 static uint32_t sgd_update_params(void* private_data, layer_param_ref_list_t* params);
-
+static float sgd_get_learning_rate(void* private_data);
+static void sgd_set_learning_rate(void* private_data, float learning_rate);
 
 const optimizer_impl_t sgd_optimizer = {
     .init_func = sgd_init,
+    .get_lr_func = sgd_get_learning_rate,
+    .set_lr_func = sgd_set_learning_rate,
     .update_func = sgd_update_params,
     .deinit_func = NULL,
     .private_data_size = sizeof(sgd_t)
@@ -31,6 +34,21 @@ static uint32_t sgd_init(void* private_data, const optimizer_config_t* config)
     sgd->learning_rate = sgd_config->learning_rate;
     sgd->weight_reg_kind = sgd_config->weight_reg_kind;
     sgd->weight_reg_strength = sgd_config->weight_reg_strength;
+}
+
+
+static float sgd_get_learning_rate(void* private_data)
+{
+    sgd_t* sgd = (sgd_t*)private_data;
+    
+    return sgd->learning_rate;
+}
+
+
+static void sgd_set_learning_rate(void* private_data, float learning_rate)
+{
+    sgd_t* sgd = (sgd_t*)private_data;
+    sgd->learning_rate = learning_rate;
 }
 
 

@@ -40,5 +40,6 @@ void ai_module_train(
     const optimizer_impl_t* optimizer_impl,
     const optimizer_config_t* optimizer_config,
     AI_LossFunctionEnum loss_type,
+    size_t reduce_lr_after,
     ai_training_callback_t callback
 );

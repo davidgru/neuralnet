@@ -21,6 +21,15 @@ typedef uint32_t (*optimizer_init_func_t)(
 );
 
 
+typedef float (*optimizer_get_learning_rate_func_t)(void* private_data);
+
+
+typedef void (*optimizer_set_learning_rate_func_t)(
+    void* private_data,
+    float learning_rate
+);
+
+
 typedef uint32_t (*optimizer_update_params_func_t)(
     void* private_data, 
     layer_param_ref_list_t* params
@@ -32,6 +41,8 @@ typedef uint32_t (*optimizer_deinit_func_t)(void* private_data);
 
 typedef struct {
     optimizer_init_func_t init_func;
+    optimizer_get_learning_rate_func_t get_lr_func;
+    optimizer_set_learning_rate_func_t set_lr_func;
     optimizer_update_params_func_t update_func;
     optimizer_deinit_func_t deinit_func;
     size_t private_data_size;
@@ -49,6 +60,12 @@ uint32_t optimizer_create(
 
 
 uint32_t optimizer_add_params(optimizer_t optimizer, layer_param_ref_list_t* refs);
+
+
+float optimizer_get_learning_rate(optimizer_t optimizer);
+
+
+void optimizer_set_learning_rate(optimizer_t optimizer, float learning_rate);
 
 
 uint32_t optimizer_step(optimizer_t optimizer);

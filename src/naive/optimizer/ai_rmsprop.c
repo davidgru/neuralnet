@@ -19,6 +19,8 @@ typedef struct {
 
 
 static uint32_t rmsprop_init(void* private_data, const optimizer_config_t* create_info);
+static float rmsprop_get_learning_rate(void* private_data);
+static void rmsprop_set_learning_rate(void* private_data, float learning_rate);
 static uint32_t rmsprop_update_params(void* private_data, layer_param_ref_list_t* params);
 
 
@@ -30,8 +32,11 @@ static uint32_t rmsprop_update_params(void* private_data, layer_param_ref_list_t
 static void mean_square_update(float* v, float* g, float gamma, size_t size);
 static void param_update_step(float* params, float* v, float* g, float lr, size_t size);
 
+
 const optimizer_impl_t rmsprop_optimizer = {
     .init_func = rmsprop_init,
+    .get_lr_func = rmsprop_get_learning_rate,
+    .set_lr_func = rmsprop_set_learning_rate,
     .update_func = rmsprop_update_params,
     .deinit_func = NULL,
     .private_data_size = sizeof(rmsprop_t)
@@ -50,6 +55,22 @@ static uint32_t rmsprop_init(void* private_data, const optimizer_config_t* confi
     rmsprop->running_gradient_mean_square = NULL;
     rmsprop->gradient_scratch = NULL;
 }
+
+
+static float rmsprop_get_learning_rate(void* private_data)
+{
+    rmsprop_t* rmsprop = (rmsprop_t*)private_data;
+    
+    return rmsprop->learning_rate;
+}
+
+
+static void rmsprop_set_learning_rate(void* private_data, float learning_rate)
+{
+    rmsprop_t* rmsprop = (rmsprop_t*)private_data;
+    rmsprop->learning_rate = learning_rate;
+}
+
 
 
 static uint32_t rmsprop_update_params(void* private_data, layer_param_ref_list_t* params)

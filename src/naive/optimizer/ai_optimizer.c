@@ -77,6 +77,19 @@ uint32_t optimizer_add_params(optimizer_t optimizer, layer_param_ref_list_t* ref
 }
 
 
+float optimizer_get_learning_rate(optimizer_t optimizer)
+{
+    return optimizer->impl.get_lr_func(optimizer->private_data);
+}
+
+
+void optimizer_set_learning_rate(optimizer_t optimizer, float learning_rate)
+{
+    optimizer->impl.set_lr_func(optimizer->private_data, learning_rate);
+}
+
+
+
 uint32_t optimizer_step(optimizer_t optimizer)
 {
     return optimizer->impl.update_func(optimizer->private_data, &optimizer->param_refs);

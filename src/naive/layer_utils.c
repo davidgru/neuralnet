@@ -1,3 +1,7 @@
+#include <stdbool.h>
+#include <malloc.h>
+#include <math.h>
+
 #include "layer_utils.h"
 
 #include "log.h"
@@ -51,13 +55,14 @@ void ai_module_train(
     const optimizer_impl_t* optimizer_impl,
     const optimizer_config_t* optimizer_config,
     AI_LossFunctionEnum loss_type,
+    size_t reduce_lr_after,
     ai_training_callback_t callback
 )
 {
     /* initialize loss */
     AI_Loss loss;
     AI_LossInit(&loss, layer_get_output_shape(layer), batch_size, loss_type);
-    
+
 
     /* set up the optimizer */
     optimizer_t optimizer;
@@ -65,6 +70,14 @@ void ai_module_train(
     optimizer_create(&optimizer, optimizer_impl, optimizer_config);
     layer_get_param_refs(layer, &param_refs);
     optimizer_add_params(optimizer, &param_refs);
+
+    float* loss_history = NULL;
+    if (reduce_lr_after != 0) {
+        loss_history = (float*)calloc(reduce_lr_after, sizeof(float));
+        for (size_t i = 0; i < reduce_lr_after; i++) {
+            loss_history[i] = INFINITY;
+        }
+    }
 
 
     LOG_TRACE("Performing initial test\n");
@@ -132,5 +145,30 @@ void ai_module_train(
             callback(&progress_info);
         }
 
+        /* Do we want to reduce the learning rate? */
+        bool reduce = true;
+        for (size_t j = 0; j < reduce_lr_after; j++) {
+            if (train_loss < loss_history[j]) {
+                reduce = false;
+                break;
+            }
+        }
+        loss_history[i % reduce_lr_after] = train_loss;
+
+        if (reduce) {
+            LOG_INFO("no progress for %d epochs -> reducing learning rate\n",
+                reduce_lr_after);
+            float lr = optimizer_get_learning_rate(optimizer);
+            optimizer_set_learning_rate(optimizer, lr / 2.0f);
+        }
+
     }
+
+
+    if (loss_history != NULL) {
+        free(loss_history);
+    }
+
+    optimizer_destroy(optimizer);
+    AI_LossDeinit(&loss);
 }

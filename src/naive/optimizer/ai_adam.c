@@ -22,6 +22,8 @@ typedef struct {
 
 
 static uint32_t adam_init(void* private_data, const optimizer_config_t* create_info);
+static float adam_get_learning_rate(void* private_data);
+static void adam_set_learning_rate(void* private_data, float learning_rate);
 static uint32_t adam_update_params(void* private_data, layer_param_ref_list_t* params);
 
 
@@ -33,8 +35,11 @@ static uint32_t adam_update_params(void* private_data, layer_param_ref_list_t* p
 static void mean_square_update(float* v, float* g, float gamma, size_t size);
 static void param_update_step(adam_t* adam, float* params, float* v, float* m, size_t size);
 
+
 const optimizer_impl_t adam_optimizer = {
     .init_func = adam_init,
+    .get_lr_func = adam_get_learning_rate,
+    .set_lr_func = adam_set_learning_rate,
     .update_func = adam_update_params,
     .deinit_func = NULL,
     .private_data_size = sizeof(adam_t)
@@ -54,6 +59,21 @@ static uint32_t adam_init(void* private_data, const optimizer_config_t* config)
     adam->running_gradient_mean_square = NULL;
     adam->gradient_scratch = NULL;
     adam->iter = 0;
+}
+
+
+static float adam_get_learning_rate(void* private_data)
+{
+    adam_t* adam = (adam_t*)private_data;
+    
+    return adam->learning_rate;
+}
+
+
+static void adam_set_learning_rate(void* private_data, float learning_rate)
+{
+    adam_t* adam = (adam_t*)private_data;
+    adam->learning_rate = learning_rate;
 }
 
 

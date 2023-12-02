@@ -14,8 +14,6 @@
 #include "tensor_impl.h"
 
 #include "ai_model_desc.h"
-#include "ai_sequential_net.h"
-#include "ai_mnist.h"
 
 #include "config_info.h"
 #include "log.h"
@@ -23,16 +21,22 @@
 #include "dataset.h"
 #include "mnist.h"
 
+#include "layer/ai_layer.h"
+#include "sequential_model.h"
+
 #include "optimizer/ai_optimizer.h"
 #include "optimizer/ai_adam.h"
 #include "optimizer/ai_rmsprop.h"
 #include "optimizer/ai_sgd.h"
 
 
-ai_sequential_network_t* create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
+#include "layer_utils.h"
+
+
+layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
 {
     ai_model_desc_t* desc = NULL;
-    ai_sequential_network_t* model = NULL;
+    layer_t model = NULL;
 
 
     /* Allocate resources for the model descriptor. */
@@ -62,9 +66,14 @@ ai_sequential_network_t* create_lenet5(const tensor_shape_t* input_shape, float 
     /* Print a model overview to stdout. */
     ai_model_desc_dump(desc);
 
+    sequential_model_create_info_t create_info = {
+        .desc = desc,
+        .max_batch_size = batch_size,
+    };
+    layer_create(&model, &sequential_model_info, &create_info, input_shape, batch_size);
 
-    ai_sequential_network_create(&model, input_shape, batch_size, desc);
 
+    ai_model_desc_destroy(desc);
     return model;
 }
 
@@ -85,9 +94,6 @@ void train_callback(ai_training_info_t* p)
 
 int main()
 {
-    AI_MnistDataset mnist;
-    ai_sequential_network_t* lenet5;
-
 
     /* set to location of mnist or fashion_mnist root folder */
     const char* mnist_path = "/home/david/projects/neuralnet/datasets/fashion_mnist";
@@ -95,29 +101,31 @@ int main()
 
     /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
         after one epoch and an accuracy of ~98.5% after 10 epochs */
-    size_t num_epochs = 100;
+    size_t num_epochs = 10000;
     size_t batch_size = 32;
     AI_LossFunctionEnum loss_type = AI_LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
-    const optimizer_impl_t* optimizer = &adam_optimizer;
+    const optimizer_impl_t* optimizer = &rmsprop_optimizer;
     // sgd_config_t optimizer_config = {
     //     .learning_rate = 2e-2f,
     //     .weight_reg_kind = SGD_WEIGHT_REG_L2,
     //     .weight_reg_strength = 1e-3,
     // };
-    // rmsprop_config_t optimizer_config = {
-    //     .learning_rate = 2e-4f,
-    //     .gamma = 0.9f,
-    //     .weight_reg_kind = WEIGHT_REG_L2,
-    //     .weight_reg_strength = 1e-3,
-    // };
-    adam_config_t optimizer_config = {
-        .learning_rate = 2e-4f,
-        .gamma1 = 0.9f,
-        .gamma2 = 0.999f,
+    rmsprop_config_t optimizer_config = {
+        .learning_rate = 1e-3f,
+        .gamma = 0.9f,
         .weight_reg_kind = WEIGHT_REG_L2,
-        .weight_reg_strength = 1e-3f,
+        .weight_reg_strength = 1e-3,
     };
+    // adam_config_t optimizer_config = {
+    //     .learning_rate = 2e-4f,
+    //     .gamma1 = 0.9f,
+    //     .gamma2 = 0.999f,
+    //     .weight_reg_kind = WEIGHT_REG_L2,
+    //     .weight_reg_strength = 1e-3f,
+    // };
+    /* reduce learning rate after 10 epochs without progress on training loss */
+    size_t reduce_learning_rate_after = 5;
     float dropout_rate = 0.25f;
 
 
@@ -148,18 +156,18 @@ int main()
     LOG_INFO("Successfully loaded mnist\n");
 
 
-    lenet5 = create_lenet5(dataset_get_shape(train_set), dropout_rate, batch_size);
+    layer_t lenet5 = create_lenet5(dataset_get_shape(train_set), dropout_rate, batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 
-
-    ai_sequential_network_train(lenet5, train_set, test_set, num_epochs, batch_size,
-        optimizer, &optimizer_config, loss_type, train_callback);
+    ai_module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer,
+        &optimizer_config, loss_type, reduce_learning_rate_after, train_callback);
 
 
     /* Free resources */
-    ai_sequential_network_destroy(lenet5);
-    AI_MnistDatasetFree(&mnist);
+    layer_destroy(lenet5);
+    dataset_destroy(train_set);
+    dataset_destroy(test_set);
 
     return 0;
 }
