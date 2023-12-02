@@ -44,7 +44,7 @@ SOURCEDIR := src
 
 # INCLUDE and SOURCE file located in the src directory
 INCLUDE := -I$(SOURCEDIR)/lib -I$(SOURCEDIR)/dataset
-SRC := $(SOURCEDIR)/dataset/ai_mnist.c $(SOURCEDIR)/dataset/dataset.c $(SOURCEDIR)/dataset/mnist.c \
+SRC := $(SOURCEDIR)/dataset/dataset.c $(SOURCEDIR)/dataset/mnist.c \
 	$(SOURCEDIR)/lib/log.c $(SOURCEDIR)/lib/config_info.c
 # Also add the target source file
 SRC += $(TARGET).c
