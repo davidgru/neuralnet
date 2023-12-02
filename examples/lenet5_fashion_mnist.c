@@ -74,6 +74,18 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, siz
 }
 
 
+dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind, size_t padding)
+{
+    dataset_t dataset = NULL;
+    mnist_create_info_t mnist_train_info = {
+        .path = path,
+        .dataset_kind = MNIST_TRAIN_SET,
+        .padding = padding
+    };
+    dataset_create(&dataset, &mnist_dataset, &mnist_train_info);
+    return dataset;
+}
+
 
 void train_callback(training_info_t* p)
 {
@@ -90,7 +102,6 @@ void train_callback(training_info_t* p)
 
 int main()
 {
-
     /* set to location of mnist or fashion_mnist root folder */
     const char* mnist_path = "/home/david/projects/neuralnet/datasets/fashion_mnist";
 
@@ -131,21 +142,10 @@ int main()
 
     /* Load mnist with a padding of two because lenet expects 32x32 input and the naive
         convolutional layers do not support padding at this time. */
-    dataset_t train_set;
-    dataset_t test_set;
-    mnist_create_info_t mnist_train_info = {
-        .path = mnist_path,
-        .dataset_kind = MNIST_TRAIN_SET,
-        .padding = 2
-    };
-    mnist_create_info_t mnist_test_info = {
-        .path = mnist_path,
-        .dataset_kind = MNIST_TEST_SET,
-        .padding = 2
-    };
+    dataset_t train_set = load_mnist(mnist_path, MNIST_TRAIN_SET, 2);
+    dataset_t test_set = load_mnist(mnist_path, MNIST_TEST_SET, 2);
 
-    if (dataset_create(&train_set, &mnist_dataset, &mnist_train_info)
-        || dataset_create(&test_set, &mnist_dataset, &mnist_test_info)) {
+    if (train_set == NULL || test_set == NULL) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
         return 1;
     }

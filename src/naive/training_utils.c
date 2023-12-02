@@ -145,23 +145,25 @@ void module_train(
             callback(&progress_info);
         }
 
+
         /* Do we want to reduce the learning rate? */
-        bool reduce = true;
-        for (size_t j = 0; j < reduce_lr_after; j++) {
-            if (train_loss < loss_history[j]) {
-                reduce = false;
-                break;
+        if (loss_history != NULL) {
+            bool reduce = true;
+            for (size_t j = 0; j < reduce_lr_after; j++) {
+                if (train_loss < loss_history[j]) {
+                    reduce = false;
+                    break;
+                }
+            }
+            loss_history[i % reduce_lr_after] = train_loss;
+
+            if (reduce) {
+                LOG_INFO("no progress for %d epochs -> reducing learning rate\n",
+                    reduce_lr_after);
+                float lr = optimizer_get_learning_rate(optimizer);
+                optimizer_set_learning_rate(optimizer, lr / 2.0f);
             }
         }
-        loss_history[i % reduce_lr_after] = train_loss;
-
-        if (reduce) {
-            LOG_INFO("no progress for %d epochs -> reducing learning rate\n",
-                reduce_lr_after);
-            float lr = optimizer_get_learning_rate(optimizer);
-            optimizer_set_learning_rate(optimizer, lr / 2.0f);
-        }
-
     }
 
 

@@ -10,24 +10,23 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include "tensor.h"
-#include "tensor_impl.h"
+#include "core/layer.h"
+#include "core/loss.h"
+#include "core/optimizer.h"
 
+#include "optimizer/sgd.h"
+
+#include "sequential/model_desc.h"
+#include "sequential/sequential_model.h"
 
 #include "dataset.h"
 #include "mnist.h"
 
+#include "training_utils.h"
+
 #include "config_info.h"
 #include "log.h"
-
-#include "optimizer/optimizer.h"
-#include "optimizer/sgd.h"
-
-
-#include "core/layer.h"
-#include "sequential/model_desc.h"
-#include "sequential/sequential_model.h"
-#include "training_utils.h"
+#include "tensor.h"
 
 
 layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
@@ -65,8 +64,10 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
         .desc = desc,
         .max_batch_size = batch_size,
     };
-    layer_create(&model, &sequential_model_info, &create_info, input_shape, batch_size);
+    layer_create(&model, &sequential_model_impl, &create_info, input_shape, batch_size);
 
+
+    model_desc_destroy(desc);
     return model;
 }
 
@@ -99,8 +100,6 @@ void train_callback(training_info_t* p)
 
 int main()
 {
-    layer_t lenet5;
-
     /* set to location of mnist or fashion_mnist root folder */
     const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
 
@@ -135,14 +134,16 @@ int main()
     LOG_INFO("Successfully loaded mnist\n");
 
 
-    lenet5 = create_lenet5(dataset_get_shape(train_set), batch_size);
+    layer_t lenet5 = create_lenet5(dataset_get_shape(train_set), batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 
-    module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer, &optimizer_config, loss_type, train_callback);
+    module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer, &optimizer_config,
+        loss_type, 0, train_callback);
 
 
     /* Free resources */
+    layer_destroy(lenet5);
     dataset_destroy(train_set);
     dataset_destroy(test_set);
 
