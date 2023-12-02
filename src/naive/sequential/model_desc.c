@@ -224,8 +224,9 @@ uint32_t model_desc_dump(model_desc_t* desc)
             printf("* conv\t\t(filters: %d, kernel: (%zu,%zu), stride: (%zu,%zu)" 
                 ", padding: (%zu,%zu,%zu,%zu))\n", conv_create_info->output_channels,
                 conv_create_info->filter_height, conv_create_info->filter_width,
-                conv_create_info->stride_y, conv_create_info->stride_x, 0, 0, 0,
-                0);    
+                conv_create_info->stride_y, conv_create_info->stride_x, conv_create_info->padding_y,
+                conv_create_info->padding_x, conv_create_info->padding_y,
+                conv_create_info->padding_x);
         }
         else if (current_info->layer_impl == &dropout_layer_impl){
             const dropout_layer_create_info_t* dropout_create_info =
