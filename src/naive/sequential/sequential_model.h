@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-#include "layer/ai_layer.h"
+#include "core/ai_layer.h"
 #include "ai_model_desc.h"
 
 

@@ -2,9 +2,9 @@
 #include <malloc.h>
 #include <math.h>
 
-#include "layer_utils.h"
-
 #include "log.h"
+
+#include "training_utils.h"
 
 
 void ai_module_test(
@@ -83,7 +83,7 @@ void ai_module_train(
     LOG_TRACE("Performing initial test\n");
     float test_accuracy;
     float test_loss;
-    // ai_module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
+    ai_module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
 
     if (callback) {
         ai_training_info_t progress_info = {

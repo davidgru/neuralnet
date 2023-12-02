@@ -2,11 +2,11 @@
 
 #include <stddef.h>
 
+#include "core/ai_layer.h"
+#include "core/ai_loss.h"
+#include "core/ai_optimizer.h"
 
 #include "dataset.h"
-#include "layer/ai_layer.h"
-#include "optimizer/ai_optimizer.h"
-#include "util/ai_loss.h"
 
 
 typedef struct ai_training_info {

@@ -2,7 +2,6 @@
 
 #include "util/ai_random.h"
 
-#include "ai_layer.h"
 #include "ai_dropout_layer.h"
 
 

@@ -4,9 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "layer/ai_layer.h"
-#include "util/ai_weight_init.h"
-#include "util/ai_loss.h"
+#include "core/ai_layer.h"
 
 #include "layer/ai_activation_layer.h"
 #include "layer/ai_convolutional_layer.h"

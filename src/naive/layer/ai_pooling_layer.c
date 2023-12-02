@@ -1,7 +1,6 @@
 #include <malloc.h>
 #include <string.h>
 
-#include "ai_layer.h"
 #include "ai_pooling_layer.h"
 
 

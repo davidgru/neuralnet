@@ -10,27 +10,25 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include "tensor.h"
-#include "tensor_impl.h"
+#include "core/ai_layer.h"
+#include "core/ai_loss.h"
+#include "core/ai_optimizer.h"
 
-#include "ai_model_desc.h"
-
-#include "config_info.h"
-#include "log.h"
-
-#include "dataset.h"
-#include "mnist.h"
-
-#include "layer/ai_layer.h"
-#include "sequential_model.h"
-
-#include "optimizer/ai_optimizer.h"
 #include "optimizer/ai_adam.h"
 #include "optimizer/ai_rmsprop.h"
 #include "optimizer/ai_sgd.h"
 
+#include "sequential/ai_model_desc.h"
+#include "sequential/sequential_model.h"
 
-#include "layer_utils.h"
+#include "dataset.h"
+#include "mnist.h"
+
+#include "training_utils.h"
+
+#include "config_info.h"
+#include "log.h"
+#include "tensor.h"
 
 
 layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
@@ -45,12 +43,10 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, siz
     ai_model_desc_add_convolutional_layer(desc, 6, 5, 1, 0, AI_ConvWeightInitHe, AI_ConvBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_RELU);
     ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_MAX);
-    ai_model_desc_add_dropout_layer(desc, dropout_rate);
 
     ai_model_desc_add_convolutional_layer(desc, 16, 5, 1, 0, AI_ConvWeightInitHe, AI_ConvBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_RELU);
     ai_model_desc_add_pooling_layer(desc, 2, 1, 0, AI_POOLING_MAX);
-    ai_model_desc_add_dropout_layer(desc, dropout_rate);
 
     ai_model_desc_add_linear_layer(desc, 120, AI_LinearWeightInitHe, AI_LinearBiasInitZeros);
     ai_model_desc_add_activation_layer(desc, AI_ACTIVATION_FUNCTION_RELU);
@@ -115,7 +111,7 @@ int main()
         .learning_rate = 1e-3f,
         .gamma = 0.9f,
         .weight_reg_kind = WEIGHT_REG_L2,
-        .weight_reg_strength = 1e-3,
+        .weight_reg_strength = 1e-3f,
     };
     // adam_config_t optimizer_config = {
     //     .learning_rate = 2e-4f,
@@ -124,9 +120,9 @@ int main()
     //     .weight_reg_kind = WEIGHT_REG_L2,
     //     .weight_reg_strength = 1e-3f,
     // };
-    /* reduce learning rate after 10 epochs without progress on training loss */
+    /* reduce learning rate after 5 epochs without progress on training loss */
     size_t reduce_learning_rate_after = 5;
-    float dropout_rate = 0.25f;
+    float dropout_rate = 0.5f;
 
 
     /* Verify the compile time configuration. For example, that avx is used */

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "ai_layer.h"
-
+#include "core/ai_layer.h"
 
 #include "util/ai_weight_init.h"
+
 
 typedef struct {
     size_t output_channels;

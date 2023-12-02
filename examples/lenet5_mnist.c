@@ -24,7 +24,7 @@
 #include "optimizer/ai_sgd.h"
 
 
-#include "layer/ai_layer.h"
+#include "core/ai_layer.h"
 #include "ai_model_desc.h"
 #include "sequential_model.h"
 #include "layer_utils.h"
