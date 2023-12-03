@@ -79,7 +79,7 @@ dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind, size_t
     dataset_t dataset = NULL;
     mnist_create_info_t mnist_train_info = {
         .path = path,
-        .dataset_kind = MNIST_TRAIN_SET,
+        .dataset_kind = dataset_kind,
         .padding = padding
     };
     dataset_create(&dataset, &mnist_dataset, &mnist_train_info);
@@ -112,18 +112,18 @@ int main()
     size_t batch_size = 32;
     LossFunctionEnum loss_type = LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
-    const optimizer_impl_t* optimizer = &rmsprop_optimizer;
-    // sgd_config_t optimizer_config = {
-    //     .learning_rate = 2e-2f,
-    //     .weight_reg_kind = SGD_WEIGHT_REG_L2,
-    //     .weight_reg_strength = 1e-3,
-    // };
-    rmsprop_config_t optimizer_config = {
-        .learning_rate = 1e-3f,
-        .gamma = 0.9f,
-        .weight_reg_kind = WEIGHT_REG_L2,
-        .weight_reg_strength = 1e-3f,
+    const optimizer_impl_t* optimizer = &sgd_optimizer;
+    sgd_config_t optimizer_config = {
+        .learning_rate = 5e-2f,
+        .weight_reg_kind = SGD_WEIGHT_REG_L2,
+        .weight_reg_strength = 1e-4,
     };
+    // rmsprop_config_t optimizer_config = {
+    //     .learning_rate = 1e-4f,
+    //     .gamma = 0.9f,
+    //     .weight_reg_kind = WEIGHT_REG_L2,
+    //     .weight_reg_strength = 1e-4f,
+    // };
     // adam_config_t optimizer_config = {
     //     .learning_rate = 2e-4f,
     //     .gamma1 = 0.9f,
