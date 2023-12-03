@@ -108,7 +108,7 @@ dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind)
     dataset_t dataset = NULL;
     mnist_create_info_t mnist_train_info = {
         .path = path,
-        .dataset_kind = MNIST_TRAIN_SET,
+        .dataset_kind = dataset_kind,
         .padding = 0
     };
     dataset_create(&dataset, &mnist_dataset, &mnist_train_info);
