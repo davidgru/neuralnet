@@ -19,8 +19,12 @@
 #include "sequential/model_desc.h"
 #include "sequential/sequential_model.h"
 
-#include "dataset.h"
-#include "mnist.h"
+#include "dataset/dataset.h"
+#include "dataset/mnist.h"
+
+#include "augment/augment_pipeline.h"
+#include "augment/image_flip.h"
+
 
 #include "training_utils.h"
 
@@ -116,6 +120,32 @@ dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind)
 }
 
 
+augment_pipeline_t setup_augment_pipeline()
+{
+    image_flip_config_t flip_config = {
+        .flip_horizontal = true,
+        .flip_vertical = false,
+    };
+
+
+    augment_pipeline_config_entry_t pipeline_entries[] = {
+        {
+            .impl = &aug_image_flip,
+            .config = &flip_config,
+        },
+    };
+
+    augment_pipeline_config_t pipeline_config = {
+        .entries = &pipeline_entries,
+        .num_entries = sizeof(pipeline_entries) / sizeof(*pipeline_entries),
+    };
+
+    augment_pipeline_t augment_pipeline = NULL;
+    augment_pipeline_create(&augment_pipeline, &pipeline_config);
+    return augment_pipeline;
+}
+
+
 void train_callback(training_info_t* p)
 {
     printf("Epoch %" PRIi32 " | Train loss %f | Train accuracy %5.3f%% | Test loss %f "
@@ -155,12 +185,19 @@ int main()
 
     dataset_t train_set = load_mnist(mnist_path, MNIST_TRAIN_SET);
     dataset_t test_set = load_mnist(mnist_path, MNIST_TEST_SET);
-    
     if (train_set == NULL || test_set == NULL) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
         return 1;
     }
     LOG_INFO("Successfully loaded mnist\n");
+
+
+    augment_pipeline_t augment_pipeline = setup_augment_pipeline();
+    if (augment_pipeline == NULL) {
+        LOG_ERROR("There was an error setting up the augmentation pipeline\n");
+        return 1;
+    }
+    LOG_INFO("Successfully set up the augmentation pipeline\n");
 
 
     layer_t lenet5 = create_lenet5(dataset_get_shape(train_set), batch_size);

@@ -21,8 +21,11 @@
 #include "sequential/model_desc.h"
 #include "sequential/sequential_model.h"
 
-#include "dataset.h"
-#include "mnist.h"
+#include "dataset/dataset.h"
+#include "dataset/mnist.h"
+
+#include "augment/augment_pipeline.h"
+#include "augment/image_flip.h"
 
 #include "training_utils.h"
 
@@ -71,6 +74,29 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, siz
 
     model_desc_destroy(desc);
     return model;
+}
+
+
+augment_pipeline_t setup_augment_pipeline()
+{
+    image_flip_config_t flip_config = {
+        .horizontal_flip_prob = 0.5f,
+        .vertical_flip_prob = 0.0f,
+    };
+
+
+    augment_pipeline_config_entry_t pipeline_entries[] = {
+        { .impl = &aug_image_flip, .config = &flip_config },
+    };
+
+    augment_pipeline_config_t pipeline_config = {
+        .entries = pipeline_entries,
+        .num_entries = sizeof(pipeline_entries) / sizeof(*pipeline_entries),
+    };
+
+    augment_pipeline_t augment_pipeline = NULL;
+    augment_pipeline_create(&augment_pipeline, &pipeline_config);
+    return augment_pipeline;
 }
 
 
@@ -152,11 +178,18 @@ int main()
     LOG_INFO("Successfully loaded mnist\n");
 
 
+    augment_pipeline_t augment_pipeline = setup_augment_pipeline();
+    if (augment_pipeline == NULL) {
+        LOG_ERROR("There was an error setting up the augmentation pipeline\n");
+        return 1;
+    }
+    LOG_INFO("Successfully set up the augmentation pipeline\n");
+
     layer_t lenet5 = create_lenet5(dataset_get_shape(train_set), dropout_rate, batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 
-    module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer,
+    module_train(lenet5, train_set, test_set, augment_pipeline, num_epochs, batch_size, optimizer,
         &optimizer_config, loss_type, reduce_learning_rate_after, train_callback);
 
 
@@ -164,6 +197,7 @@ int main()
     layer_destroy(lenet5);
     dataset_destroy(train_set);
     dataset_destroy(test_set);
+    augment_pipeline_destroy(augment_pipeline);
 
     return 0;
 }

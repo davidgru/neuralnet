@@ -43,9 +43,9 @@ LDFLAGS := -lm	# math library
 SOURCEDIR := src
 
 # INCLUDE and SOURCE file located in the src directory
-INCLUDE := -I$(SOURCEDIR)/lib -I$(SOURCEDIR)/dataset
-SRC := $(SOURCEDIR)/dataset/dataset.c $(SOURCEDIR)/dataset/mnist.c \
-	$(SOURCEDIR)/lib/log.c $(SOURCEDIR)/lib/config_info.c $(SOURCEDIR)/lib/random.c
+INCLUDE := -I$(SOURCEDIR)/lib -I$(SOURCEDIR)/common
+SRC := $(shell find $(SOURCEDIR)/common -name '*.c')
+SRC += $(SOURCEDIR)/lib/log.c $(SOURCEDIR)/lib/config_info.c $(SOURCEDIR)/lib/random.c
 # Also add the target source file
 SRC += $(TARGET).c
 

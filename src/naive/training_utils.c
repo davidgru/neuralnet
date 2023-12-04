@@ -50,6 +50,7 @@ void module_train(
     layer_t layer,
     dataset_t train_set,
     dataset_t test_set,
+    augment_pipeline_t augment_pipeline,
     size_t num_epochs,
     size_t batch_size,
     const optimizer_impl_t* optimizer_impl,
@@ -109,7 +110,11 @@ void module_train(
         dataset_iteration_begin(train_set, batch_size, true, &current_inputs, &current_targets);
 
         while(current_inputs != NULL) {
-            
+
+            if (augment_pipeline != NULL) {
+                augment_pipeline_forward(augment_pipeline, current_inputs, &current_inputs);
+            }
+
             tensor_t* output;
             layer_forward(layer, LAYER_FORWARD_TRAINING, current_inputs, &output);
 

@@ -6,7 +6,8 @@
 #include "core/loss.h"
 #include "core/optimizer.h"
 
-#include "dataset.h"
+#include "dataset/dataset.h"
+#include "augment/augment_pipeline.h"
 
 
 typedef struct {
@@ -35,6 +36,7 @@ void module_train(
     layer_t layer,
     dataset_t train_set,
     dataset_t test_set,
+    augment_pipeline_t augment_pipeline,
     size_t num_epochs,
     size_t batch_size,
     const optimizer_impl_t* optimizer_impl,
