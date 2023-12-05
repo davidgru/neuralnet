@@ -88,6 +88,9 @@ void VectorScale(float* v, float f, size_t size)
         _v = _mm256_mul_ps(_v, scalar);
         _mm256_storeu_ps(v + i, _v);
     }
+    for (; i < size; i++) {
+        v[i] *= f;
+    }
 }
 
 
