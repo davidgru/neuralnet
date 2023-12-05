@@ -58,16 +58,10 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, boo
     model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
     model_desc_add_linear_layer(desc, 120, linear_weight_init_he, linear_bias_init_zeros);
-    // if (use_batchnorm) {
-    //     model_desc_add_batch_norm_layer(desc);
-    // }
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_dropout_layer(desc, dropout_rate);
 
     model_desc_add_linear_layer(desc, 84, linear_weight_init_he, linear_bias_init_zeros);
-    // if (use_batchnorm) {
-    //     model_desc_add_batch_norm_layer(desc);
-    // }
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_dropout_layer(desc, dropout_rate);
 
@@ -152,9 +146,9 @@ int main()
     /* use sgd optimizer */
     const optimizer_impl_t* optimizer = &sgd_optimizer;
     sgd_config_t optimizer_config = {
-        .learning_rate = 5e-2f,
-        .weight_reg_kind = SGD_WEIGHT_REG_L2,
-        .weight_reg_strength = 1e-4,
+    .learning_rate = 5e-2f,
+    .weight_reg_kind = SGD_WEIGHT_REG_L2,
+    .weight_reg_strength = 1e-4,
     };
     // rmsprop_config_t optimizer_config = {
     //     .learning_rate = 1e-4f,
@@ -163,11 +157,11 @@ int main()
     //     .weight_reg_strength = 1e-4f,
     // };
     // adam_config_t optimizer_config = {
-    //     .learning_rate = 2e-4f,
-    //     .gamma1 = 0.9f,
-    //     .gamma2 = 0.999f,
-    //     .weight_reg_kind = WEIGHT_REG_L2,
-    //     .weight_reg_strength = 1e-3f,
+        //     .learning_rate = 2e-4f,
+        //     .gamma1 = 0.9f,
+        //     .gamma2 = 0.999f,
+        //     .weight_reg_kind = WEIGHT_REG_L2,
+        //     .weight_reg_strength = 1e-3f,
     // };
     /* reduce learning rate after 5 epochs without progress on training loss */
     size_t reduce_learning_rate_after = 5;

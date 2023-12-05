@@ -242,14 +242,17 @@ static uint32_t batchnorm_layer_forward(
     }
 
 
-    /* apply scale and shift - disabled for now */
-    // const float gamma = tensor_get_data_const(&bn_context->params)[BN_PARAMS_GAMMA_IDX];
-    // const float beta = tensor_get_data_const(&bn_context->params)[BN_PARAMS_BETA_IDX];
-    // for (size_t n = 0; n < batch_size; n++) {
-    //     for (size_t i = 0; i < per_batch_size; i++) {
-    //         output_buf[n * per_batch_size + i] = gamma * output_buf[n * per_batch_size + i] + beta;
-    //     }
-    // }
+    /* apply scale and shift */
+    const float* gamma_buf = tensor_get_data_const(&bn_context->gamma);
+    const float* beta_buf = tensor_get_data_const(&bn_context->beta);
+    for (size_t n = 0; n < batch_size; n++) {
+        for (size_t ch = 0; ch < num_channels; ch++) {
+            for (size_t i = 0; i < per_channel_size; i++) {
+                const size_t idx = n * per_batch_size + ch * per_channel_size + i;
+                output_buf[idx] = gamma_buf[ch] * output_buf[idx] + beta_buf[ch];
+            }
+        }
+    }
 
     return 0;
 }
@@ -287,9 +290,8 @@ static uint32_t batchnorm_layer_backward(
     tensor_set_zero(out_gradient);
     for (size_t n = 0; n < batch_size; n++) {
         for (size_t ch = 0; ch < num_channels; ch++) {
-            VectorScaledAdd(&d_x_buf[n * per_batch_size + ch * per_channel_size],
-                &d_y_buf[n * per_batch_size + ch * per_channel_size],
-                1.0f /*gamma_buf[ch]*/, per_channel_size);
+            const size_t off = n * per_batch_size + ch * per_channel_size;
+            VectorScaledAdd(&d_x_buf[off], &d_y_buf[off], gamma_buf[ch], per_channel_size);
         }
     }
 
@@ -298,7 +300,8 @@ static uint32_t batchnorm_layer_backward(
         float acc = 0.0f;
         for (size_t n = 0; n < batch_size; n++) {
             for (size_t i = 0; i < per_channel_size; i++) {
-                acc += d_x_buf[n * per_batch_size + ch * per_channel_size + i] * (x_buf[n * per_batch_size + ch * per_channel_size + i] - mean_buf[ch]);
+                const size_t idx = n * per_batch_size + ch * per_channel_size + i;
+                acc += d_x_buf[idx] * (x_buf[idx] - mean_buf[ch]);
             }
         }
         d_var_buf[ch] = acc * -0.5f * powf(var_buf[ch] + BN_EPS, -1.5f);
@@ -310,7 +313,8 @@ static uint32_t batchnorm_layer_backward(
         float acc2 = 0.0f; /* sum_{i=1..m} -2.0f * (x_i - mean) */
         for (size_t n = 0; n < batch_size; n++) {
             for (size_t i = 0; i < per_channel_size; i++) {
-                acc1 += d_x_buf[n * per_batch_size + ch * per_channel_size + i];
+                const size_t idx = n * per_batch_size + ch * per_channel_size + i;
+                acc1 += d_x_buf[idx];
                 acc2 += -2.0f * (x_buf[n * per_batch_size + i] - mean_buf[ch]);
             }
         }
@@ -318,23 +322,23 @@ static uint32_t batchnorm_layer_backward(
     }
 
     /* calculate gradient of scale gamma and shift beta */
-    tensor_fill(&bn_context->d_gamma, 0.0f);
-    tensor_fill(&bn_context->d_beta, 0.0f);
     float* d_gamma_buf = tensor_get_data(&bn_context->d_gamma);
     float* d_beta_buf = tensor_get_data(&bn_context->d_beta);
-    for (size_t n = 0; n < batch_size; n++) {
-        for (size_t ch = 0; ch < num_channels; ch++) {
-            float d_gamma_acc = 0.0f;
-            float d_beta_acc = 0.0f;
+    for (size_t ch = 0; ch < num_channels; ch++) {
+        float d_gamma_acc = 0.0f;
+        float d_beta_acc = 0.0f;
+        for (size_t n = 0; n < batch_size; n++) {
             for (size_t i = 0; i < per_channel_size; i++) {
-                d_gamma_acc += d_y_buf[n * per_batch_size + ch * per_channel_size + i]
-                    * d_x_buf[n * per_batch_size + ch * per_channel_size + i];
-                d_beta_acc += d_y_buf[n * per_batch_size + ch * per_channel_size + i];
+                const size_t idx = n * per_batch_size + ch * per_channel_size + i;
+                float x_hat = (x_buf[idx] - mean_buf[ch]) / sqrtf(var_buf[ch] + BN_EPS);
+                d_gamma_acc += d_y_buf[idx] * x_hat;
+                d_beta_acc += d_y_buf[idx];
             }
-            d_gamma_buf[ch] += d_gamma_acc;
-            d_beta_buf[ch] += d_beta_acc;
         }
+        d_gamma_buf[ch] = d_gamma_acc / (float)(batch_size);
+        d_beta_buf[ch] = d_beta_acc / (float)(batch_size);
     }
+
     /* d_\hat{x} not needed anymore */
 
     /* calculate d_x */
