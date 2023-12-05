@@ -34,7 +34,7 @@
 #include "tensor.h"
 
 
-layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
+layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, bool use_batchnorm, size_t batch_size)
 {
     model_desc_t* desc = NULL;
     layer_t model = NULL;
@@ -44,18 +44,30 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, siz
     model_desc_create(&desc);
 
     model_desc_add_convolutional_layer(desc, 6, 5, 1, 0, conv_weight_init_he, conv_bias_init_zeros);
+    if (use_batchnorm) {
+        model_desc_add_batch_norm_layer(desc);
+    }
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
     model_desc_add_convolutional_layer(desc, 16, 5, 1, 0, conv_weight_init_he, conv_bias_init_zeros);
+    if (use_batchnorm) {
+        model_desc_add_batch_norm_layer(desc);
+    }
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
     model_desc_add_linear_layer(desc, 120, linear_weight_init_he, linear_bias_init_zeros);
+    // if (use_batchnorm) {
+    //     model_desc_add_batch_norm_layer(desc);
+    // }
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_dropout_layer(desc, dropout_rate);
 
     model_desc_add_linear_layer(desc, 84, linear_weight_init_he, linear_bias_init_zeros);
+    // if (use_batchnorm) {
+    //     model_desc_add_batch_norm_layer(desc);
+    // }
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_dropout_layer(desc, dropout_rate);
 
@@ -160,6 +172,7 @@ int main()
     /* reduce learning rate after 5 epochs without progress on training loss */
     size_t reduce_learning_rate_after = 5;
     float dropout_rate = 0.5f;
+    bool use_batchnorm = true;
 
 
     /* Verify the compile time configuration. For example, that avx is used */
@@ -185,11 +198,11 @@ int main()
     }
     LOG_INFO("Successfully set up the augmentation pipeline\n");
 
-    layer_t lenet5 = create_lenet5(dataset_get_shape(train_set), dropout_rate, batch_size);
+    layer_t lenet5 = create_lenet5(dataset_get_shape(train_set), dropout_rate, use_batchnorm, batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 
-    module_train(lenet5, train_set, test_set, augment_pipeline, num_epochs, batch_size, optimizer,
+    module_train(lenet5, train_set, test_set, NULL, num_epochs, batch_size, optimizer,
         &optimizer_config, loss_type, reduce_learning_rate_after, train_callback);
 
 

@@ -73,6 +73,14 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
  */
 uint32_t tensor_copy(tensor_t* tensor_to, const tensor_t* tensor_from);
 
+/**
+ * @brief Set all tensor entries to val.
+ * 
+ * @param tensor    A tensor
+ * @param val       The fill value
+*/
+uint32_t tensor_fill(tensor_t* tensor, float val);
+
 
 /**
  * @brief Set the tensor buffer to all zeroes.

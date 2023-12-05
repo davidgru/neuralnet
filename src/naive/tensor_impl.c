@@ -56,11 +56,23 @@ uint32_t tensor_copy(tensor_t* tensor_to, const tensor_t* tensor_from)
 }
 
 
+uint32_t tensor_fill(tensor_t* tensor, float val)
+{
+    const tensor_shape_t* shape = tensor_get_shape(tensor);
+    for (size_t i = 0; i < tensor_size_from_shape(shape); i++) {
+        tensor->data[i] = val;
+    }
+    
+    return 0;
+}
+
 
 uint32_t tensor_set_zero(tensor_t* tensor)
 {
     const tensor_shape_t* shape = tensor_get_shape(tensor);
     memset(tensor->data, 0, tensor_size_from_shape(shape) * sizeof(float));
+    
+    return 0;
 }
 
 

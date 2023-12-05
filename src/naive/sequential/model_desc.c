@@ -55,6 +55,17 @@ uint32_t model_desc_add_activation_layer(
 }
 
 
+uint32_t model_desc_add_batch_norm_layer(model_desc_t* desc)
+{
+    model_desc_entry_t entry = {
+        .layer_impl = &batchnorm_layer_impl,
+        .create_info = NULL,
+        .allocated = false,
+    };
+    return model_desc_add_entry(desc, &entry);
+}
+
+
 uint32_t model_desc_add_convolutional_layer(
     model_desc_t* desc,
     size_t output_channels,
@@ -217,6 +228,9 @@ uint32_t model_desc_dump(model_desc_t* desc)
             const activation_layer_create_info_t* activation_create_info =
                 (const activation_layer_create_info_t*)current_info->create_info._const;
             printf("* activation\t(type: %d)\n", activation_create_info->activation_function);
+        }
+        else if (current_info->layer_impl == &batchnorm_layer_impl) {
+            printf("* batchnorm\n");
         }
         else if (current_info->layer_impl == &convolutional_layer_impl){
             const convolutional_layer_create_info_t* conv_create_info = 

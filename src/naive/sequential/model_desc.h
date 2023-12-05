@@ -8,6 +8,7 @@
 #include "core/layer.h"
 
 #include "layer/activation_layer.h"
+#include "layer/bachnorm_layer.h"
 #include "layer/convolutional_layer.h"
 #include "layer/dropout_layer.h"
 #include "layer/linear_layer.h"
@@ -64,6 +65,15 @@ uint32_t model_desc_add_activation_layer(
     model_desc_t* desc,
     activation_function_kind_t activation_function
 );
+
+
+/**
+ * @brief Add a batch norm layer.
+ * 
+ * @param desc          The model descriptor.
+ * @return uint32_t 
+ */
+uint32_t model_desc_add_batch_norm_layer(model_desc_t* desc);
 
 
 /**
