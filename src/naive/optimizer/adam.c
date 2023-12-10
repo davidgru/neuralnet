@@ -36,6 +36,15 @@ static void mean_square_update(float* v, float* g, float gamma, size_t size);
 static void param_update_step(adam_t* adam, float* params, float* v, float* m, size_t size);
 
 
+const adam_config_t adam_default_config = {
+    .learning_rate = 2e-4f,
+    .gamma1 = 0.999f,
+    .gamma2 = 0.9f,
+    .weight_reg_kind = WEIGHT_REG_NONE,
+    .weight_reg_strength = 0.0f,
+};
+
+
 const optimizer_impl_t adam_optimizer = {
     .init_func = adam_init,
     .get_lr_func = adam_get_learning_rate,

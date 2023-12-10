@@ -13,4 +13,7 @@ typedef struct {
 } adam_config_t;
 
 
+const extern adam_config_t adam_default_config;
+
+
 const extern optimizer_impl_t adam_optimizer;
