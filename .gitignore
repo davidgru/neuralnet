@@ -6,3 +6,6 @@ main
 
 # Editor config
 .vscode/
+
+# Ignore external libraries
+lib/

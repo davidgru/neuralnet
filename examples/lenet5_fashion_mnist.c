@@ -25,10 +25,11 @@
 #include "augment/augment_pipeline.h"
 #include "augment/image_flip.h"
 
-#include "training_utils.h"
+#include "util/training_utils.h"
 
 #include "config_info.h"
 #include "log.h"
+#include "context.h"
 #include "tensor.h"
 
 
@@ -157,6 +158,13 @@ int main()
 
     /* Verify the compile time configuration. For example, that avx is used */
     dump_compile_time_config();
+
+
+    /* Initialize the backend context. Only needed for the oneDNN backend */
+    if (backend_context_init() != 0) {
+        LOG_ERROR("Failed to initialize the backend context\n");
+        return 1;
+    }
 
 
     dataset_t train_set = load_mnist(mnist_path, MNIST_TRAIN_SET);
