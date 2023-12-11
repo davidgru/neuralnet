@@ -1,7 +1,7 @@
 
 #include "dnnl_reorder_layer.h"
 
-#include "../util/dnnl_util.h"
+#include "util/dnnl_util.h"
 
 
 #include <malloc.h>
@@ -58,14 +58,13 @@ uint32_t reorder_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_lay
     l->hdr.engine = prev_layer->engine;
     l->hdr.stream = prev_layer->stream;
 
-    const dnnl_memory_desc_t* src_md = dnnl_memory_get_memory_desc(l->hdr.src_mem);
+    const_dnnl_memory_desc_t src_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
 
     // Create dst_md based on src_md
-    dnnl_memory_desc_t dst_md;
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&dst_md, src_md->ndims, src_md->dims, dnnl_f32, (src_md->ndims == 2 ? dnnl_nc : dnnl_nchw)));
+    dnnl_memory_desc_t dst_md = dnnlutil_memory_desc_tag_any(src_md);
     // Set up reorder between src_mem and dst_mem
-    CHECK_DNNL(dnnl_reorder_set_up(&l->fwd_reorder, l->hdr.src_mem, &l->hdr.dst_mem, &dst_md, &l->fwd_need_reorder, l->hdr.engine));
-    CHECK_DNNL(dnnl_memory_create(&l->hdr.diff_src_mem, &dst_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
+    CHECK_DNNL(dnnl_reorder_set_up(&l->fwd_reorder, l->hdr.src_mem, &l->hdr.dst_mem, dst_md, &l->fwd_need_reorder, l->hdr.engine));
+    CHECK_DNNL(dnnl_memory_create(&l->hdr.diff_src_mem, dst_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
 
     return 0;
 error:

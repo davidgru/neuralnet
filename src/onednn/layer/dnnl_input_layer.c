@@ -56,8 +56,8 @@ static uint32_t input_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* pre
     dnnl_memory_desc_t data_md;
     dnnl_dims_t data_dims = { l->hdr.N, l->hdr.IC, l->hdr.IH, l->hdr.IW };
 
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&data_md, 4, data_dims, dnnl_f32, dnnl_nchw));
-    CHECK_DNNL(dnnl_memory_create(&l->hdr.dst_mem, &data_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
+    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&data_md, 4, data_dims, dnnl_f32, dnnl_nchw));
+    CHECK_DNNL(dnnl_memory_create(&l->hdr.dst_mem, data_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
 
     l->hdr.src_mem = l->hdr.dst_mem;
 

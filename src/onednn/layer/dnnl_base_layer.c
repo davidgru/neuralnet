@@ -1,8 +1,8 @@
 
 #include "dnnl_base_layer.h"
 
-#include "../util/dnnl_util.h"
-#include "../util/dnnl_loss.h"
+#include "util/dnnl_util.h"
+#include "util/dnnl_loss.h"
 
 #include "dnnl_activation_layer.h"
 #include "dnnl_input_layer.h"
@@ -64,7 +64,7 @@ uint32_t dnnl_layer_set_input_handle(dnnl_layer_t* layer, float* input)
 
 float* dnnl_layer_get_output_handle(dnnl_layer_t* layer)
 {
-    return dnnl_memory_get_data_handle(layer->dst_mem);
+    return nn_dnnl_memory_get_data_handle(layer->dst_mem);
 }
 
 uint32_t dnnl_layer_fwd(dnnl_layer_t* layer)

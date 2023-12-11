@@ -22,10 +22,10 @@
 
 #include "dnnl_linear_layer.h"
 
-#include "../util/dnnl_util.h"
-#include "../util/dnnl_reorder.h"
-#include "../util/dnnl_assert.h"
-#include "../random.h"
+#include "util/dnnl_util.h"
+#include "util/dnnl_reorder.h"
+#include "util/dnnl_assert.h"
+#include "random.h"
 
 #include <math.h>
 #include <malloc.h>
@@ -173,12 +173,13 @@ static uint32_t linear_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* pr
 
     // Note that the src memory can be of shape (N, IC, IH, IW)  or (N, IC)
     // The shape of the weights has to be       (OC, IC, IH, IW) or (OC, IC) respectively
-    const dnnl_memory_desc_t* src_md = dnnl_memory_get_memory_desc(l->hdr.src_mem);
+    const_dnnl_memory_desc_t src_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
+    int32_t src_ndims = dnnlutil_memory_desc_get_ndims(src_md);
     uint32_t weights_ndims = 0;
     dnnl_dims_t weights_dims = { 0 };
-    dnnl_format_tag_t src_format = src_md->ndims == 2 ? dnnl_nc : dnnl_nchw;
+    dnnl_format_tag_t src_format = src_ndims == 2 ? dnnl_nc : dnnl_nchw;
     dnnl_format_tag_t weights_format;
-    if (src_md->ndims == 2) {
+    if (src_ndims == 2) {
         weights_ndims = 2;
         weights_dims[0] = OC;
         weights_dims[1] = IC;
@@ -195,47 +196,48 @@ static uint32_t linear_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* pr
 
     dnnl_dims_t bias_dims = { OC };
     dnnl_dims_t fwd_dst_dims = { N, OC };
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&fwd_src_md_any, src_md->ndims, src_md->dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : src_format));
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&fwd_weights_md_any, weights_ndims, weights_dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : weights_format));
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bias_md, 1, bias_dims, dnnl_f32, dnnl_a));
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&fwd_dst_md_any, 2, fwd_dst_dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : dnnl_nc));
+
+    fwd_src_md_any = dnnlutil_memory_desc_tag_any(src_md);
+    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&fwd_weights_md_any, weights_ndims, weights_dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : weights_format));
+    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&bias_md, 1, bias_dims, dnnl_f32, dnnl_a));
+    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&fwd_dst_md_any, 2, fwd_dst_dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : dnnl_nc));
     // 1.2 Create an inner product fwd primitive
-    dnnl_inner_product_desc_t fwd_d;
+
     dnnl_primitive_desc_t fwd_pd;
-    CHECK_DNNL(dnnl_inner_product_forward_desc_init(&fwd_d, dnnl_forward_training, &fwd_src_md_any, &fwd_weights_md_any, &bias_md, &fwd_dst_md_any));
-    CHECK_DNNL(dnnl_primitive_desc_create(&fwd_pd, &fwd_d, 0, l->hdr.engine, 0));
+    CHECK_DNNL(dnnl_inner_product_forward_primitive_desc_create(&fwd_pd, l->hdr.engine, dnnl_forward_training,
+        fwd_src_md_any, fwd_weights_md_any, bias_md, fwd_dst_md_any, NULL));
     CHECK_DNNL(dnnl_primitive_create(&l->fwd, fwd_pd));
     
     // 2. Create weights and bias mem
     dnnl_memory_desc_t weights_md;
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&weights_md, weights_ndims, weights_dims, dnnl_f32, weights_format));
-    CHECK_DNNL(dnnl_memory_create(&l->weights_mem, &weights_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
-    CHECK_DNNL(dnnl_memory_create(&l->bias_mem, &bias_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
+    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&weights_md, weights_ndims, weights_dims, dnnl_f32, weights_format));
+    CHECK_DNNL(dnnl_memory_create(&l->weights_mem, weights_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
+    CHECK_DNNL(dnnl_memory_create(&l->bias_mem, bias_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
     // Init weights
     weight_init_func weight_init = get_weight_init_func(l->weight_init);
-    float* weights = dnnl_memory_get_data_handle(l->weights_mem);
+    float* weights = nn_dnnl_memory_get_data_handle(l->weights_mem);
     for (size_t i = 0; i < OC * IC * IH * IW; i++)
         weights[i] = weight_init(OC, IC);
     // Init bias
     bias_init_func bias_init = get_bias_init_func(l->bias_init);
-    float* bias = dnnl_memory_get_data_handle(l->bias_mem);
+    float* bias = nn_dnnl_memory_get_data_handle(l->bias_mem);
     for (size_t i = 0; i < OC; i++)
         bias[i] = bias_init(OC, IC);
 
     // 3. Set up reorder between src and fwd_src memory if necessary
-    const dnnl_memory_desc_t* fwd_src_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_src_md, 0);
+    const_dnnl_memory_desc_t fwd_src_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_src_md, 0);
     CHECK_DNNL(dnnl_reorder_create(&l->fwd_reorder_src, l->hdr.src_mem, fwd_src_md));
     l->fwd_src_mem = l->fwd_reorder_src.dst_mem;
     // 4. Set up reorder between weights and fwd_weights memory if necessary
-    const dnnl_memory_desc_t* fwd_weights_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_weights_md, 0);
+    const_dnnl_memory_desc_t fwd_weights_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_weights_md, 0);
     CHECK_DNNL(dnnl_reorder_create(&l->fwd_reorder_weights, l->weights_mem, fwd_weights_md));
     l->fwd_weights_mem = l->fwd_reorder_weights.dst_mem;
 
     // 5. Create output memory
-    const dnnl_memory_desc_t* fwd_dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
+    const_dnnl_memory_desc_t fwd_dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
     CHECK_DNNL(dnnl_memory_create(&l->hdr.dst_mem, fwd_dst_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
     // 6. Create workspace memory
-    const dnnl_memory_desc_t* workspace_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_workspace_md, 0);
+    const_dnnl_memory_desc_t workspace_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_workspace_md, 0);
     CHECK_DNNL(dnnl_memory_create(&l->workspace_mem, workspace_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
 
     // 7. Clean up
@@ -261,34 +263,35 @@ static uint32_t linear_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* ne
     dnnl_memory_desc_t bwd_data_diff_dst_md_any;
     // Note that diff_src_mem needs to have same shape as src_mem
     // Also bwd_data_weights_mem needs to have same shape as weights_mem
-    const dnnl_memory_desc_t* src_md = dnnl_memory_get_memory_desc(l->hdr.src_mem);
-    const dnnl_memory_desc_t* weights_md = dnnl_memory_get_memory_desc(l->weights_mem);
-    dnnl_format_tag_t src_format = src_md->ndims == 2 ? dnnl_nc : dnnl_nchw;
-    dnnl_format_tag_t weights_format = src_md->ndims == 2 ? dnnl_oi : dnnl_oihw;
+    const_dnnl_memory_desc_t src_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
+    const_dnnl_memory_desc_t weights_md = nn_dnnl_memory_get_memory_desc(l->weights_mem);
+    int32_t src_ndims = dnnlutil_memory_desc_get_ndims(src_md);
+    dnnl_format_tag_t src_format = src_ndims == 2 ? dnnl_nc : dnnl_nchw;
+    dnnl_format_tag_t weights_format = src_ndims == 2 ? dnnl_oi : dnnl_oihw;
     dnnl_dims_t bwd_data_diff_dst_dims = { l->hdr.N, l->hdr.OC };
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bwd_data_diff_src_md_any, src_md->ndims, src_md->dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : src_format));
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bwd_data_weights_md_any, weights_md->ndims, weights_md->dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : weights_format));
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bwd_data_diff_dst_md_any, 2, bwd_data_diff_dst_dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : dnnl_nc));
+    bwd_data_diff_src_md_any = dnnlutil_memory_desc_tag_any(src_md);
+    bwd_data_weights_md_any = dnnlutil_memory_desc_tag_any(weights_md);
+    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&bwd_data_diff_dst_md_any, 2, bwd_data_diff_dst_dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : dnnl_nc));
     // 1.1.2 Create the primitive
-    dnnl_inner_product_desc_t bwd_data_d;
+
     dnnl_primitive_desc_t bwd_data_pd;
-    CHECK_DNNL(dnnl_inner_product_backward_data_desc_init(&bwd_data_d, &bwd_data_diff_src_md_any, &bwd_data_weights_md_any, &bwd_data_diff_dst_md_any));
-    const_dnnl_primitive_desc_t fwd_pd = dnnl_primitive_get_primitive_desc(l->fwd);
-    CHECK_DNNL(dnnl_primitive_desc_create(&bwd_data_pd, &bwd_data_d, 0, l->hdr.engine, fwd_pd));
+    const_dnnl_primitive_desc_t fwd_pd = nn_dnnl_primitive_get_primitive_desc(l->fwd);
+    CHECK_DNNL(dnnl_inner_product_backward_data_primitive_desc_create(&bwd_data_pd, l->hdr.engine,
+        bwd_data_diff_src_md_any, bwd_data_weights_md_any, bwd_data_diff_dst_md_any, fwd_pd, NULL));
     CHECK_DNNL(dnnl_primitive_create(&l->bwd_data, bwd_data_pd));
 
     // 1.2 Set up reorder between diff_dst and bwd_data_diff_dst if necessary
-    const dnnl_memory_desc_t* bwd_data_diff_dst_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_diff_dst_md, 0);
+    const_dnnl_memory_desc_t bwd_data_diff_dst_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_diff_dst_md, 0);
     CHECK_DNNL(dnnl_reorder_create(&l->bwd_data_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_data_diff_dst_md));
     l->bwd_data_diff_dst_mem = l->bwd_data_reorder_diff_dst.dst_mem;
 
     // 1.3 Set up reorder between weights and bwd_data_weights if necessary
-    const dnnl_memory_desc_t* bwd_data_weights_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_weights_md, 0);
+    const_dnnl_memory_desc_t bwd_data_weights_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_weights_md, 0);
     CHECK_DNNL(dnnl_reorder_create(&l->bwd_data_reorder_weights, l->fwd_weights_mem, bwd_data_weights_md));
     l->bwd_data_weights_mem = l->bwd_data_reorder_weights.dst_mem;
 
     // 1.4 Create diff_src memory
-    const dnnl_memory_desc_t* bwd_data_diff_src_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_diff_src_md, 0);
+    const_dnnl_memory_desc_t bwd_data_diff_src_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_diff_src_md, 0);
     CHECK_DNNL(dnnl_memory_create(&l->hdr.diff_src_mem, bwd_data_diff_src_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
 
     // 2. bwd weights
@@ -303,30 +306,31 @@ static uint32_t linear_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* ne
     // Also bwd_weights_diff_weights needs to have same shape as weights_mem
     dnnl_dims_t bwd_weights_diff_bias_dims = { l->hdr.OC };
     dnnl_dims_t bwd_weights_diff_dst_dims = { l->hdr.N, l->hdr.OC };
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bwd_weights_src_md_any, src_md->ndims, src_md->dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : src_format));
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bwd_weights_diff_weights_md_any, weights_md->ndims, weights_md->dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : weights_format));
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bwd_weights_diff_bias_md_any, 1, bwd_weights_diff_bias_dims, dnnl_f32, dnnl_a));
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bwd_weights_diff_dst_md_any, 2, bwd_weights_diff_dst_dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : dnnl_nc));
+    bwd_weights_src_md_any = dnnlutil_memory_desc_tag_any(src_md);
+    bwd_weights_diff_weights_md_any = dnnlutil_memory_desc_tag_any(weights_md);
+    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&bwd_weights_diff_bias_md_any, 1, bwd_weights_diff_bias_dims, dnnl_f32, dnnl_a));
+    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&bwd_weights_diff_dst_md_any, 2, bwd_weights_diff_dst_dims, dnnl_f32, l->hdr.allow_reorder ? dnnl_format_tag_any : dnnl_nc));
     // 2.1.2 Create the primitive
-    dnnl_inner_product_desc_t bwd_weights_d;
+
     dnnl_primitive_desc_t bwd_weights_pd;
-    CHECK_DNNL(dnnl_inner_product_backward_weights_desc_init(&bwd_weights_d, &bwd_weights_src_md_any, &bwd_weights_diff_weights_md_any, &bwd_weights_diff_bias_md_any, &bwd_weights_diff_dst_md_any));
-    CHECK_DNNL(dnnl_primitive_desc_create(&bwd_weights_pd, &bwd_weights_d, 0, l->hdr.engine, fwd_pd));
+    CHECK_DNNL(dnnl_inner_product_backward_weights_primitive_desc_create(&bwd_weights_pd, l->hdr.engine,
+        bwd_weights_src_md_any, bwd_weights_diff_weights_md_any, bwd_weights_diff_bias_md_any,
+        bwd_weights_diff_dst_md_any, fwd_pd, NULL));
     CHECK_DNNL(dnnl_primitive_create(&l->bwd_weights, bwd_weights_pd));
 
     // 2.2 Create diff weights/bias mem
-    const dnnl_memory_desc_t* bwd_weights_diff_weights_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_diff_weights_md, 0);
-    const dnnl_memory_desc_t* bwd_weights_diff_bias_md = dnnl_memory_get_memory_desc(l->bias_mem);
+    const_dnnl_memory_desc_t bwd_weights_diff_weights_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_diff_weights_md, 0);
+    const_dnnl_memory_desc_t bwd_weights_diff_bias_md = nn_dnnl_memory_get_memory_desc(l->bias_mem);
     CHECK_DNNL(dnnl_memory_create(&l->bwd_weights_diff_weights_mem, bwd_weights_diff_weights_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
     CHECK_DNNL(dnnl_memory_create(&l->diff_bias_mem, bwd_weights_diff_bias_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
 
     // 2.3 Set up reorder between fwd_src_mem and bwd_weights_src_mem
-    const dnnl_memory_desc_t* bwd_weights_src_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_src_md, 0);
+    const_dnnl_memory_desc_t bwd_weights_src_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_src_md, 0);
     CHECK_DNNL(dnnl_reorder_create(&l->bwd_weights_reorder_src, l->fwd_src_mem, bwd_weights_src_md));
     l->bwd_weights_src_mem = l->bwd_weights_reorder_src.dst_mem;
 
     // 2.4 Set up reorder between diff_dst and bwd_weights_diff_dst
-    const dnnl_memory_desc_t* bwd_weights_diff_dst_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_diff_dst_md, 0);
+    const_dnnl_memory_desc_t bwd_weights_diff_dst_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_diff_dst_md, 0);
     CHECK_DNNL(dnnl_reorder_create(&l->bwd_weights_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_weights_diff_dst_md));
     l->bwd_weights_diff_dst_mem = l->bwd_weights_reorder_diff_dst.dst_mem;
     // 2.5 Set up reorder between bwd_data_diff_weights and diff_weights
@@ -413,15 +417,15 @@ static uint32_t linear_layer_bwd(dnnl_layer_t* layer)
     CHECK_DNNL(dnnl_stream_wait(l->hdr.stream));
 
     // 2.5 Update weights
-    float* weights = dnnl_memory_get_data_handle(l->weights_mem);
-    float* diff_weights = dnnl_memory_get_data_handle(l->diff_weights_mem);
-    size_t weights_dims = dnnl_memory_get_memory_desc(l->weights_mem)->ndims;
+    float* weights = nn_dnnl_memory_get_data_handle(l->weights_mem);
+    float* diff_weights = nn_dnnl_memory_get_data_handle(l->diff_weights_mem);
+    size_t weights_dims = dnnlutil_memory_desc_get_ndims(nn_dnnl_memory_get_memory_desc(l->weights_mem));
     size_t weights_size = weights_dims == 2 ? (l->hdr.OC * l->hdr.IC) : (l->hdr.OC * l->hdr.IC * l->hdr.IH * l->hdr.IW);
     for (size_t i = 0; i < weights_size; i++)
         weights[i] -= l->learning_rate * diff_weights[i];
     // 2.6 Update bias
-    float* bias = dnnl_memory_get_data_handle(l->bias_mem);
-    float* diff_bias = dnnl_memory_get_data_handle(l->diff_bias_mem);
+    float* bias = nn_dnnl_memory_get_data_handle(l->bias_mem);
+    float* diff_bias = nn_dnnl_memory_get_data_handle(l->diff_bias_mem);
     for (size_t i = 0; i < l->hdr.OC; i++)
         bias[i] -= l->learning_rate * diff_bias[i];
 

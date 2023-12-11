@@ -8,6 +8,12 @@ BACKEND ?= naive
 # Set to 1 to use accelerated matrix products when using naive backend
 USE_AVX ?= 0
 
+# The root directory of the oneDNN library, only needed when using
+# onednn backend
+ONEDNN_ROOT_DIR ?= /usr/local
+ONEDNN_INCLUDE_DIR := $(ONEDNN_ROOT_DIR)/include
+ONEDNN_SHARED_DIR := $(ONEDNN_ROOT_DIR)/lib64/
+
 # Select log level
 # Supported values: 1(error), 2(warn), 3(info), 4(trace)
 LOG_LEVEL ?= 3
@@ -52,10 +58,17 @@ SRC += $(TARGET).c
 
 # Select backend files based on selected backend
 ifeq ($(BACKEND),naive)
-INCLUDE += -I$(SOURCEDIR)/naive
+INCLUDE += -I$(SOURCEDIR)/naive -I$(SOURCEDIR)/include
 SRC += $(shell find $(SOURCEDIR)/naive -name '*.c')
+CFLAGS += -DBACKEND_NAIVE
+else ifeq ($(BACKEND),onednn)
+INCLUDE += -I$(SOURCEDIR)/onednn #-I$(ONEDNN_INCLUDE_DIR) -I$(ONEDNN_ROOT_DIR)/build/include
+# SRC += $(SOURCEDIR)/onednn/context_impl.c $(SOURCEDIR)/onednn/tensor_impl.c
+SRC += $(shell find $(SOURCEDIR)/onednn -name '*.c')
+LDFLAGS += -ldnnl #-L$(ONEDNN_SHARED_DIR) 
+CFLAGS += -DBACKEND_ONEDNN
 else
-$(error Only NAIVE implementation available.)
+$(error Only naive and onednn implementation available.)
 endif
 
 

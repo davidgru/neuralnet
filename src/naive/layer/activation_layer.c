@@ -3,7 +3,7 @@
 
 #include "util/ai_math.h"
 
-#include "activation_layer.h"
+#include "layer/activation_layer.h"
 
 #include "log.h"
 

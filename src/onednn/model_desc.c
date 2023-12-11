@@ -5,6 +5,7 @@
 #include <malloc.h>
 #include <memory.h>
 
+
 static uint32_t model_desc_add_create_info(model_desc_t* desc, dnnl_layer_create_info_t* create_info)
 {
 
@@ -79,12 +80,13 @@ uint32_t model_desc_add_activation_layer(model_desc_t* desc, dnnl_activation_kin
     return 0;
 }
 
-uint32_t model_desc_add_linear_layer(model_desc_t* desc, size_t OC, dnnl_linear_layer_weight_init_kind_t weight_init, dnnl_linear_layer_bias_init_kind_t bias_init)
+uint32_t model_desc_add_linear_layer(model_desc_t* desc, float learning_rate, size_t OC, dnnl_linear_layer_weight_init_kind_t weight_init, dnnl_linear_layer_bias_init_kind_t bias_init)
 {
     dnnl_linear_layer_create_info_t* li = (dnnl_linear_layer_create_info_t*)malloc(sizeof(dnnl_linear_layer_create_info_t));
     li->OC = OC;
     li->weight_init = weight_init;
     li->bias_init = bias_init;
+    li->learning_rate = learning_rate;
     dnnl_layer_create_info_t i;
     i.layer_kind = dnnl_layer_kind_linear;
     i.layer_create_info = li;

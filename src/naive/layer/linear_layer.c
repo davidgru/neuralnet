@@ -9,7 +9,7 @@
 #include "tensor_impl.h"
 #include "log.h"
 
-#include "linear_layer.h"
+#include "layer/linear_layer.h"
 
 
 #define NUM_LINEAR_LAYER_PARAMS 2

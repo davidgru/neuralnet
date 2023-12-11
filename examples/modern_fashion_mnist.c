@@ -27,7 +27,7 @@
 #include "augment/augment_pipeline.h"
 #include "augment/image_flip.h"
 
-#include "training_utils.h"
+#include "util/training_utils.h"
 
 #include "config_info.h"
 #include "log.h"
@@ -48,18 +48,6 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, boo
         model_desc_add_batch_norm_layer(desc);
     }
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
-    model_desc_add_convolutional_layer(desc, 6, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
-    if (use_batchnorm) {
-        model_desc_add_batch_norm_layer(desc);
-    }
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
-    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
-
-    model_desc_add_convolutional_layer(desc, 16, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
-    if (use_batchnorm) {
-        model_desc_add_batch_norm_layer(desc);
-    }
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_convolutional_layer(desc, 16, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
     if (use_batchnorm) {
         model_desc_add_batch_norm_layer(desc);
@@ -67,13 +55,25 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, boo
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
-    model_desc_add_linear_layer(desc, 256, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_convolutional_layer(desc, 32, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
+    if (use_batchnorm) {
+        model_desc_add_batch_norm_layer(desc);
+    }
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_convolutional_layer(desc, 32, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
+    if (use_batchnorm) {
+        model_desc_add_batch_norm_layer(desc);
+    }
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
+
+    model_desc_add_linear_layer(desc, 512, linear_weight_init_he, linear_bias_init_zeros);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     if (dropout_rate > 0.0f) {
         model_desc_add_dropout_layer(desc, dropout_rate);
     }
 
-    model_desc_add_linear_layer(desc, 128, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_linear_layer(desc, 194, linear_weight_init_he, linear_bias_init_zeros);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     if (dropout_rate > 0.0f) {
         model_desc_add_dropout_layer(desc, dropout_rate);
@@ -179,8 +179,9 @@ int main()
     };
     /* reduce learning rate after 5 epochs without progress on training loss */
     size_t reduce_learning_rate_after = 5;
-    float dropout_rate = 0.5f;
     bool use_batchnorm = true;
+    float dropout_rate = 0.5f;
+    bool augment = true;
 
 
     /* Verify the compile time configuration. For example, that avx is used */
@@ -199,8 +200,8 @@ int main()
     LOG_INFO("Successfully loaded mnist\n");
 
 
-    augment_pipeline_t augment_pipeline = setup_augment_pipeline();
-    if (augment_pipeline == NULL) {
+    augment_pipeline_t augment_pipeline = augment ? setup_augment_pipeline() : NULL;
+    if (augment && augment_pipeline == NULL) {
         LOG_ERROR("There was an error setting up the augmentation pipeline\n");
         return 1;
     }
@@ -218,7 +219,9 @@ int main()
     layer_destroy(lenet5);
     dataset_destroy(train_set);
     dataset_destroy(test_set);
-    augment_pipeline_destroy(augment_pipeline);
+    if (augment_pipeline != NULL) {
+        augment_pipeline_destroy(augment_pipeline);
+    }
 
     return 0;
 }

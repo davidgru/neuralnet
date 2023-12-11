@@ -131,10 +131,10 @@ typedef struct dnnl_convolutional_layer_create_info_t {
 } dnnl_convolutional_layer_create_info_t;
 
 typedef enum dnnl_pooling_kind_t {
-    dnnl_pooling_max = 0,
-    dnnl_pooling_avg_include_padding,
-    dnnl_pooling_avg,
-    dnnl_pooling_maxval = 0x7FFFFFFF
+    nn_dnnl_pooling_max = 0,
+    nn_dnnl_pooling_avg_include_padding,
+    nn_dnnl_pooling_avg,
+    nn_dnnl_pooling_maxval = 0x7FFFFFFF
 } dnnl_pooling_kind_t;
 
 typedef struct dnnl_pooling_layer_create_info_t {

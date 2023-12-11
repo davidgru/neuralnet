@@ -3,12 +3,12 @@
 
 #define CHECK_DNNL(call) if (call) goto dnnl_error
 
-dnnl_status_t dnnl_reorder_create(dnnl_reorder_t* reorder, dnnl_memory_t src_mem, const dnnl_memory_desc_t* dst_md)
+dnnl_status_t dnnl_reorder_create(dnnl_reorder_t* reorder, dnnl_memory_t src_mem, const_dnnl_memory_desc_t dst_md)
 {
     reorder->src_mem = src_mem;
 
     // Get src memory desc
-    const dnnl_memory_desc_t* src_md;
+    const_dnnl_memory_desc_t src_md;
     CHECK_DNNL(dnnl_memory_get_memory_desc(src_mem, &src_md));
 
     // Get the src memory engine

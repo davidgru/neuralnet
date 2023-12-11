@@ -2,7 +2,7 @@
 
 #include "random.h"
 
-#include "dropout_layer.h"
+#include "layer/dropout_layer.h"
 
 
 typedef struct dropout_layer_t {

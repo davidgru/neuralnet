@@ -1,7 +1,7 @@
 #include <malloc.h>
 #include <string.h>
 
-#include "pooling_layer.h"
+#include "layer/pooling_layer.h"
 
 
 #define max(a, b) ((a > b) ? a : b)

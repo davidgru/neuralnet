@@ -19,4 +19,14 @@ rebuild:
 	make clean && make
 
 
-.PHONY: clean rebuild
+run: $(TARGET)
+# since oneDNN is built as a shared library, need to add its location
+# to LD_LIBRARY_PATH so that the target executable can find it
+ifeq ($(BACKEND),onednn)
+run: export LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$(ONEDNN_SHARED_DIR)
+endif
+run:
+	$(TARGET)
+
+
+.PHONY: clean rebuild run

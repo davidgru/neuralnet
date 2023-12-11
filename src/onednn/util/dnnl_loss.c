@@ -61,8 +61,8 @@ uint32_t dnnl_loss_init(dnnl_loss_t* loss, dnnl_layer_t* prev_layer)
     dnnl_layer_fwd_pass_init(loss->reorder_layer, prev_layer);
     dnnl_layer_bwd_pass_init(loss->reorder_layer, 0);
 
-    loss->src = dnnl_memory_get_data_handle(loss->reorder_layer->dst_mem);
-    loss->diff_src = dnnl_memory_get_data_handle(loss->reorder_layer->diff_dst_mem);
+    loss->src = nn_dnnl_memory_get_data_handle(loss->reorder_layer->dst_mem);
+    loss->diff_src = nn_dnnl_memory_get_data_handle(loss->reorder_layer->diff_dst_mem);
 
     return 0;
 }

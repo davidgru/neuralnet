@@ -5,7 +5,7 @@
 #include "tensor_impl.h"
 #include "log.h"
 
-#include "convolutional_layer.h"
+#include "layer/convolutional_layer.h"
 
 
 #define NUM_CONV_LAYER_PARAMS 2

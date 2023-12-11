@@ -20,9 +20,9 @@
 
 #include "dnnl.h"
 
-#include "../util/dnnl_util.h"
-#include "../util/dnnl_reorder.h"
-#include "../util/dnnl_assert.h"
+#include "util/dnnl_util.h"
+#include "util/dnnl_reorder.h"
+#include "util/dnnl_assert.h"
 
 #include "dnnl_activation_layer.h"
 
@@ -118,15 +118,14 @@ static uint32_t activation_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t
     // 1. Create an eltwise fwd primitive
 
     // Note that the src memory shouldn't be reordered
-    const dnnl_memory_desc_t* data_md = dnnl_memory_get_memory_desc(l->hdr.src_mem);
-    dnnl_eltwise_desc_t fwd_d;
+    const_dnnl_memory_desc_t data_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
     dnnl_primitive_desc_t fwd_pd;
-    CHECK_DNNL(dnnl_eltwise_forward_desc_init(&fwd_d, dnnl_forward_training, alg_kind, data_md, l->alpha, l->beta));
-    CHECK_DNNL(dnnl_primitive_desc_create(&fwd_pd, &fwd_d, 0, engine, 0));
+    CHECK_DNNL(dnnl_eltwise_forward_primitive_desc_create(&fwd_pd, l->hdr.engine, dnnl_forward_training,
+        alg_kind, data_md, data_md, l->alpha, l->beta, NULL));
     CHECK_DNNL(dnnl_primitive_create(&l->fwd, fwd_pd));
 
     // 2. Create the dst memory
-    const dnnl_memory_desc_t* dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
+    const_dnnl_memory_desc_t dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
     CHECK_DNNL(dnnl_memory_create(&l->hdr.dst_mem, dst_md, engine, DNNL_MEMORY_ALLOCATE));
 
     // 3. Clean-up
@@ -154,19 +153,17 @@ static uint32_t activation_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t
     // 1. Create an eltwise bwd primitive    
     // 1.1 Create memory desc for bwd diff dst memory
     // Note that the diff data has to be same shape as fwd data
-    const dnnl_memory_desc_t* src_md = dnnl_memory_get_memory_desc(l->hdr.src_mem);
-    dnnl_memory_desc_t bwd_diff_dst_md_any;
-    CHECK_DNNL(dnnl_memory_desc_init_by_tag(&bwd_diff_dst_md_any, src_md->ndims, src_md->dims, dnnl_f32, dnnl_format_tag_any));
+    const_dnnl_memory_desc_t src_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
+    dnnl_memory_desc_t bwd_diff_dst_md_any = dnnlutil_memory_desc_tag_any(src_md);
     // 1.2 Create an eltwise bwd primitive
-    dnnl_eltwise_desc_t bwd_d;
     dnnl_primitive_desc_t bwd_pd;
-    CHECK_DNNL(dnnl_eltwise_backward_desc_init(&bwd_d, alg_kind, &bwd_diff_dst_md_any, src_md, l->alpha, l->beta));
-    const_dnnl_primitive_desc_t fwd_pd = dnnl_primitive_get_primitive_desc(l->fwd);
-    CHECK_DNNL(dnnl_primitive_desc_create(&bwd_pd, &bwd_d, 0, l->hdr.engine, fwd_pd));
+    const_dnnl_primitive_desc_t fwd_pd = nn_dnnl_primitive_get_primitive_desc(l->fwd);
+    CHECK_DNNL(dnnl_eltwise_backward_primitive_desc_create(&bwd_pd, l->hdr.engine, alg_kind,
+        bwd_diff_dst_md_any, bwd_diff_dst_md_any, bwd_diff_dst_md_any, l->alpha, l->beta, fwd_pd, NULL));
     CHECK_DNNL(dnnl_primitive_create(&l->bwd, bwd_pd));
 
     // 2. Set up reorder of diff dst
-    const dnnl_memory_desc_t* bwd_diff_dst_md = dnnl_primitive_desc_query_md(bwd_pd, dnnl_query_diff_dst_md, 0);
+    const_dnnl_memory_desc_t bwd_diff_dst_md = dnnl_primitive_desc_query_md(bwd_pd, dnnl_query_diff_dst_md, 0);
     CHECK_DNNL(dnnl_reorder_create(&l->bwd_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_diff_dst_md));
     l->bwd_diff_dst_mem = l->bwd_reorder_diff_dst.dst_mem;
     
