@@ -16,13 +16,30 @@
 
 
 /**
- * @brief Specifies tensor shape
+ * @brief Specifies tensor shape. tensor_shape implemented by backend
  * 
  */
-typedef struct tensor_shape {
-    /* Dimensions of the tensor. Set unused dimensions to zero. */
-    size_t dims[TENSOR_MAX_DIMS];
-} tensor_shape_t;
+typedef struct tensor_shape tensor_shape_t;
+
+
+/**
+ * @brief Create a shape object in nchw format
+ * 
+ * @param ndims     The number of dimensions
+ * @param ...       Sizes of dimensions from outer to inner
+ * @return tensor_shape_t 
+ */
+tensor_shape_t make_tensor_shape(size_t ndims, ...);
+
+
+/**
+ * @brief Get size of a specific dimension of the shape.
+ * 
+ * @param shape     A shape
+ * @param dim       The dimension (e.g. TENSOR_CHANNEL_DIM)
+ * @return size_t 
+ */
+size_t tensor_shape_get_dim(const tensor_shape_t* shape, size_t dim);
 
 
 /**

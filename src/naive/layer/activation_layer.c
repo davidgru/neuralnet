@@ -1,11 +1,11 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include "util/ai_math.h"
-
-#include "layer/activation_layer.h"
-
 #include "log.h"
+
+#include "tensor_impl.h"
+#include "util/ai_math.h"
+#include "layer/activation_layer.h"
 
 
 typedef void (*activation_function_t)(const float* in, float* out, size_t size);

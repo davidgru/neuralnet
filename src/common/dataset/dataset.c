@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "dataset.h"
+#include "tensor_impl.h"
 
 
 struct dataset_s {

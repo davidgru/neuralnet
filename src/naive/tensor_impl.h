@@ -4,7 +4,13 @@
 #include "tensor.h"
 
 
+struct tensor_shape {
+    /* Dimensions of the tensor. Set unused dimensions to zero. */
+    size_t dims[TENSOR_MAX_DIMS];
+};
+
+
 struct tensor {
-    tensor_shape_t shape;
+    struct tensor_shape shape;
     float* data;
 };

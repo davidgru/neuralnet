@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "mnist.h"
+#include "tensor_impl.h"
 
 
 #define IMAGE_WIDTH 28
@@ -109,10 +110,7 @@ static uint32_t mnist_init(
     mnist_context->num_samples = dataset_info->num_samples;
     mnist_context->sample_size = image_size;
 
-    out_data_shape->dims[TENSOR_BATCH_DIM] = dataset_info->num_samples;
-    out_data_shape->dims[TENSOR_CHANNEL_DIM] = 1;
-    out_data_shape->dims[TENSOR_HEIGHT_DIM] = image_height;
-    out_data_shape->dims[TENSOR_WIDTH_DIM] = image_width;
+    *out_data_shape = make_tensor_shape(TENSOR_MAX_DIMS, dataset_info->num_samples, 1, image_height, image_width);
 
 
     /* allocate memory for input and labels */
@@ -186,7 +184,7 @@ static uint32_t mnist_get_batch(
     mnist_context_t* mnist_context = (mnist_context_t*)context;
 
 
-    const size_t batch_size = tensor_get_shape(out_batch)->dims[TENSOR_BATCH_DIM];
+    const size_t batch_size = tensor_shape_get_dim(tensor_get_shape(out_batch), TENSOR_BATCH_DIM);
     float* out_data = tensor_get_data(out_batch);
 
     for (size_t i = 0; i < batch_size; i++) {

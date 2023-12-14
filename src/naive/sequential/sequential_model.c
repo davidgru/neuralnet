@@ -1,6 +1,7 @@
 #include <malloc.h>
 #include <string.h>
 
+#include "tensor_impl.h"
 #include "sequential_model.h"
 
 

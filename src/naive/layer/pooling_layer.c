@@ -1,8 +1,8 @@
 #include <malloc.h>
 #include <string.h>
 
+#include "tensor_impl.h"
 #include "layer/pooling_layer.h"
-
 
 #define max(a, b) ((a > b) ? a : b)
 #define min(a, b) ((a < b) ? a : b)

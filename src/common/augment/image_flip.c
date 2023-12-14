@@ -42,33 +42,38 @@ static void aug_flip_inplace(augment_context_t* context, tensor_t* input_output)
     
 
     const tensor_shape_t* shape = tensor_get_shape(input_output);
-    const size_t width = shape->dims[TENSOR_WIDTH_DIM];
-    const size_t height = shape->dims[TENSOR_HEIGHT_DIM];
+
+    const size_t batch_size = tensor_shape_get_dim(shape, TENSOR_BATCH_DIM);
+    const size_t channels = tensor_shape_get_dim(shape, TENSOR_CHANNEL_DIM);
+    const size_t height = tensor_shape_get_dim(shape, TENSOR_HEIGHT_DIM);
+    const size_t width = tensor_shape_get_dim(shape, TENSOR_WIDTH_DIM);
+
+
     const size_t channel_size = height * width;
-    const size_t per_batch_size = shape->dims[TENSOR_CHANNEL_DIM] * channel_size;
+    const size_t per_batch_size = channels * channel_size;
 
     float* data = tensor_get_data(input_output);
 
 
-    for (size_t n = 0; n < shape->dims[TENSOR_BATCH_DIM]; n++) {
+    for (size_t n = 0; n < batch_size; n++) {
 
         bool flip_horizontal = RandomUniform(0.0f, 1.0f) < flip_context->horizontal_flip_prob;
         bool flip_vertical = RandomUniform(0.0f, 1.0f) < flip_context->vertical_flip_prob;
 
-        for (size_t ch = 0; ch < shape->dims[TENSOR_CHANNEL_DIM]; ch++) {
+        for (size_t ch = 0; ch < channels; ch++) {
             float* current_image = data + n * per_batch_size + ch * channel_size;
             
             if (flip_horizontal) {
-                for (size_t r = 0; r < shape->dims[TENSOR_HEIGHT_DIM]; r++) {
-                    for (size_t c = 0; c < shape->dims[TENSOR_WIDTH_DIM] / 2; c++) {
+                for (size_t r = 0; r < height; r++) {
+                    for (size_t c = 0; c < width / 2; c++) {
                         swap(&current_image[r * width + c], &current_image[r * width + (width - c - 1)]);
                     }
                 }
             }
 
             if (flip_vertical) {
-                for (size_t r = 0; r < shape->dims[TENSOR_HEIGHT_DIM] / 2; r++) {
-                    for (size_t c = 0; c < shape->dims[TENSOR_WIDTH_DIM]; c++) {
+                for (size_t r = 0; r < height / 2; r++) {
+                    for (size_t c = 0; c < width; c++) {
                         swap(&current_image[r * width + c], &current_image[(height - r - 1) * width + c]);
                     }
                 }

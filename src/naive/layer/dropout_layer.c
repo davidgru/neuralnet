@@ -2,6 +2,7 @@
 
 #include "random.h"
 
+#include "tensor_impl.h"
 #include "layer/dropout_layer.h"
 
 

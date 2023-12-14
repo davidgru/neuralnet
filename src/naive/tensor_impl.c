@@ -1,10 +1,32 @@
 #include <malloc.h>
+#include <stdarg.h>
 #include <string.h>
 
 #include "log.h"
 
 #include "tensor.h"
 #include "tensor_impl.h"
+
+
+tensor_shape_t make_tensor_shape(size_t ndims, ...)
+{
+    tensor_shape_t shape = { 0 };
+    va_list args;
+    va_start(args, ndims);
+
+    for (size_t i = 0; i < ndims; i++) {
+        shape.dims[i] = va_arg(args, size_t);
+    }
+
+    va_end(args);
+    return shape;
+}
+
+
+size_t tensor_shape_get_dim(const tensor_shape_t* shape, size_t dim)
+{
+    return shape->dims[dim];
+}
 
 
 size_t tensor_size_from_shape(const tensor_shape_t* shape)
