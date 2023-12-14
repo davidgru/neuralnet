@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/layer.h"
+#include "core/layer_impl.h"
 
 
 typedef enum {

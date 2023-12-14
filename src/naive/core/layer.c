@@ -3,6 +3,7 @@
 #include "tensor_impl.h"
 
 #include "core/layer.h"
+#include "core/layer_impl.h"
 
 
 struct layer_s {
