@@ -3,8 +3,14 @@
 
 #include "dnnl.h"
 
-
 #include "tensor.h"
+
+
+struct tensor_shape {
+    dnnl_dims_t dims;
+    size_t ndims;
+    dnnl_format_tag_t tag;
+};
 
 
 struct tensor {

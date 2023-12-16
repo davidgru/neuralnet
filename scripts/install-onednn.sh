@@ -7,7 +7,7 @@ export CXX=g++
 ROOT_PWD=$(pwd)
 
 # Go to temporary folder
-mkdir -p tmp-onednn && cd tmp-onednn
+mkdir -p tmp && cd tmp
 
 # Clone oneDNN source code
 git clone https://github.com/oneapi-src/oneDNN.git
@@ -31,4 +31,4 @@ cmake --build . --target install
 
 # Remove temporary folder
 cd ${ROOT_PWD}
-rm -rf tmp-onednn
+rm -rf tmp

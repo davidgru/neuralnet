@@ -1,29 +1,62 @@
-#include <malloc.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "log.h"
 
 #include "tensor_impl.h"
 #include "context_impl.h"
 
+static dnnl_format_tag_t packed_format_tag_from_ndims(size_t ndims);
+
+
+tensor_shape_t make_tensor_shape(size_t ndims, ...)
+{
+    tensor_shape_t shape;
+
+    if (ndims > DNNL_MAX_NDIMS) {
+        LOG_ERROR("ndims %zu exceeds DNNL_MAX_DIMS=%d\n", ndims, DNNL_MAX_NDIMS);
+        return shape;
+    }
+
+    shape.ndims = ndims;
+
+    va_list args;
+    va_start(args, ndims);
+    for (size_t i = 0; i < ndims; i++) {
+        shape.dims[i] = va_arg(args, size_t);
+    }
+    va_end(args);
+
+    shape.tag = packed_format_tag_from_ndims(ndims);
+
+    return shape;
+}
+
+
+size_t tensor_shape_get_dim(const tensor_shape_t* shape, size_t dim)
+{
+    if (dim >= shape->ndims) {
+        LOG_ERROR("dim=%zu out of bounds. ndims is %zu\n", dim, shape->ndims);
+        return 0;
+    }
+    return shape->dims[dim];
+}
+
 
 size_t tensor_size_from_shape(const tensor_shape_t* shape)
 {
-    size_t size = 0;
-    for (size_t i = 0; i < TENSOR_MAX_DIMS; i++) {
-        if (shape->dims[i] != 0) {
-            if (size == 0) {
-                size = shape->dims[i];
-            } else {
-                size *= shape->dims[i];
-            }
-        }
+    if (shape->ndims == 0) {
+        return 0;
+    }
+
+    size_t size = 1;
+    for (size_t i = 0; i < shape->ndims; i++) {
+        size *= shape->dims[i];
     }
     return size;
 }
 
 
-/* This function will always create a NCHW tensor with specified dimensions. */
 uint32_t tensor_allocate(tensor_t* tensor, const tensor_shape_t* shape)
 {
     return tensor_from_memory(tensor, shape, DNNL_MEMORY_ALLOCATE);
@@ -43,7 +76,7 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
         shape->dims[TENSOR_HEIGHT_DIM],
         shape->dims[TENSOR_WIDTH_DIM],
     };
-    dnnl_memory_desc_create_with_tag(&md, 4, dims, dnnl_f32, dnnl_nchw);
+    dnnl_memory_desc_create_with_tag(&md, shape->ndims, shape->dims, dnnl_f32, shape->tag);
 
     dnnl_memory_create(&tensor->mem, md, eng, mem);
 
@@ -129,4 +162,28 @@ uint32_t tensor_destory(tensor_t* tensor)
 {
     dnnl_memory_destroy(tensor->mem);
     return 0;
+}
+
+
+static dnnl_format_tag_t packed_format_tag_from_ndims(size_t ndims)
+{
+    dnnl_format_tag_t tag;
+
+    switch (ndims) {
+        case 1: tag = dnnl_a; break;
+        case 2: tag = dnnl_ab; break;
+        case 3: tag = dnnl_abc; break;
+        case 4: tag = dnnl_abcd; break;
+        case 5: tag = dnnl_abcde; break;
+        case 6: tag = dnnl_abcdef; break;
+        case 7: tag = dnnl_abcdefg; break;
+        case 8: tag = dnnl_abcdefgh; break;
+        case 9: tag = dnnl_abcdefghi; break;
+        case 10: tag = dnnl_abcdefghij; break;
+        case 11: tag = dnnl_abcdefghijk; break;
+        case 12: tag = dnnl_abcdefghijkl; break;
+        default: tag = dnnl_format_kind_undef; break;
+    }
+
+    return tag;
 }

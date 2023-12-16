@@ -26,7 +26,7 @@ ifeq ($(BACKEND),onednn)
 run: export LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$(ONEDNN_SHARED_DIR)
 endif
 run:
-	$(TARGET)
+	@$(TARGET)
 
 
 .PHONY: clean rebuild run
