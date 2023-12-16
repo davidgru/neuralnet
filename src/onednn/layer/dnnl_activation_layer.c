@@ -29,214 +29,334 @@
 #include <malloc.h>
 #include <stdio.h>
 
-typedef struct dnnl_activation_layer_t {
-    
-    dnnl_layer_t hdr;
+#include "context_impl.h"
 
-    dnnl_activation_kind_t activation;
-    uint32_t dummy;
-    float alpha;
-    float beta;
+#include "tensor_impl.h"
+#include "log.h"
+#include "core/layer_impl.h"
+#include "layer/activation_layer.h"
 
-    /* oneDNN specific attributes */
 
+typedef struct {
     dnnl_primitive_t fwd;
+    tensor_t output;
+    
     dnnl_primitive_t bwd;
+    dnnl_reorder_t bwd_diff_dst_reorder;
+    tensor_t gradient;
     
-    dnnl_memory_t bwd_diff_dst_mem;
+    activation_function_kind_t activation_kind;
+} activation_layer_t;
 
-    dnnl_reorder_t bwd_reorder_diff_dst;
 
-} dnnl_activation_layer_t;
+static dnnl_alg_kind_t activation_to_alg_kind(activation_function_kind_t act_kind);
 
-// Utility function, converts an dnnl_activation_kind_t to a dnnl_alg_kind_t
-static dnnl_alg_kind_t activation_to_alg_kind(dnnl_activation_kind_t activation_kind)
+
+static uint32_t activation_layer_init(
+    layer_context_t* context,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape,
+    const tensor_shape_t* output_shape
+)
 {
-    static dnnl_alg_kind_t table[] = {
-        dnnl_eltwise_relu_use_dst_for_bwd,
-        dnnl_eltwise_tanh_use_dst_for_bwd,
-        dnnl_eltwise_logistic_use_dst_for_bwd
-    };
-    return table[activation_kind];
-}
+    activation_layer_t* layer = context;
+    const activation_layer_create_info_t* activation_create_info = create_info;
 
-static uint32_t activation_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_layer);
-static uint32_t activation_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* next_layer);
-static uint32_t activation_layer_fwd(dnnl_layer_t* layer);
-static uint32_t activation_layer_bwd(dnnl_layer_t* layer);
-static uint32_t activation_layer_destroy(dnnl_layer_t* layer);
+    layer->activation_kind = activation_create_info->activation_function;
 
-
-uint32_t dnnl_activation_layer_create(dnnl_layer_t** layer, void* create_info)
-{
-    *layer = (dnnl_layer_t*)malloc(sizeof(dnnl_activation_layer_t));
-    
-    dnnl_activation_layer_t* l = (dnnl_activation_layer_t*)*layer;
-    dnnl_activation_layer_create_info_t* i  = (dnnl_activation_layer_create_info_t*)create_info;
-
-    l->activation = i->activation;
-    l->alpha = i->alpha;
-    l->beta = i->beta;
-
-    l->hdr.fwd_pass_init = activation_layer_fwd_pass_init;
-    l->hdr.bwd_pass_init = activation_layer_bwd_pass_init;
-    l->hdr.fwd = activation_layer_fwd;
-    l->hdr.bwd = activation_layer_bwd;
-    l->hdr.destroy = activation_layer_destroy;
-    
     return 0;
 }
 
 
-static uint32_t activation_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_layer)
+static dnnl_primitive_t act_create_fwd_primitive(
+    activation_function_kind_t act_kind,
+    const_dnnl_memory_desc_t src_md
+)
 {
-    dnnl_activation_layer_t* l = (dnnl_activation_layer_t*)layer;
+    dnnl_status_t status;
 
-    const size_t N = prev_layer->N;
-    const size_t C = prev_layer->OC;
-    const size_t H = prev_layer->OH;
-    const size_t W = prev_layer->OW;
+    dnnl_alg_kind_t alg_kind = activation_to_alg_kind(act_kind);
+    dnnl_engine_t engine = get_dnnl_engine();
 
-    dnnl_engine_t engine = prev_layer->engine;
-    dnnl_stream_t stream = prev_layer->stream;
-
-    l->hdr.N = N;
-    l->hdr.IC = C;
-    l->hdr.OC = C;
-    l->hdr.IH = H;
-    l->hdr.OH = H;
-    l->hdr.IW = W;
-    l->hdr.OW = W;
-
-    l->hdr.engine = engine;
-    l->hdr.stream = stream;
-
-    l->hdr.src_mem = prev_layer->dst_mem;
-
-    dnnl_alg_kind_t alg_kind = activation_to_alg_kind(l->activation);
-
-    // 1. Create an eltwise fwd primitive
-
-    // Note that the src memory shouldn't be reordered
-    const_dnnl_memory_desc_t data_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
     dnnl_primitive_desc_t fwd_pd;
-    CHECK_DNNL(dnnl_eltwise_forward_primitive_desc_create(&fwd_pd, l->hdr.engine, dnnl_forward_training,
-        alg_kind, data_md, data_md, l->alpha, l->beta, NULL));
-    CHECK_DNNL(dnnl_primitive_create(&l->fwd, fwd_pd));
+    status = dnnl_eltwise_forward_primitive_desc_create(&fwd_pd, engine, dnnl_forward_training,
+        alg_kind, src_md, src_md, 0.0f, 0.0f, NULL);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating eltwise fwd pd failed with code %d\n", status);
+        return NULL;
+    }
 
-    // 2. Create the dst memory
-    const_dnnl_memory_desc_t dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
-    CHECK_DNNL(dnnl_memory_create(&l->hdr.dst_mem, dst_md, engine, DNNL_MEMORY_ALLOCATE));
-
-    // 3. Clean-up
-    CHECK_DNNL(dnnl_primitive_desc_destroy(fwd_pd));
-
-    return 0;
-dnnl_error:
-    return 1;
+    dnnl_primitive_t primitive;
+    status = dnnl_primitive_create(&primitive, fwd_pd);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating eltwise fwd primitive failed with code %d\n", status);
+    }
+    dnnl_primitive_desc_destroy(fwd_pd);
+    return primitive;
 }
 
 
-static uint32_t activation_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* next_layer)
+static dnnl_status_t activation_layer_forward_init(activation_layer_t* layer, const tensor_t* input)
 {
-    dnnl_activation_layer_t* l = (dnnl_activation_layer_t*)layer;
+    const_dnnl_memory_desc_t src_md = memory_desc_from_tensor(input);
 
-    const size_t N = l->hdr.N;
-    const size_t C = l->hdr.IC;
-    const size_t H = l->hdr.IH;
-    const size_t W = l->hdr.IW;
-    
-    l->hdr.diff_dst_mem = next_layer->diff_src_mem;
+    /* create the primitive */
+    layer->fwd = act_create_fwd_primitive(layer->activation_kind, src_md);
 
-    dnnl_alg_kind_t alg_kind = activation_to_alg_kind(l->activation);
+    /* need to allocate the destination memory */
+    const_dnnl_memory_desc_t dst_md = dnnlutil_primitive_query_md(layer->fwd, dnnl_query_dst_md, 0);
+    tensor_from_desc(&layer->output, dst_md, DNNL_MEMORY_ALLOCATE);
 
-    // 1. Create an eltwise bwd primitive    
-    // 1.1 Create memory desc for bwd diff dst memory
-    // Note that the diff data has to be same shape as fwd data
-    const_dnnl_memory_desc_t src_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
-    dnnl_memory_desc_t bwd_diff_dst_md_any = dnnlutil_memory_desc_tag_any(src_md);
-    // 1.2 Create an eltwise bwd primitive
-    dnnl_primitive_desc_t bwd_pd;
-    const_dnnl_primitive_desc_t fwd_pd = nn_dnnl_primitive_get_primitive_desc(l->fwd);
-    CHECK_DNNL(dnnl_eltwise_backward_primitive_desc_create(&bwd_pd, l->hdr.engine, alg_kind,
-        bwd_diff_dst_md_any, bwd_diff_dst_md_any, bwd_diff_dst_md_any, l->alpha, l->beta, fwd_pd, NULL));
-    CHECK_DNNL(dnnl_primitive_create(&l->bwd, bwd_pd));
-
-    // 2. Set up reorder of diff dst
-    const_dnnl_memory_desc_t bwd_diff_dst_md = dnnl_primitive_desc_query_md(bwd_pd, dnnl_query_diff_dst_md, 0);
-    CHECK_DNNL(dnnl_reorder_create(&l->bwd_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_diff_dst_md));
-    l->bwd_diff_dst_mem = l->bwd_reorder_diff_dst.dst_mem;
-    
-    // 3. Create diff src memory with same format as diff dst memory
-    CHECK_DNNL(dnnl_memory_create(&l->hdr.diff_src_mem, bwd_diff_dst_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
-
-    // 4. Clean-up
-    CHECK_DNNL(dnnl_primitive_desc_destroy(bwd_pd));
-
-    return 0;
-dnnl_error:
-    return 1;
+    return dnnl_success;
 }
 
 
-static uint32_t activation_layer_fwd(dnnl_layer_t* layer)
+static uint32_t activation_layer_forward(
+    layer_context_t* context,
+    layer_forward_kind_t forward_kind,
+    const tensor_t* input,
+    tensor_t** out_output
+)
 {
-    dnnl_activation_layer_t* l = (dnnl_activation_layer_t*)layer;
+    activation_layer_t* layer = context;
+    dnnl_status_t status = dnnl_success;
 
-    // 1. Just execute the fwd primitive
+
+    /* initialize forward pass on first call to forward */
+    if (layer->fwd == NULL) {
+        status = activation_layer_forward_init(layer, input);
+        if (status != dnnl_success) {
+            return status;
+        }
+    }
+
+
+    dnnl_stream_t stream = get_dnnl_stream();
     dnnl_exec_arg_t exec_args[2] = {
-        { DNNL_ARG_SRC, l->hdr.src_mem },
-        { DNNL_ARG_DST, l->hdr.dst_mem }
+        { DNNL_ARG_SRC, input->mem },
+        { DNNL_ARG_DST, layer->output.mem }
     };
-    CHECK_DNNL(dnnl_primitive_execute(l->fwd, l->hdr.stream, 2, exec_args));
 
-    CHECK_DNNL(dnnl_stream_wait(l->hdr.stream));
-    
+    status = dnnl_primitive_execute(layer->fwd, stream, sizeof(exec_args) / sizeof(*exec_args),
+        exec_args);
+    if (status != dnnl_success) {
+        LOG_ERROR("primitive execute failed with code %d\n", status);
+        return 1;
+    }
+
+    status = dnnl_stream_wait(stream);
+    if (status != dnnl_success) {
+        LOG_ERROR("stream_wait failed with code %d\n", status);
+        return 1;
+    }
+
+    if (out_output != NULL) {
+        *out_output = &layer->output;
+    }
+
     return 0;
-dnnl_error:
-    return 1;
 }
 
 
-static uint32_t activation_layer_bwd(dnnl_layer_t* layer)
+static dnnl_primitive_t act_create_bwd_primitive(const_dnnl_primitive_t fwd_primitive)
 {
-    dnnl_activation_layer_t* l = (dnnl_activation_layer_t*)layer;
+    dnnl_status_t status = dnnl_success; 
+    dnnl_engine_t engine = get_dnnl_engine();
 
-    // 1. Reorder diff dst
-    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_reorder_diff_dst, l->hdr.stream));
 
-    // 2. Execute the bwd primitive
+    const_dnnl_primitive_desc_t fwd_pd = nn_dnnl_primitive_get_primitive_desc(fwd_primitive);
+    dnnl_alg_kind_t alg_kind;
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_alg_kind, 0, &alg_kind);
+
+    /* Want to keep diff memory formats up to the primitive. Probably will choose the same memory
+        format as for the output(dst_md) */
+    const_dnnl_memory_desc_t dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
+    dnnl_memory_desc_t diff_src_dst_md_any = dnnlutil_memory_desc_tag_any(dst_md);
+
+
+    dnnl_primitive_desc_t pd;
+    status = dnnl_eltwise_backward_primitive_desc_create(&pd, engine, alg_kind,
+        diff_src_dst_md_any, diff_src_dst_md_any, dst_md, 0.0f, 0.0f, fwd_pd, NULL);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating eltwise backward pd failed with code %d\n", status);
+        dnnl_memory_desc_destroy(diff_src_dst_md_any);
+        return NULL;
+    }
+
+    dnnl_primitive_t primitive = NULL;
+    status = dnnl_primitive_create(&primitive, pd);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating eltwise backward primitive failed with code %d\n", status);
+    }
+
+    dnnl_memory_desc_destroy(diff_src_dst_md_any);
+    return primitive;
+}
+
+
+static dnnl_status_t activation_layer_backward_init(
+    activation_layer_t* layer,
+    const tensor_t* prev_gradient
+)
+{
+    dnnl_status_t status = dnnl_success;
+
+
+    /* create the primitive */
+    layer->bwd = act_create_bwd_primitive(layer->fwd);
+
+
+    /* Need to create potential reorders since format for diff_dst was not specified when creating
+        the bwd primitive. */
+    const_dnnl_memory_desc_t reorder_src_md = memory_desc_from_tensor(prev_gradient);
+    const_dnnl_memory_desc_t reorder_dst_md = dnnlutil_primitive_query_md(layer->bwd,
+        dnnl_query_diff_dst_md, 0);
+
+    status = dnnl_reorder_create(&layer->bwd_diff_dst_reorder, reorder_src_md, reorder_dst_md);
+    if (status != dnnl_success) {
+        LOG_ERROR("Setting up diff dst reorder failed with code %d\n", status);
+    }
+
+    /* Need to allocate the gradient(diff src) memory */
+    const_dnnl_memory_desc_t diff_src_md = dnnlutil_primitive_query_md(layer->bwd,
+        dnnl_query_diff_src_md, 0);
+    if (tensor_from_desc(&layer->gradient, diff_src_md, DNNL_MEMORY_ALLOCATE) != 0) {
+        status = dnnl_out_of_memory;
+        LOG_ERROR("Creating gradient tensor failed with code %d\n", status);
+    }
+
+    return status;
+}
+
+
+
+static uint32_t activation_layer_backward(
+    layer_context_t* context,
+    const tensor_t* prev_gradient,
+    tensor_t** out_gradient
+)
+{
+    activation_layer_t* layer = context;
+    dnnl_status_t status = dnnl_success;
+
+
+    /* initialize backward pass on first call to backward */
+    if (layer->bwd == NULL) {
+        status = activation_layer_backward_init(layer, prev_gradient);
+        if (status != dnnl_success) {
+            return status;
+        }
+    }
+
+
+    /* Potentially need to reorder prev_gradient */
+    const tensor_t* reordered_prev_gradient = NULL;
+    status = dnnl_reorder_execute(&layer->bwd_diff_dst_reorder, prev_gradient,
+        &reordered_prev_gradient);
+    if (status != dnnl_success) {
+        LOG_ERROR("Reordering of gradient failed with code %d\n", status);
+        return 1;
+    }
+
+    dnnl_stream_t stream = get_dnnl_stream();
     dnnl_exec_arg_t exec_args[] = {
-        { DNNL_ARG_DST, l->hdr.dst_mem },
-        { DNNL_ARG_DIFF_DST, l->bwd_diff_dst_mem },
-        { DNNL_ARG_DIFF_SRC, l->hdr.diff_src_mem },
+        { DNNL_ARG_DST, layer->output.mem },
+        { DNNL_ARG_DIFF_DST, reordered_prev_gradient->mem },
+        { DNNL_ARG_DIFF_SRC, layer->gradient.mem },
     };
-    CHECK_DNNL(dnnl_primitive_execute(l->bwd, l->hdr.stream, 3, exec_args));
 
-    CHECK_DNNL(dnnl_stream_wait(l->hdr.stream));
+    status = dnnl_primitive_execute(layer->bwd, stream, sizeof(exec_args) / sizeof(*exec_args),
+        exec_args);
+    if (status != dnnl_success) {
+        LOG_ERROR("Executing eltwise backward primitive failed with code %d\n", status);
+        return 1;
+    }
+
+    status = dnnl_stream_wait(stream);
+    if (status != dnnl_success) {
+        LOG_ERROR("stream_wait failed with code %d\n", status);
+        return 1;
+    }
+
+    if (*out_gradient != NULL) {
+        *out_gradient = &layer->gradient;
+    }
 
     return 0;
-dnnl_error:
-    return 1;
 }
 
 
-static uint32_t activation_layer_destroy(dnnl_layer_t* layer)
+static uint32_t activation_layer_deinit(layer_context_t* context)
 {
-    dnnl_activation_layer_t* l = (dnnl_activation_layer_t*)layer;
+    activation_layer_t* layer = context;
 
-    CHECK_DNNL(dnnl_primitive_destroy(l->fwd));
-    CHECK_DNNL(dnnl_primitive_destroy(l->bwd));
+    if (layer->fwd != NULL) {
+        dnnl_primitive_destroy(layer->fwd);
+        tensor_destory(&layer->output);
+    }
 
-    CHECK_DNNL(dnnl_memory_destroy(l->hdr.dst_mem));
-    CHECK_DNNL(dnnl_memory_destroy(l->hdr.diff_src_mem));
-
-    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_reorder_diff_dst));
-
-    free(l);
+    if (layer->bwd != NULL) {
+        dnnl_primitive_destroy(layer->bwd);
+        dnnl_reorder_destroy(&layer->bwd_diff_dst_reorder);
+        tensor_destory(&layer->gradient);
+    }
 
     return 0;
-dnnl_error:
-    return 1;
 }
+
+
+static uint32_t activation_layer_get_output_shape(
+    tensor_shape_t* out_output_shape,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape
+)
+{
+    const activation_layer_create_info_t* act_create_info = create_info;
+
+    dnnl_memory_desc_t src_md = memory_desc_from_shape(input_shape);
+
+    /* create a primitive on the fly to check the output shape */
+    dnnl_primitive_t fwd = act_create_fwd_primitive(act_create_info->activation_function, src_md);
+    if (fwd == NULL) {
+        LOG_ERROR("Failed to create activation fwd primitive\n");
+        return 1;
+    }
+    const_dnnl_memory_desc_t dst_md = dnnlutil_primitive_query_md(fwd, dnnl_query_dst_md, 0);
+
+
+    *out_output_shape = shape_from_memory_desc(dst_md);
+
+
+    /* clean */
+    dnnl_memory_desc_destroy(src_md);
+    dnnl_primitive_destroy(fwd);
+
+    return 0;
+}
+
+
+static dnnl_alg_kind_t activation_to_alg_kind(activation_function_kind_t act_kind)
+{
+    dnnl_alg_kind_t alg_kind;
+
+    switch(act_kind) {
+        case ACTIVATION_FUNCTION_SIGMOID: alg_kind = dnnl_eltwise_logistic_use_dst_for_bwd; break;
+        case ACTIVATION_FUNCTION_TANH: alg_kind = dnnl_eltwise_tanh_use_dst_for_bwd; break;
+        case ACTIVATION_FUNCTION_RELU: alg_kind = dnnl_eltwise_relu_use_dst_for_bwd; break;
+        default: alg_kind = dnnl_alg_kind_undef; break;
+    }
+
+    return alg_kind;
+}
+
+
+const layer_impl_t activation_layer_impl = {
+    .init_func = activation_layer_init,
+    .get_param_func = NULL,
+    .deinit_func = activation_layer_deinit,
+    .forward_func = activation_layer_forward,
+    .backward_func = activation_layer_backward,
+    .get_output_shape = activation_layer_get_output_shape,
+    .layer_context_size = sizeof(activation_layer_t),
+};
 

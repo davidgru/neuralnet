@@ -152,7 +152,7 @@ float* nn_dnnl_memory_get_data_handle(dnnl_memory_t mem)
 }
 
 
-const_dnnl_primitive_desc_t nn_dnnl_primitive_get_primitive_desc(dnnl_primitive_t primitive)
+const_dnnl_primitive_desc_t nn_dnnl_primitive_get_primitive_desc(const_dnnl_primitive_t primitive)
 {
     const_dnnl_primitive_desc_t pd;
     dnnl_status_t status = dnnl_primitive_get_primitive_desc(primitive, &pd);
@@ -190,4 +190,16 @@ dnnl_memory_desc_t dnnlutil_memory_desc_tag_any(const_dnnl_memory_desc_t memory_
     dnnl_memory_desc_create_with_tag(&desc, ndims, *dims, dnnl_f32, dnnl_format_tag_any);
 
     return desc;
+}
+
+
+const_dnnl_memory_desc_t dnnlutil_primitive_query_md(
+    const_dnnl_primitive_t primitive,
+    dnnl_query_t what,
+    int index
+)
+{
+    const_dnnl_primitive_desc_t pd;
+    dnnl_primitive_get_primitive_desc(primitive, &pd);
+    return dnnl_primitive_desc_query_md(pd, what, index);
 }

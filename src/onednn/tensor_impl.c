@@ -65,23 +65,27 @@ uint32_t tensor_allocate(tensor_t* tensor, const tensor_shape_t* shape)
 
 uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float* mem)
 {
-    tensor->shape = *shape;
- 
+    dnnl_memory_desc_t desc = memory_desc_from_shape(shape);
+
+    uint32_t ret = tensor_from_desc(tensor, desc, mem);
+
+    dnnl_memory_desc_destroy(desc);
+
+    return ret;
+}
+
+
+uint32_t tensor_from_desc(tensor_t* tensor, const_dnnl_memory_desc_t desc, void* mem)
+{
+    tensor->shape = shape_from_memory_desc(desc);
+
     dnnl_engine_t eng = get_dnnl_engine();
 
-    dnnl_memory_desc_t md;
-    const dnnl_dims_t dims = {
-        shape->dims[TENSOR_BATCH_DIM],
-        shape->dims[TENSOR_CHANNEL_DIM],
-        shape->dims[TENSOR_HEIGHT_DIM],
-        shape->dims[TENSOR_WIDTH_DIM],
-    };
-    dnnl_memory_desc_create_with_tag(&md, shape->ndims, shape->dims, dnnl_f32, shape->tag);
-
-    dnnl_memory_create(&tensor->mem, md, eng, mem);
-
-    /* Do not need the memory desc anymore. */
-    dnnl_memory_desc_destroy(md);
+    dnnl_status_t status = dnnl_memory_create(&tensor->mem, desc, eng, mem);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating memory failed with code %d\n", status);
+        return 1;
+    }
 
     return 0;
 }
@@ -162,6 +166,48 @@ uint32_t tensor_destory(tensor_t* tensor)
 {
     dnnl_memory_destroy(tensor->mem);
     return 0;
+}
+
+
+const_dnnl_memory_desc_t memory_desc_from_tensor(const tensor_t* tensor)
+{
+    const_dnnl_memory_desc_t memory_desc;
+    dnnl_memory_get_memory_desc(tensor->mem, &memory_desc);
+    return memory_desc;
+}
+
+
+dnnl_memory_desc_t memory_desc_from_shape(const tensor_shape_t* shape)
+{
+    dnnl_memory_desc_t desc;
+    dnnl_status_t status = dnnl_memory_desc_create_with_tag(&desc, shape->ndims, shape->dims,
+        dnnl_f32, shape->tag);
+    if (status != dnnl_success) {
+        LOG_ERROR("memory desc create failed with code %d\n", status);
+        return NULL;
+    }
+
+    return desc;
+}
+
+
+tensor_shape_t shape_from_memory_desc(const_dnnl_memory_desc_t memory_desc)
+{
+    int32_t ndims;
+    const dnnl_dims_t* dims;
+    dnnl_format_tag_t tag;
+
+    if (dnnl_memory_desc_query(memory_desc, dnnl_query_ndims_s32, &ndims) != dnnl_success
+        || dnnl_memory_desc_query(memory_desc, dnnl_query_dims, &dims) != dnnl_success
+        || dnnl_memory_desc_query(memory_desc, dnnl_query_format_kind, &tag) != dnnl_success) {
+        LOG_ERROR("Failed to query memory desc\n");
+    }
+
+    tensor_shape_t shape;
+    shape.ndims = ndims;
+    shape.tag = tag;
+    memcpy(shape.dims, dims, sizeof(*shape.dims));
+    return shape;
 }
 
 
