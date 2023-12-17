@@ -54,7 +54,9 @@ dnnl_status_t dnnl_reorder_execute(
 
     if (reorder->primitive == NULL) {
         /* No need for a reorder, simply forward input */
-        *output = input;
+        if (output != NULL) {
+            *output = input;
+        }
     } else {
         dnnl_stream_t stream = get_dnnl_stream();
         dnnl_exec_arg_t args[] = {
@@ -67,7 +69,9 @@ dnnl_status_t dnnl_reorder_execute(
         if (status != dnnl_success) {
             LOG_ERROR("Reorder execution failed with code %d\n", status);
         }
-        *output = &reorder->output;
+        if (output != NULL) {
+            *output = &reorder->output;
+        }
     }
 
     return status;

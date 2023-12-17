@@ -29,6 +29,9 @@ uint32_t layer_create(
     }
 
     (*layer)->impl = layer_impl;
+    (*layer)->impl->get_output_shape(&(*layer)->output_shape, create_info, input_shape);
+
+
     (*layer)->context = malloc((*layer)->impl->layer_context_size);
     if ((*layer)->context == NULL) {
         free(*layer);
