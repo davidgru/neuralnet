@@ -64,7 +64,6 @@ SRC += $(shell find $(SOURCEDIR)/naive -name '*.c')
 CFLAGS += -DBACKEND_NAIVE
 else ifeq ($(BACKEND),onednn)
 INCLUDE += -I$(SOURCEDIR)/onednn -I$(ONEDNN_INCLUDE_DIR)
-# SRC += $(SOURCEDIR)/onednn/context_impl.c $(SOURCEDIR)/onednn/tensor_impl.c
 SRC += $(shell find $(SOURCEDIR)/onednn -name '*.c')
 LDFLAGS += -L$(ONEDNN_SHARED_DIR) -ldnnl 
 CFLAGS += -DBACKEND_ONEDNN
