@@ -1,451 +1,864 @@
 
-#include "dnnl_convolutional_layer.h"
 
+// fwd proc
+//
+// 1. Reorder src if necessary
+// 2. Reorder weights if necessary
+// 3. Execute inner product fwd primitive
 
-#include "random.h"
+// bwd data proc
+//
+// 1. Reorder diff dst if necessary
+// 2. Reorder weights if necessary
+// 3. Execute inner product bwd data primitive
+//
+// bwd weights proc
+//
+// 1. Reorder diff dst if necessary
+// 2. Reorder weights if necessary
+// 3. Execute inner product bwd weights primitive
+// 4. Reorder diff weights if necessary
+// 5. Update weights and bias
 
-#include "util/dnnl_util.h"
+#include <string.h>
+
+#include "context_impl.h"
+#include "log.h"
+
+#include "util/ai_math.h"
 #include "util/dnnl_reorder.h"
-#include "util/dnnl_assert.h"
+#include "util/dnnl_util.h"
 
-#include <malloc.h>
-#include <math.h>
+#include "layer/convolutional_layer.h"
+#include "core/layer_impl.h"
 
-typedef struct dnnl_convolutional_layer_t {
-    dnnl_layer_t hdr;
 
-    size_t KH;
-    size_t KW;
-    size_t SH;
-    size_t SW;
-    size_t PT;
-    size_t PL;
-    size_t PB;
-    size_t PR;
+#define NUM_PARAM_TENSORS   2
+#define WEIGHT_PARAM_IDX    0
+#define BIAS_PARAM_IDX      1
 
-    float learning_rate;
-    int32_t dummy;
+#define conv_output_size(input_size, kernel_size, stride, dilation, padding) \
+    (((input_size) + 2 * (padding) - (dilation) * ((kernel_size) - 1) - 1) / (stride) + 1)
 
-    dnnl_convolutional_layer_weight_init_kind_t weight_init;
-    dnnl_convolutional_layer_bias_init_kind_t bias_init;
 
-    // common memory
-    dnnl_memory_t weights_mem;
-    dnnl_memory_t bias_mem;
-    dnnl_memory_t diff_weights_mem;
-    dnnl_memory_t diff_bias_mem;
-    dnnl_memory_t workspace_mem;
+typedef struct {
+    convolutional_layer_create_info_t config;
 
-    // fwd
+    /* remember input for gradient calculation */
+    const tensor_t* input;
+
+    /* parameters */
+    tensor_t weight;
+    tensor_t d_weight;
+    tensor_t bias;
+    tensor_t d_bias;
+    layer_param_ref_t param_refs[NUM_PARAM_TENSORS];
+
+    /* forward */
     dnnl_primitive_t fwd;
-    dnnl_memory_t fwd_src_mem;
-    dnnl_memory_t fwd_weights_mem;
-
-    // bwd data
-    dnnl_primitive_t bwd_data;
-    dnnl_memory_t bwd_data_diff_dst_mem;
-    dnnl_memory_t bwd_data_weights_mem;
-
-    // bwd weights
-    dnnl_primitive_t bwd_weights;
-    dnnl_memory_t bwd_weights_src_mem;
-    dnnl_memory_t bwd_weights_diff_dst_mem;
-    dnnl_memory_t bwd_weights_diff_weights_mem;
-    
-    // reorders
     dnnl_reorder_t fwd_reorder_src;
-    dnnl_reorder_t fwd_reorder_weights;
+    dnnl_reorder_t fwd_reorder_weight;
+    tensor_t output;
+    tensor_t workspace;
+
+    /* bwd data */
+    dnnl_primitive_t bwd_data;
+    dnnl_reorder_t bwd_data_reorder_weight;
     dnnl_reorder_t bwd_data_reorder_diff_dst;
-    dnnl_reorder_t bwd_data_reorder_weights;
+    tensor_t gradient;
+
+    /* bwd weights */
+    dnnl_primitive_t bwd_weights;
     dnnl_reorder_t bwd_weights_reorder_src;
     dnnl_reorder_t bwd_weights_reorder_diff_dst;
-    dnnl_reorder_t bwd_weights_reorder_diff_weights;
+    /* for potential reorder in case weights_md != bwd_weights_diff_weights_md */
+    tensor_t bwd_weights_diff_weight;
+    dnnl_reorder_t bwd_weights_reorder_diff_weight;
+} conv_layer_t;
 
 
-} dnnl_convolutional_layer_t;
+
+static dnnl_memory_desc_t weight_md_from_src_md(
+    const_dnnl_memory_desc_t src_md,
+    const convolutional_layer_create_info_t* config
+);
 
 
-static uint32_t conv_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_layer);
-static uint32_t conv_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* next_layer);
-static uint32_t conv_layer_fwd(dnnl_layer_t* layer);
-static uint32_t conv_layer_bwd(dnnl_layer_t* layer);
-static uint32_t conv_layer_destroy(dnnl_layer_t* layer);
-
-
-typedef float(*conv_weight_init_fn)(size_t KH, size_t KW, size_t IC);
-typedef float(*conv_bias_init_fn)(size_t KH, size_t KW, size_t IC);
-
-static float conv_weight_init_xavier(size_t KH, size_t KW, size_t IC);
-static float conv_weight_init_he(size_t KH, size_t KW, size_t IC);
-static float conv_bias_init_zeros(size_t KH, size_t KW, size_t IC);
-
-
-// Utility function to get a weight init function given an enum value
-static conv_weight_init_fn get_weight_init_function(dnnl_convolutional_layer_weight_init_kind_t weight_init)
+static uint32_t conv_layer_init(
+    layer_context_t* context,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape,
+    const tensor_shape_t* output_shape
+)
 {
-    static conv_weight_init_fn t[] = {
-        conv_weight_init_xavier,
-        conv_weight_init_he
-    };
-    return t[weight_init];
-}
-
-// Utility function to get a bias init function given an enum value
-static conv_bias_init_fn get_bias_init_function(dnnl_convolutional_layer_bias_init_kind_t bias_init)
-{
-    static conv_bias_init_fn t[] = {
-        conv_bias_init_zeros
-    };
-    return t[bias_init];
-}
+    conv_layer_t* layer = context;
+    layer->config = *(const convolutional_layer_create_info_t*)create_info;
 
 
-uint32_t dnnl_convolutional_layer_create(dnnl_layer_t** layer, void* create_info)
-{
-    // Allocate memory for the layer
-    *layer = (dnnl_layer_t*)malloc(sizeof(dnnl_convolutional_layer_t));
+    /* Allocate parameter tensors */    
+    dnnl_memory_desc_t weight_md = weight_md_from_src_md(input_shape->desc, &layer->config);
 
-    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)*layer;
-    dnnl_convolutional_layer_create_info_t* i = (dnnl_convolutional_layer_create_info_t*)create_info;
-
-    // Set hyperparameters of the layer
-    l->hdr.OC = i->OC;
-    l->KH = i->KH;
-    l->KW = i->KW;
-    l->SH = i->SH;
-    l->SW = i->SW;
-    l->PT = i->PT;
-    l->PL = i->PL;
-    l->PB = i->PB;
-    l->PR = i->PR;
-
-    l->learning_rate = i->learning_rate;
-    l->weight_init = i->weight_init;
-    l->bias_init = i->bias_init;
-
-    l->hdr.fwd_pass_init = conv_layer_fwd_pass_init;
-    l->hdr.bwd_pass_init = conv_layer_bwd_pass_init;
-    l->hdr.fwd = conv_layer_fwd;
-    l->hdr.bwd = conv_layer_bwd;
-    l->hdr.destroy = conv_layer_destroy;
-
-    return 0;
-}
-
-
-uint32_t conv_layer_fwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* prev_layer)
-{
-    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
-
-    // Set input and output tensor dimensions
-    l->hdr.N = prev_layer->N;
-    l->hdr.IC = prev_layer->OC;
-    l->hdr.IH = prev_layer->OH;
-    l->hdr.IW = prev_layer->OW;
-    l->hdr.OH = (l->hdr.IH - l->KH + l->PT + l->PB) / l->SH + 1;
-    l->hdr.OW = (l->hdr.IW - l->KW + l->PL + l->PR) / l->SW + 1;
-
-    l->hdr.src_mem = prev_layer->dst_mem;
-    
-    l->hdr.engine = prev_layer->engine;
-    l->hdr.stream = prev_layer->stream;
-
-    // 1. Create a convolution fwd primitive
-
-    // 1.1 Create memory descs for all inputs and outputs
-    const_dnnl_memory_desc_t src_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
-    
-    dnnl_dims_t weights_dims = { l->hdr.OC, l->hdr.IC, l->KH, l->KW };
-    dnnl_dims_t bias_dims = { l->hdr.OC };
-    dnnl_dims_t dst_dims = { l->hdr.N, l->hdr.OC, l->hdr.OH, l->hdr.OW };
-    
-    dnnl_dims_t strides = { l->SH, l->SW };
-    dnnl_dims_t dilates = { 1, 1 };
-    dnnl_dims_t padding_l = { l->PT, l->PL };
-    dnnl_dims_t padding_r = { l->PB, l->PR };
-
-    dnnl_memory_desc_t fwd_src_md_any = dnnlutil_memory_desc_tag_any(src_md);
-    dnnl_memory_desc_t fwd_weights_md_any;
     dnnl_memory_desc_t bias_md;
+    const dnnl_dims_t bias_dims = {layer->config.output_channels};
+    dnnl_memory_desc_create_with_tag(&bias_md, 1, bias_dims,
+        dnnl_f32, dnnl_a);
+
+    tensor_from_desc(&layer->weight, weight_md, DNNL_MEMORY_ALLOCATE);
+    tensor_from_desc(&layer->d_weight, weight_md, DNNL_MEMORY_ALLOCATE);
+    tensor_from_desc(&layer->bias, bias_md, DNNL_MEMORY_ALLOCATE);
+    tensor_from_desc(&layer->d_bias, bias_md, DNNL_MEMORY_ALLOCATE);
+
+    dnnl_memory_desc_destroy(weight_md);
+    dnnl_memory_desc_destroy(bias_md);
+
+    /* Register parameters for optimizer */
+
+    layer->param_refs[WEIGHT_PARAM_IDX].param = &layer->weight;
+    layer->param_refs[WEIGHT_PARAM_IDX].gradient = &layer->d_weight;
+    layer->param_refs[BIAS_PARAM_IDX].param = &layer->bias;
+    layer->param_refs[BIAS_PARAM_IDX].gradient = &layer->d_bias;
+
+
+    /* Initialize parameter tensors */
+    const size_t src_height = tensor_shape_get_dim(input_shape, TENSOR_HEIGHT_DIM);
+    const size_t src_width = tensor_shape_get_dim(input_shape, TENSOR_WIDTH_DIM);
+    const size_t src_channels = tensor_size_from_shape(input_shape)
+        / tensor_shape_get_dim(input_shape, TENSOR_BATCH_DIM);
+
+    float* weight_data = tensor_get_data(&layer->weight);
+    for (size_t i = 0; i < tensor_size_from_shape(tensor_get_shape(&layer->weight)); i++) {
+        weight_data[i] = layer->config.weight_init(src_width, src_height, src_channels);
+    }
+
+    float* bias_data = tensor_get_data(&layer->bias);
+    for (size_t i = 0; i < tensor_size_from_shape(tensor_get_shape(&layer->bias)); i++) {
+        bias_data[i] = layer->config.bias_init(src_width, src_height, src_channels);
+    }
+
+
+    return 0;
+}
+
+
+static uint32_t conv_layer_get_params(
+    layer_context_t* context,
+    layer_param_ref_list_t* out_layer_params
+)
+{
+    conv_layer_t* layer = context;
+
+    out_layer_params->num_params = NUM_PARAM_TENSORS;
+    out_layer_params->param_refs = layer->param_refs;
+
+    return 0;
+}
+
+
+/* Allowing reorder of all involved tensors */
+static dnnl_primitive_t conv_layer_create_fwd_primitive(
+    const tensor_shape_t* input_shape,
+    const convolutional_layer_create_info_t* config
+)
+{
+    dnnl_memory_desc_t fwd_src_md_any = dnnlutil_memory_desc_tag_any(input_shape->desc);
+    dnnl_memory_desc_t weight_md = weight_md_from_src_md(fwd_src_md_any, config);
+    dnnl_memory_desc_t fwd_weight_md_any = dnnlutil_memory_desc_tag_any(weight_md);
+    
+    dnnl_memory_desc_t fwd_bias_md;
+    const dnnl_dims_t bias_dims = { config->output_channels };
+    dnnl_memory_desc_create_with_tag(&fwd_bias_md, 1, bias_dims, dnnl_f32, dnnl_a);
+
     dnnl_memory_desc_t fwd_dst_md_any;
-    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&fwd_weights_md_any, 4, weights_dims, dnnl_f32, dnnl_format_tag_any));
-    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&bias_md, 1, bias_dims, dnnl_f32, dnnl_a));
-    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&fwd_dst_md_any, 4, dst_dims, dnnl_f32, dnnl_format_tag_any));
-    
-    // 1.2 Create a convolution fwd primitive
-    dnnl_primitive_desc_t fwd_pd;
-    CHECK_DNNL(dnnl_convolution_forward_primitive_desc_create(&fwd_pd, l->hdr.engine, dnnl_forward_training,
-        dnnl_convolution_auto, fwd_src_md_any, fwd_weights_md_any, bias_md, fwd_dst_md_any, strides, dilates,
-        padding_l, padding_r, NULL));
-    CHECK_DNNL(dnnl_primitive_create(&l->fwd, fwd_pd));
+    const dnnl_dims_t output_dims = { 
+        dnnlutil_memory_desc_get_dim(fwd_src_md_any, 0),
+        config->output_channels,
+        conv_output_size(tensor_shape_get_dim(input_shape, TENSOR_HEIGHT_DIM),
+            config->filter_height, config->stride_y, 1, config->padding_y),
+        conv_output_size(tensor_shape_get_dim(input_shape, TENSOR_WIDTH_DIM),
+            config->filter_width, config->stride_x, 1, config->padding_x),
+    };
+    dnnl_memory_desc_create_with_tag(&fwd_dst_md_any, 4,
+        output_dims, dnnl_f32, dnnl_format_tag_any);
 
-    // 2. Create weights and bias memory
-    dnnl_memory_desc_t weights_md;
-    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&weights_md, 4, weights_dims, dnnl_f32, dnnl_oihw));
-    CHECK_DNNL(dnnl_memory_create(&l->weights_mem, weights_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
-    CHECK_DNNL(dnnl_memory_create(&l->bias_mem, bias_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
-    // Init weights
-    conv_weight_init_fn weight_init = get_weight_init_function(l->weight_init);
-    float* weights = nn_dnnl_memory_get_data_handle(l->weights_mem);
-    for (size_t i = 0; i < l->hdr.OC * l->hdr.IC * l->KH * l->KW; i++)
-        weights[i] = weight_init(l->KH, l->KW, l->hdr.IC);
-    // Init bias
-    conv_bias_init_fn bias_init = get_bias_init_function(l->bias_init);
-    float* bias = nn_dnnl_memory_get_data_handle(l->bias_mem);
-    for (size_t i = 0; i < l->hdr.OC; i++)
-        bias[i] = bias_init(l->KH, l->KW, l->hdr.IC);
 
-    // 3. Set up reorder between src and fwd_src memory
-    const_dnnl_memory_desc_t fwd_src_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_src_md, 0);
-    CHECK_DNNL(dnnl_reorder_create(&l->fwd_reorder_src, l->hdr.src_mem, fwd_src_md));
-    l->fwd_src_mem = l->fwd_reorder_src.dst_mem;
-    // 4. Set up reorder between weights and fwd_weights memory
-    const_dnnl_memory_desc_t fwd_weights_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_weights_md, 0);
-    CHECK_DNNL(dnnl_reorder_create(&l->fwd_reorder_weights, l->weights_mem, fwd_weights_md));
-    l->fwd_weights_mem = l->fwd_reorder_weights.dst_mem;
+    dnnl_status_t status = dnnl_success;
+    dnnl_engine_t engine = get_dnnl_engine();
 
-    // 5. Create output memory
-    const_dnnl_memory_desc_t fwd_dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
-    CHECK_DNNL(dnnl_memory_create(&l->hdr.dst_mem, fwd_dst_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
-    // 6. Create workspace memory
-    const_dnnl_memory_desc_t workspace_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_workspace_md, 0);
-    CHECK_DNNL(dnnl_memory_create(&l->workspace_mem, workspace_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
+    const dnnl_dims_t strides = {config->stride_y, config->stride_x};
+    const dnnl_dims_t dilates = { 0, 0 }; /* not used */
+    const dnnl_dims_t padding = {config->padding_y, config->padding_x};
 
-    // 7. Clean up
-    CHECK_DNNL(dnnl_primitive_desc_destroy(fwd_pd));
+    dnnl_primitive_desc_t pd;
+    status  = dnnl_convolution_forward_primitive_desc_create(&pd, engine, dnnl_forward_training,
+        dnnl_convolution_auto, fwd_src_md_any, fwd_weight_md_any, fwd_bias_md, fwd_dst_md_any,
+        strides, dilates, padding, padding, NULL);
 
-    return 0;
-dnnl_error:
-    return 1;
+    dnnl_memory_desc_destroy(fwd_src_md_any);
+    dnnl_memory_desc_destroy(weight_md);
+    dnnl_memory_desc_destroy(fwd_weight_md_any);
+    dnnl_memory_desc_destroy(fwd_bias_md);
+    dnnl_memory_desc_destroy(fwd_dst_md_any);
+
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating conv forward pd failed with code %d\n", status);
+        return NULL;
+    }
+
+    dnnl_primitive_t primitive;
+    status = dnnl_primitive_create(&primitive, pd);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating conv forward primitive failed with code %d\n", status);
+    }
+
+
+    dnnl_primitive_desc_destroy(pd);
+
+    return primitive;    
 }
 
 
-uint32_t conv_layer_bwd_pass_init(dnnl_layer_t* layer, dnnl_layer_t* next_layer)
+static dnnl_status_t conv_layer_forward_init(conv_layer_t* layer, const tensor_t* input)
 {
-    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
+    dnnl_status_t status = dnnl_success;
 
-    l->hdr.diff_dst_mem = next_layer->diff_src_mem;
 
-    const_dnnl_primitive_desc_t fwd_pd = nn_dnnl_primitive_get_primitive_desc(l->fwd);
+    /* create the primitive */
+    layer->fwd = conv_layer_create_fwd_primitive(tensor_get_shape(input), &layer->config);
 
-    // 1. bwd data
 
-    // 1.1 Create a convolution bwd data primitive
-    // 1.1.1 Create memory descs for involved memory
-    const_dnnl_memory_desc_t src_md = nn_dnnl_memory_get_memory_desc(l->hdr.src_mem);
-    const_dnnl_memory_desc_t weights_md = nn_dnnl_memory_get_memory_desc(l->weights_mem);
-    
-    dnnl_dims_t diff_dst_dims = { l->hdr.N, l->hdr.OC, l->hdr.OH, l->hdr.OW };
+    /* need allocate output memory */
+    const_dnnl_memory_desc_t dst_md = dnnlutil_primitive_query_md(layer->fwd, dnnl_query_dst_md, 0);
+    if (tensor_from_desc(&layer->output, dst_md, DNNL_MEMORY_ALLOCATE) != 0) {
+        status = dnnl_out_of_memory;
+        LOG_ERROR("Creating output tensor failed with code %d\n", status);
+        return status;
+    }
 
-    dnnl_dims_t strides = { l->SH, l->SW };
-    dnnl_dims_t dilates = { 1, 1 };
-    dnnl_dims_t padding_l = { l->PT, l->PL };
-    dnnl_dims_t padding_r = { l->PB, l->PR };
 
-    dnnl_memory_desc_t bwd_data_diff_src_md_any = dnnlutil_memory_desc_tag_any(src_md);
-    dnnl_memory_desc_t bwd_data_weights_md_any = dnnlutil_memory_desc_tag_any(weights_md);
-    dnnl_memory_desc_t bwd_data_diff_dst_md_any;
-    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&bwd_data_diff_dst_md_any, 4, diff_dst_dims, dnnl_f32, dnnl_format_tag_any));
-    // 1.1.2 Create a convolution bwd data primitive
-    dnnl_primitive_desc_t bwd_data_pd;
-    CHECK_DNNL(dnnl_convolution_backward_data_primitive_desc_create(&bwd_data_pd, l->hdr.engine,
-        dnnl_convolution_auto, bwd_data_diff_src_md_any, bwd_data_weights_md_any, bwd_data_diff_dst_md_any,
-        strides, dilates, padding_l, padding_r, fwd_pd, NULL));
-    CHECK_DNNL(dnnl_primitive_create(&l->bwd_data, bwd_data_pd));
+    /* need allocate workspace memory */
+    const_dnnl_memory_desc_t workspace_md = dnnlutil_primitive_query_md(layer->fwd,
+        dnnl_query_workspace_md, 0);
+    if (tensor_from_desc(&layer->workspace, workspace_md, DNNL_MEMORY_ALLOCATE) != 0) {
+        status = dnnl_out_of_memory;
+        LOG_ERROR("Creating workspace tensor failed with code %d\n", status);
+        return status;
+    }
 
-    // 1.2 Set up reorder between diff_dst and bwd_data_diff_dst
-    const_dnnl_memory_desc_t bwd_data_diff_dst_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_diff_dst_md, 0);
-    CHECK_DNNL(dnnl_reorder_create(&l->bwd_data_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_data_diff_dst_md));
-    l->bwd_data_diff_dst_mem = l->bwd_data_reorder_diff_dst.dst_mem;
 
-    // 1.3 Set up reorder between weights and bwd_data_weights
-    const_dnnl_memory_desc_t bwd_data_weights_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_weights_md, 0);
-    CHECK_DNNL(dnnl_reorder_create(&l->bwd_data_reorder_weights, l->fwd_weights_mem, bwd_data_weights_md));
-    l->bwd_data_weights_mem = l->bwd_data_reorder_weights.dst_mem;
+    /* potential reorder of input */
+    const_dnnl_memory_desc_t src_md = memory_desc_from_tensor(input);
+    const_dnnl_memory_desc_t fwd_src_md = dnnlutil_primitive_query_md(layer->fwd, dnnl_query_src_md,
+        0);
+    status = dnnl_reorder_create(&layer->fwd_reorder_src, src_md, fwd_src_md);
+    if (status != dnnl_success) {
+        LOG_ERROR("Setting up input reorder failed with code %d\n", status);
+        return status;
+    }
 
-    // 1.4 Create diff_src mem
-    const_dnnl_memory_desc_t bwd_data_diff_src_md = dnnl_primitive_desc_query_md(bwd_data_pd, dnnl_query_diff_src_md, 0);
-    CHECK_DNNL(dnnl_memory_create(&l->hdr.diff_src_mem, bwd_data_diff_src_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
 
-    // 2. bwd weights
+    /* potential reorder of weight */
+    const_dnnl_memory_desc_t weight_md = memory_desc_from_tensor(&layer->weight);
+    const_dnnl_memory_desc_t fwd_weight_md = dnnlutil_primitive_query_md(layer->fwd,
+        dnnl_query_weights_md, 0);
+    status = dnnl_reorder_create(&layer->fwd_reorder_weight, weight_md, fwd_weight_md);
+    if (status != dnnl_success) {
+        LOG_ERROR("Setting up weight reorder failed with code %d\n", status);
+        return status;
+    }
 
-    // 2.1 Create a convolution bwd weights primitive
-    // 2.1.1 Create memory descs
+
+    return status;
+}
+
+
+static uint32_t conv_layer_forward(
+    layer_context_t* context,
+    layer_forward_kind_t forward_kind,
+    const tensor_t* input,
+    tensor_t** out_output
+)
+{
+    conv_layer_t* layer = context;
+    dnnl_status_t status = dnnl_success;
+
+
+    /* initialize forward pass on first call to forward */
+    if (layer->fwd == NULL) {
+        status = conv_layer_forward_init(layer, input);
+        if (status != dnnl_success) {
+            return 1;
+        }
+    }
+
+
+    /* reorder src */
+    const tensor_t* input_reordered;
+    status = dnnl_reorder_execute(&layer->fwd_reorder_src, input, &input_reordered);
+    if (status != dnnl_success) {
+        LOG_ERROR("Reordering of input failed with code %d\n", status);
+        return 1;
+    }
+
+    /* reorder weight */
+    const tensor_t* weight_reordered;
+    status = dnnl_reorder_execute(&layer->fwd_reorder_weight, &layer->weight, &weight_reordered);
+    if (status != dnnl_success) {
+        LOG_ERROR("Reordering of weight failed with code %d\n", status);
+        return 1;
+    }
+
+
+    /* execute forward primitive */
+    dnnl_stream_t stream = get_dnnl_stream();
+    dnnl_exec_arg_t exec_args[] = {
+        { DNNL_ARG_SRC, input_reordered->mem },
+        { DNNL_ARG_WEIGHTS, weight_reordered->mem },
+        { DNNL_ARG_BIAS, layer->bias.mem },
+        { DNNL_ARG_DST, layer->output.mem },
+        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
+    };
+
+    status = dnnl_primitive_execute(layer->fwd, stream, sizeof(exec_args) / sizeof(*exec_args),
+        exec_args);
+    if (status != dnnl_success) {
+        LOG_ERROR("primitive execute failed with code %d\n", status);
+        return 1;
+    }
+
+    status = dnnl_stream_wait(stream);
+    if (status != dnnl_success) {
+        LOG_ERROR("stream_wait failed with code %d\n", status);
+        return 1;
+    }
+
+
+    if (out_output != NULL) {
+        *out_output = &layer->output;
+    }
+    layer->input = input;
+
+    return 0;    
+}
+
+
+static dnnl_primitive_t conv_layer_create_bwd_data_primitive(
+    const_dnnl_primitive_desc_t fwd_pd
+)
+{
+    const_dnnl_memory_desc_t src_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_src_md, 0);
+    const_dnnl_memory_desc_t weight_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_weights_md,
+        0);
     const_dnnl_memory_desc_t dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
-    dnnl_memory_desc_t bwd_weights_src_md_any = dnnlutil_memory_desc_tag_any(src_md);
-    dnnl_memory_desc_t bwd_weights_diff_weights_md_any = dnnlutil_memory_desc_tag_any(weights_md);
-    dnnl_memory_desc_t bwd_weights_diff_bias_md_any;
-    dnnl_memory_desc_t bwd_weights_diff_dst_md_any = dnnlutil_memory_desc_tag_any(dst_md);
-    dnnl_dims_t bias_dims = { l->hdr.OC };
-    CHECK_DNNL(dnnl_memory_desc_create_with_tag(&bwd_weights_diff_bias_md_any, 1, bias_dims, dnnl_f32, dnnl_a));
-    // 2.1.2 Create a convolution bwd weights primitive
-    dnnl_primitive_desc_t bwd_weights_pd;
-    CHECK_DNNL(dnnl_convolution_backward_weights_primitive_desc_create(&bwd_weights_pd, l->hdr.engine,
-        dnnl_convolution_auto, bwd_weights_src_md_any, bwd_weights_diff_weights_md_any,
-        bwd_weights_diff_bias_md_any, bwd_weights_diff_dst_md_any, strides, dilates, padding_l, padding_r,
-        fwd_pd, NULL));
-    CHECK_DNNL(dnnl_primitive_create(&l->bwd_weights, bwd_weights_pd));
 
-    // 2.2 Create diff weights/bias mem
-    const_dnnl_memory_desc_t bwd_weights_diff_weights_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_diff_weights_md, 0);
-    const_dnnl_memory_desc_t bwd_weights_diff_bias_md = nn_dnnl_memory_get_memory_desc(l->bias_mem);
-    CHECK_DNNL(dnnl_memory_create(&l->bwd_weights_diff_weights_mem, bwd_weights_diff_weights_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
-    CHECK_DNNL(dnnl_memory_create(&l->diff_bias_mem, bwd_weights_diff_bias_md, l->hdr.engine, DNNL_MEMORY_ALLOCATE));
+    dnnl_memory_desc_t diff_src_md_any = dnnlutil_memory_desc_tag_any(src_md);
+    dnnl_memory_desc_t weight_md_any = dnnlutil_memory_desc_tag_any(weight_md);
+    dnnl_memory_desc_t diff_dst_md_any = dnnlutil_memory_desc_tag_any(dst_md);
 
-    // 2.3 Set up reorder between fwd_src and bwd_weights_src
-    const_dnnl_memory_desc_t bwd_weights_src_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_src_md, 0);
-    CHECK_DNNL(dnnl_reorder_create(&l->bwd_weights_reorder_src, l->fwd_src_mem, bwd_weights_src_md));
-    l->bwd_weights_src_mem = l->bwd_weights_reorder_src.dst_mem;
 
-    // 2.4 Set up reorder between diff_dst and bwd_weights_diff_dst
-    const_dnnl_memory_desc_t bwd_weights_diff_dst_md = dnnl_primitive_desc_query_md(bwd_weights_pd, dnnl_query_diff_dst_md, 0);
-    CHECK_DNNL(dnnl_reorder_create(&l->bwd_weights_reorder_diff_dst, l->hdr.diff_dst_mem, bwd_weights_diff_dst_md));
-    l->bwd_weights_diff_dst_mem = l->bwd_weights_reorder_diff_dst.dst_mem;
+    dnnl_status_t status = dnnl_success;
 
-    // 2.5 Set up reorder between bwd_weights_diff_weights and diff_weights
-    CHECK_DNNL(dnnl_reorder_create(&l->bwd_weights_reorder_diff_weights, l->bwd_weights_diff_weights_mem, weights_md));
-    l->diff_weights_mem = l->bwd_weights_reorder_diff_weights.dst_mem;
+    const dnnl_dims_t* strides;
+    const dnnl_dims_t* dilates;
+    const dnnl_dims_t* padding_l;
+    const dnnl_dims_t* padding_r;
 
-    // 3. Clean up
-    CHECK_DNNL(dnnl_primitive_desc_destroy(bwd_data_pd));
-    CHECK_DNNL(dnnl_primitive_desc_destroy(bwd_weights_pd));
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_strides, 0, &strides);
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_dilations, 0, &dilates);
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_padding_l, 0, &padding_l);
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_padding_r, 0, &padding_r);
+
+
+    dnnl_primitive_desc_t pd;
+    status = dnnl_convolution_backward_data_primitive_desc_create(&pd, get_dnnl_engine(),
+        dnnl_convolution_auto, diff_src_md_any, weight_md_any, diff_dst_md_any, *strides, *dilates,
+        *padding_l, *padding_r, fwd_pd, NULL);
+
+    dnnl_memory_desc_destroy(diff_src_md_any);
+    dnnl_memory_desc_destroy(weight_md_any);
+    dnnl_memory_desc_destroy(diff_dst_md_any);
+
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating conv bwd data pd failed with code %d\n", status);
+        return NULL;
+    }
+
+    dnnl_primitive_t primitive = NULL;
+    status = dnnl_primitive_create(&primitive, pd);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating conv bwd data primitive failed with code %d\n", status);
+    }
+
+    dnnl_primitive_desc_destroy(pd);
+
+    return primitive;
+}
+
+
+static dnnl_status_t conv_layer_backward_data_init(
+    conv_layer_t* layer,
+    const tensor_t* prev_gradient
+)
+{
+    dnnl_status_t status = dnnl_success;
+
+
+    /* create the bwd data primitive */
+    const_dnnl_primitive_desc_t fwd_pd;
+    dnnl_primitive_get_primitive_desc(layer->fwd, &fwd_pd);
+    layer->bwd_data = conv_layer_create_bwd_data_primitive(fwd_pd);
+
+
+    /* need allocate gradient tensor */
+    const_dnnl_memory_desc_t bwd_data_diff_src_md = dnnlutil_primitive_query_md(layer->bwd_data,
+        dnnl_query_diff_src_md, 0);
+    if (tensor_from_desc(&layer->gradient, bwd_data_diff_src_md, DNNL_MEMORY_ALLOCATE) != 0) {
+        status = dnnl_out_of_memory;
+        LOG_ERROR("Creating gradient tensor failed with code %d\n", status);
+        return status;
+    }
+
+
+    /* potential reorder of weight */
+    const_dnnl_memory_desc_t weight_md = memory_desc_from_tensor(&layer->weight);
+    const_dnnl_memory_desc_t bwd_data_weight_md = dnnlutil_primitive_query_md(layer->bwd_data,
+        dnnl_query_weights_md, 0);
+    status = dnnl_reorder_create(&layer->bwd_data_reorder_weight, weight_md, bwd_data_weight_md);
+    if (status != dnnl_success) {
+        LOG_ERROR("Setting up weight reorder failed with code %d\n", status);
+        return status;
+    }
+
+    /* potential reorder of prev_gradient(diff_dst) */
+    const_dnnl_memory_desc_t diff_dst_md = memory_desc_from_tensor(prev_gradient);
+    const_dnnl_memory_desc_t bwd_data_diff_dst_md = dnnlutil_primitive_query_md(layer->bwd_data,
+        dnnl_query_diff_dst_md, 0);
+    status = dnnl_reorder_create(&layer->bwd_data_reorder_diff_dst, diff_dst_md,
+        bwd_data_diff_dst_md);
+    if (status != dnnl_success) {
+        LOG_ERROR("Setting up prev_gradient reorder failed with code %d\n", status);
+        return status;
+    }
+
+    return status;
+}
+
+
+static dnnl_primitive_t conv_layer_create_bwd_weights_primitive(
+    const_dnnl_primitive_desc_t fwd_pd
+)
+{
+    const_dnnl_memory_desc_t src_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_src_md, 0);
+    const_dnnl_memory_desc_t weight_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_weights_md,
+        0);
+    const_dnnl_memory_desc_t bias_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_weights_md,
+        1);
+    const_dnnl_memory_desc_t dst_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_dst_md, 0);
+
+    dnnl_memory_desc_t src_md_any = dnnlutil_memory_desc_tag_any(src_md);
+    dnnl_memory_desc_t diff_weight_md_any = dnnlutil_memory_desc_tag_any(weight_md);
+    dnnl_memory_desc_t diff_dst_md_any = dnnlutil_memory_desc_tag_any(dst_md);
+
+
+    dnnl_status_t status = dnnl_success;
+
+    const dnnl_dims_t* strides;
+    const dnnl_dims_t* dilates;
+    const dnnl_dims_t* padding_l;
+    const dnnl_dims_t* padding_r;
+
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_strides, 0, &strides);
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_dilations, 0, &dilates);
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_padding_l, 0, &padding_l);
+    dnnl_primitive_desc_query(fwd_pd, dnnl_query_padding_r, 0, &padding_r);
+
+
+    dnnl_primitive_desc_t pd;
+    status = dnnl_convolution_backward_weights_primitive_desc_create(&pd, get_dnnl_engine(),
+        dnnl_convolution_auto, src_md_any, diff_weight_md_any, bias_md, diff_dst_md_any, *strides,
+        *dilates, *padding_l, *padding_r, fwd_pd, NULL);
+
+    dnnl_memory_desc_destroy(src_md_any);
+    dnnl_memory_desc_destroy(diff_weight_md_any);
+    dnnl_memory_desc_destroy(diff_dst_md_any);
+
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating conv bwd weights pd failed with code %d\n", status);
+        return NULL;
+    }
+
+    dnnl_primitive_t primitive = NULL;
+    status = dnnl_primitive_create(&primitive, pd);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating conv bwd weights primitive failed with code %d\n", status);
+    }
+
+    dnnl_primitive_desc_destroy(pd);
+
+    return primitive;
+}
+
+
+static dnnl_status_t conv_layer_backward_weights_init(
+    conv_layer_t* layer,
+    const tensor_t* input,
+    const tensor_t* prev_gradient
+)
+{
+    dnnl_status_t status = dnnl_success;
+
+
+    /* create the bwd data primitive */
+    const_dnnl_primitive_desc_t fwd_pd;
+    dnnl_primitive_get_primitive_desc(layer->fwd, &fwd_pd);
+    layer->bwd_weights = conv_layer_create_bwd_weights_primitive(fwd_pd);
+
+
+    /* potential reorder of input */
+    const_dnnl_memory_desc_t src_md = memory_desc_from_tensor(input);
+    const_dnnl_memory_desc_t bwd_weights_src_md = dnnlutil_primitive_query_md(layer->bwd_weights,
+        dnnl_query_src_md, 0);
+    status = dnnl_reorder_create(&layer->bwd_weights_reorder_src, src_md, bwd_weights_src_md);
+    if (status != dnnl_success) {
+        LOG_ERROR("Setting up input reorder failed with code %d\n", status);
+        return status;
+    }
+
+    /* potential reorder of prev_gradient */
+    const_dnnl_memory_desc_t diff_dst_md = memory_desc_from_tensor(prev_gradient);
+    const_dnnl_memory_desc_t bwd_weights_diff_dst_md = dnnlutil_primitive_query_md(
+        layer->bwd_weights, dnnl_query_diff_dst_md, 0);
+    status = dnnl_reorder_create(&layer->bwd_weights_reorder_diff_dst, diff_dst_md,
+        bwd_weights_diff_dst_md);
+    if (status != dnnl_success) {
+        LOG_ERROR("Setting up prev_gradient reorder failed with code %d\n", status);
+        return status;
+    }    
+
+    /* potential reorder of diff_weights */
+    const_dnnl_memory_desc_t diff_weights_md = memory_desc_from_tensor(&layer->d_weight);
+    const_dnnl_memory_desc_t bwd_weights_diff_weight_md = dnnlutil_primitive_query_md(
+        layer->bwd_weights, dnnl_query_diff_weights_md, 0);
+    if (!dnnl_memory_desc_equal(diff_weights_md, bwd_weights_diff_weight_md)) {
+
+        /* need intermediate diff_weights memory */
+        if (tensor_from_desc(&layer->bwd_weights_diff_weight, bwd_weights_diff_weight_md,
+            DNNL_MEMORY_ALLOCATE) != 0) {
+            status = dnnl_out_of_memory;
+            LOG_ERROR("Creating intermediate d_weights memory failed with code %d\n", status);
+            return status;
+        }
+
+        /* set up reorder to d_weights */
+        status = dnnl_reorder_create(&layer->bwd_weights_reorder_diff_weight,
+            bwd_weights_diff_weight_md, diff_weights_md);
+        if (status != dnnl_success) {
+            LOG_ERROR("Setting up d_weight reorder failed with code %d\n", status);
+            return status;
+        }
+        /* (ugly) hack to reorder into d_weights directly */
+        layer->bwd_weights_reorder_diff_weight.output = layer->d_weight;
+    }
+
+    return status;
+}
+
+
+static dnnl_status_t conv_layer_backward_data(
+    conv_layer_t* layer,
+    const tensor_t* prev_gradient,
+    tensor_t** out_gradient
+)
+{
+    dnnl_status_t status = dnnl_success;
+
+
+    const tensor_t* weight_reordered;
+    status = dnnl_reorder_execute(&layer->bwd_data_reorder_weight, &layer->weight,
+        &weight_reordered);
+    if (status != dnnl_success) {
+        LOG_ERROR("Reordering of weight failed with code %d\n", status);
+        return status;
+    }
+
+    const tensor_t* prev_gradient_reordered;
+    status = dnnl_reorder_execute(&layer->bwd_data_reorder_diff_dst, prev_gradient,
+        &prev_gradient_reordered);
+    if (status != dnnl_success) {
+        LOG_ERROR("Reordering of prev_gradient failed with code %d\n", status);
+        return status;
+    }
+
+
+    dnnl_stream_t stream = get_dnnl_stream();
+    dnnl_exec_arg_t exec_args[] = {
+        { DNNL_ARG_DIFF_SRC, layer->gradient.mem },
+        { DNNL_ARG_WEIGHTS, weight_reordered->mem },
+        { DNNL_ARG_DIFF_DST, prev_gradient_reordered->mem },
+        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
+    };
+
+    status = dnnl_primitive_execute(layer->bwd_data, stream, sizeof(exec_args) / sizeof(*exec_args),
+        exec_args);
+    if (status != dnnl_success) {
+        LOG_ERROR("bwd data primitive execute failed with code %d\n", status);
+    }
+
+    status = dnnl_stream_wait(stream);
+    if (status != dnnl_success) {
+        LOG_ERROR("stream_wait failed with code %d\n", status);
+        return 1;
+    }
+
+    if (out_gradient != NULL) {
+        *out_gradient = &layer->gradient;
+    }
     
-    return 0;
-dnnl_error:
-    return 1;
+    return status;
 }
 
-static uint32_t conv_layer_fwd(dnnl_layer_t* layer)
+
+static dnnl_status_t conv_layer_backward_weights(
+    conv_layer_t* layer,
+    const tensor_t* input,
+    const tensor_t* prev_gradient
+)
 {
-    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
+    dnnl_status_t status = dnnl_success;
 
-    // 1. Reorder src
-    CHECK_DNNL(dnnl_reorder_execute(&l->fwd_reorder_src, l->hdr.stream));
-    // 2. Reorder weights
-    CHECK_DNNL(dnnl_reorder_execute(&l->fwd_reorder_weights, l->hdr.stream));
 
-    // 3. Execute the convolution fwd primitive
-    dnnl_exec_arg_t fwd_exec_args[] = {
-        { DNNL_ARG_SRC, l->fwd_src_mem },
-        { DNNL_ARG_WEIGHTS, l->fwd_weights_mem },
-        { DNNL_ARG_BIAS, l->bias_mem },
-        { DNNL_ARG_DST, l->hdr.dst_mem },
-        { DNNL_ARG_WORKSPACE, l->workspace_mem },
+    const tensor_t* input_reordered;
+    status = dnnl_reorder_execute(&layer->bwd_weights_reorder_src, input,
+        &input_reordered);
+    if (status != dnnl_success) {
+        LOG_ERROR("Reordering of input failed with code %d\n", status);
+        return status;
+    }
+
+    const tensor_t* prev_gradient_reordered;
+    status = dnnl_reorder_execute(&layer->bwd_weights_reorder_diff_dst, prev_gradient,
+        &prev_gradient_reordered);
+    if (status != dnnl_success) {
+        LOG_ERROR("Reordering of prev_gradient failed with code %d\n", status);
+        return status;
+    }
+
+    bool need_diff_weights_reorder = layer->bwd_weights_reorder_diff_weight.primitive != NULL;
+
+
+    dnnl_stream_t stream = get_dnnl_stream();
+    dnnl_exec_arg_t exec_args[] = {
+        { DNNL_ARG_SRC, input_reordered->mem },
+        { DNNL_ARG_DIFF_WEIGHTS,
+            need_diff_weights_reorder ? layer->bwd_weights_diff_weight.mem : layer->d_weight.mem },
+        { DNNL_ARG_DIFF_BIAS, layer->d_bias.mem },
+        { DNNL_ARG_DIFF_DST, prev_gradient_reordered->mem },
+        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
     };
-    CHECK_DNNL(dnnl_primitive_execute(l->fwd, l->hdr.stream, 5, fwd_exec_args));
 
-    CHECK_DNNL(dnnl_stream_wait(l->hdr.stream));
+    status = dnnl_primitive_execute(layer->bwd_weights, stream,
+        sizeof(exec_args) / sizeof(*exec_args), exec_args);
+    if (status != dnnl_success) {
+        LOG_ERROR("bwd weights primitive execute failed with code %d\n", status);
+    }
 
-    return 0;
-dnnl_error:
-    return 1;
+    status = dnnl_stream_wait(stream);
+    if (status != dnnl_success) {
+        LOG_ERROR("stream_wait failed with code %d\n", status);
+        return 1;
+    }
+
+    if (need_diff_weights_reorder) {
+        /* TODO: This is really ugly and needs to be changed. */
+        status = dnnl_reorder_execute(&layer->bwd_weights_reorder_diff_weight,
+            &layer->bwd_weights_diff_weight, NULL);
+        if (status != dnnl_success) {
+            LOG_ERROR("Reordering of d_weight failed with code %d\n", status);
+            return status;
+        }
+    }
+
+
+    /* onednn will sum over the gradients of a batch. Average over them instead to get more
+        representative gradient estimate. */
+    const tensor_shape_t* input_shape = tensor_get_shape(input);
+    const size_t batch_size = tensor_shape_get_dim(input_shape, TENSOR_BATCH_DIM);
+
+    float* d_weight_data = tensor_get_data(&layer->d_weight);
+    const size_t weight_size = tensor_size_from_shape(tensor_get_shape(&layer->d_weight));
+    VectorScale(d_weight_data, 1.0f / batch_size, weight_size);
+
+    float* d_bias_data = tensor_get_data(&layer->d_bias);
+    const size_t bias_size = tensor_size_from_shape(tensor_get_shape(&layer->d_bias));
+    VectorScale(d_bias_data, 1.0f / batch_size, bias_size);
+
+
+    return status;
 }
 
 
-static uint32_t conv_layer_bwd(dnnl_layer_t* layer)
+static uint32_t conv_layer_backward(
+    layer_context_t* context,
+    const tensor_t* prev_gradient,
+    tensor_t** out_gradient
+)
 {
-    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
+    conv_layer_t* layer = context;
+    dnnl_status_t status = dnnl_success;
 
-    // 1. bwd data
 
-    // 1.1 Reorder weights
-    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_data_reorder_weights, l->hdr.stream));
-    // 1.2 Reorder diff dst
-    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_data_reorder_diff_dst, l->hdr.stream));
+    /* initialize backward pass on first call to backward */
+    if (layer->bwd_data == NULL) {
 
-    // 1.3 Execute the convolution bwd data primitve
-    dnnl_exec_arg_t bwd_data_exec_args[] = {
-        { DNNL_ARG_DIFF_SRC, l->hdr.diff_src_mem },
-        { DNNL_ARG_WEIGHTS, l->bwd_data_weights_mem },
-        { DNNL_ARG_DIFF_DST, l->bwd_data_diff_dst_mem },
-        { DNNL_ARG_WORKSPACE, l->workspace_mem }
+        status = conv_layer_backward_data_init(layer, prev_gradient);
+        if (status != dnnl_success) {
+            return 1;
+        }
+
+        status = conv_layer_backward_weights_init(layer, layer->input, prev_gradient);
+        if (status != dnnl_success) {
+            return 1;
+        }
+    }
+
+
+    status = conv_layer_backward_data(layer, prev_gradient, out_gradient);
+    if (status != dnnl_success) {
+        LOG_ERROR("conv layer backward data failed with code %d\n", status);
+        return 1;
+    }
+
+    status = conv_layer_backward_weights(layer, layer->input, prev_gradient);
+    if (status != dnnl_success) {
+        LOG_ERROR("conv layer backward weights failed with code %d\n", status);
+        return 1;
+    }
+
+
+    status = dnnl_stream_wait(get_dnnl_stream());
+    if (status != dnnl_success) {
+        LOG_ERROR("stream_wait failed with code %d\n", status);
+        return 1;
+    }
+
+    return 0;
+}
+
+
+static uint32_t conv_layer_deinit(layer_context_t* context)
+{
+    conv_layer_t* layer = context;
+
+    tensor_destory(&layer->weight);
+    tensor_destory(&layer->d_weight);
+    tensor_destory(&layer->bias);
+    tensor_destory(&layer->d_bias);
+
+    if (layer->fwd != NULL) {
+        dnnl_primitive_destroy(layer->fwd);
+        dnnl_reorder_destroy(&layer->fwd_reorder_src);
+        dnnl_reorder_destroy(&layer->fwd_reorder_weight);
+        tensor_destory(&layer->output);
+        tensor_destory(&layer->workspace);
+    }
+
+    if (layer->bwd_data != NULL) {
+        dnnl_primitive_destroy(layer->bwd_data);
+        dnnl_reorder_destroy(&layer->bwd_data_reorder_weight);
+        dnnl_reorder_destroy(&layer->bwd_data_reorder_diff_dst);
+        tensor_destory(&layer->gradient);
+    }
+
+    if (layer->bwd_weights != NULL) {
+        dnnl_primitive_destroy(layer->bwd_weights);
+        dnnl_reorder_destroy(&layer->bwd_weights_reorder_src);
+        dnnl_reorder_destroy(&layer->bwd_weights_reorder_diff_dst);
+        if (layer->bwd_weights_reorder_diff_weight.primitive != NULL) {
+            dnnl_primitive_destroy(layer->bwd_weights_reorder_diff_weight.primitive);
+            tensor_destory(&layer->bwd_weights_diff_weight);
+        }
+    }
+
+    return 0;
+}
+
+
+static uint32_t conv_layer_get_output_shape(
+    tensor_shape_t* out_output_shape,
+    const layer_create_info_t* create_info,
+    const tensor_shape_t* input_shape
+)
+{
+    const convolutional_layer_create_info_t* conv_create_info = create_info;
+
+
+    /* create a primitive on the fly to check the output shape */
+    dnnl_primitive_t fwd = conv_layer_create_fwd_primitive(input_shape,
+        conv_create_info);
+    if (fwd == NULL) {
+        LOG_ERROR("Creating conv forward primitive failed\n");
+        return 1;
+    }
+    const_dnnl_memory_desc_t dst_md = dnnlutil_primitive_query_md(fwd, dnnl_query_dst_md, 0);
+
+
+    /* write desc to output */
+    dnnl_memory_desc_t dst_md_out;
+    dnnl_memory_desc_clone(&dst_md_out, dst_md);
+    out_output_shape->desc = dst_md_out;
+
+
+    /* clean */
+    dnnl_primitive_destroy(fwd);
+
+    return 0;
+}
+
+
+static dnnl_memory_desc_t weight_md_from_src_md(
+    const_dnnl_memory_desc_t src_md,
+    const convolutional_layer_create_info_t* config
+)
+{
+    const dnnl_dims_t* src_dims = dnnlutil_memory_desc_get_dims(src_md);
+
+    const dnnl_dims_t weight_dims = {
+        config->output_channels,
+        (*src_dims)[TENSOR_CHANNEL_DIM],
+        config->filter_height,
+        config->filter_width
     };
-    CHECK_DNNL(dnnl_primitive_execute(l->bwd_data, l->hdr.stream, 4, bwd_data_exec_args));
+    dnnl_memory_desc_t weight_md;
+    dnnl_status_t status = dnnl_memory_desc_create_with_tag(&weight_md,
+        4, weight_dims, dnnl_f32, dnnl_oihw);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating weight_md failed with code %d\n", status);
+        return NULL;
+    }
 
-    // 2. bwd weights
-
-    // 2.1 Reorder src
-    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_weights_reorder_src, l->hdr.stream));
-    // 2.2 Reorder diff dst
-    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_weights_reorder_diff_dst, l->hdr.stream));
-
-    // 2.3 Execute the convolution bwd weights primitive
-    dnnl_exec_arg_t bwd_weights_exec_args[] = {
-        { DNNL_ARG_SRC, l->bwd_weights_src_mem },
-        { DNNL_ARG_DIFF_WEIGHTS, l->bwd_weights_diff_weights_mem },
-        { DNNL_ARG_DIFF_BIAS, l->diff_bias_mem },
-        { DNNL_ARG_DIFF_DST, l->bwd_weights_diff_dst_mem },
-        { DNNL_ARG_WORKSPACE, l->workspace_mem }
-    };
-    CHECK_DNNL(dnnl_primitive_execute(l->bwd_weights, l->hdr.stream, 5, bwd_weights_exec_args));
-
-    // 2.4 Reorder diff weights
-    CHECK_DNNL(dnnl_reorder_execute(&l->bwd_weights_reorder_diff_weights, l->hdr.stream));
-
-    CHECK_DNNL(dnnl_stream_wait(l->hdr.stream));
-
-    // 2.5 Update weights
-    float* weights = nn_dnnl_memory_get_data_handle(l->weights_mem);
-    float* diff_weights = nn_dnnl_memory_get_data_handle(l->diff_weights_mem);
-    size_t weights_size = l->hdr.OC * l->hdr.IC * l->KH * l->KW;
-    for (size_t i = 0; i < weights_size; i++)
-        weights[i] -= l->learning_rate * diff_weights[i];
-    // 2.6 Update bias
-    float* bias = nn_dnnl_memory_get_data_handle(l->bias_mem);
-    float* diff_bias = nn_dnnl_memory_get_data_handle(l->diff_bias_mem);
-    for (size_t i = 0; i < l->hdr.OC; i++)
-        bias[i] -= l->learning_rate * diff_bias[i];
-
-    return 0;
-dnnl_error:
-    return 1;
+    return weight_md;
 }
 
 
-static uint32_t conv_layer_destroy(dnnl_layer_t* layer)
-{
-    dnnl_convolutional_layer_t* l = (dnnl_convolutional_layer_t*)layer;
 
-    CHECK_DNNL(dnnl_primitive_destroy(l->fwd));
-    CHECK_DNNL(dnnl_primitive_destroy(l->bwd_data));
-    CHECK_DNNL(dnnl_primitive_destroy(l->bwd_weights));
+const convolutional_layer_create_info_t conv_default_config = {
+    .output_channels = 0,
+    .filter_height = 0,
+    .filter_width = 0,
+    .stride_y = 1,
+    .stride_x = 1,
+    .padding_y = 0,
+    .padding_x = 0,
+    .weight_init = conv_weight_init_xavier,
+    .bias_init = conv_bias_init_zeros,
+};
 
-    CHECK_DNNL(dnnl_memory_destroy(l->hdr.dst_mem));
-    CHECK_DNNL(dnnl_memory_destroy(l->hdr.diff_src_mem));
 
-    CHECK_DNNL(dnnl_memory_destroy(l->weights_mem));
-    CHECK_DNNL(dnnl_memory_destroy(l->bias_mem));
-    CHECK_DNNL(dnnl_memory_destroy(l->workspace_mem));
-    CHECK_DNNL(dnnl_memory_destroy(l->diff_bias_mem));
-
-    CHECK_DNNL(dnnl_memory_destroy(l->bwd_weights_diff_weights_mem));
-
-    CHECK_DNNL(dnnl_reorder_destroy(&l->fwd_reorder_src));
-    CHECK_DNNL(dnnl_reorder_destroy(&l->fwd_reorder_weights));
-    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_data_reorder_weights));
-    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_data_reorder_diff_dst));
-    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_weights_reorder_src));
-    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_weights_reorder_diff_weights));
-    CHECK_DNNL(dnnl_reorder_destroy(&l->bwd_weights_reorder_diff_dst));
-
-    free(l);
-
-    return 0;
-dnnl_error:
-    return 1;
-}
-
-static float conv_weight_init_xavier(size_t KH, size_t KW, size_t IC)
-{
-    return RandomNormal(0.0f, sqrtf(1.0f / (KH * KW * IC)));
-}
-
-static float conv_weight_init_he(size_t KH, size_t KW, size_t IC)
-{
-    return RandomNormal(0.0f, sqrtf(2.0f / (KH * KW * IC)));
-}
-
-static float conv_bias_init_zeros(size_t KH, size_t KW, size_t IC)
-{
-    return 0.0f;
-}
+const layer_impl_t convolutional_layer_impl = {
+    .init_func = conv_layer_init,
+    .get_param_func = conv_layer_get_params,
+    .deinit_func = conv_layer_deinit,
+    .forward_func = conv_layer_forward,
+    .backward_func = conv_layer_backward,
+    .get_output_shape = conv_layer_get_output_shape,
+    .layer_context_size = sizeof(conv_layer_t),
+};

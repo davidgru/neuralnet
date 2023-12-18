@@ -14,23 +14,21 @@
 #include "core/loss.h"
 #include "core/optimizer.h"
 
-#include "optimizer/sgd.h"
 
 #include "sequential/model_desc.h"
 #include "sequential/sequential_model.h"
 
+#include "optimizer/sgd.h"
+
 #include "dataset/dataset.h"
 #include "dataset/mnist.h"
 
-#include "augment/augment_pipeline.h"
-#include "augment/image_flip.h"
-
-
-#include "training_utils.h"
+#include "util/training_utils.h"
 
 #include "config_info.h"
 #include "log.h"
 #include "tensor.h"
+#include "context.h"
 
 
 layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
@@ -120,32 +118,6 @@ dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind)
 }
 
 
-augment_pipeline_t setup_augment_pipeline()
-{
-    image_flip_config_t flip_config = {
-        .flip_horizontal = true,
-        .flip_vertical = false,
-    };
-
-
-    augment_pipeline_config_entry_t pipeline_entries[] = {
-        {
-            .impl = &aug_image_flip,
-            .config = &flip_config,
-        },
-    };
-
-    augment_pipeline_config_t pipeline_config = {
-        .entries = &pipeline_entries,
-        .num_entries = sizeof(pipeline_entries) / sizeof(*pipeline_entries),
-    };
-
-    augment_pipeline_t augment_pipeline = NULL;
-    augment_pipeline_create(&augment_pipeline, &pipeline_config);
-    return augment_pipeline;
-}
-
-
 void train_callback(training_info_t* p)
 {
     printf("Epoch %" PRIi32 " | Train loss %f | Train accuracy %5.3f%% | Test loss %f "
@@ -172,7 +144,7 @@ int main()
     LossFunctionEnum loss_type = LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
     const optimizer_impl_t* optimizer = &sgd_optimizer; 
-    sgd_config_t optimizer_config = {
+    const sgd_config_t optimizer_config = {
         .learning_rate = 1e-2f,
         .weight_reg_kind = WEIGHT_REG_NONE,
         .weight_reg_strength = 0.0f
@@ -181,6 +153,13 @@ int main()
 
     /* Verify the compile time configuration. For example, that avx is used */
     dump_compile_time_config();
+
+
+    /* Initialize the backend context. Only needed for the oneDNN backend */
+    if (backend_context_init() != 0) {
+        LOG_ERROR("Failed to initialize the backend context\n");
+        return 1;
+    }
 
 
     dataset_t train_set = load_mnist(mnist_path, MNIST_TRAIN_SET);
@@ -192,20 +171,12 @@ int main()
     LOG_INFO("Successfully loaded mnist\n");
 
 
-    augment_pipeline_t augment_pipeline = setup_augment_pipeline();
-    if (augment_pipeline == NULL) {
-        LOG_ERROR("There was an error setting up the augmentation pipeline\n");
-        return 1;
-    }
-    LOG_INFO("Successfully set up the augmentation pipeline\n");
-
-
     layer_t lenet5 = create_lenet5(dataset_get_shape(train_set), batch_size);
     LOG_INFO("Created the model. Start training...\n");
 
 
-    module_train(lenet5, train_set, test_set, num_epochs, batch_size, optimizer, &optimizer_config,
-        loss_type, 0, train_callback);
+    module_train(lenet5, train_set, test_set, NULL, num_epochs, batch_size, optimizer,
+        &optimizer_config, loss_type, 0, train_callback);
 
 
     /* Free resources */
