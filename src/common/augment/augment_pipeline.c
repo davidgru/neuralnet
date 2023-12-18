@@ -8,7 +8,6 @@
 
 struct augment_pipeline_s {
     size_t num_impls;
-    tensor_t scratch_mem;
     tensor_t output;
     const augment_impl_t** impls;
     augment_context_t** contexts;
@@ -83,15 +82,19 @@ uint32_t augment_pipeline_forward(
     const tensor_shape_t* input_shape = tensor_get_shape(input);
 
     if (!pipeline->tensor_allocated) {
-        tensor_allocate(&pipeline->scratch_mem, input_shape);
+        tensor_allocate(&pipeline->output, input_shape);
         pipeline->tensor_allocated = true;
     }
 
-    /* Construct output tensor with input batch size and embed into scratch_mem */
-    tensor_shape_t output_shape = *tensor_get_shape(&pipeline->scratch_mem);
-    output_shape.dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
-    tensor_from_memory(&pipeline->output, &output_shape, tensor_get_data(&pipeline->scratch_mem));
-
+    /* reallocate in case of batch_size change. TODO: Can potentially be avoided if output is bigger
+        than input. */
+    const tensor_shape_t* output_shape = tensor_get_shape(&pipeline->output);
+    const size_t input_batch_size = tensor_shape_get_dim(input_shape, TENSOR_BATCH_DIM);
+    const size_t output_batch_size = tensor_shape_get_dim(output_shape, TENSOR_BATCH_DIM);
+    if (input_batch_size != output_batch_size) {
+        tensor_destory(&pipeline->output);
+        tensor_allocate(&pipeline->output, input_shape);
+    }
 
     tensor_copy(&pipeline->output, input);
     for (size_t i = 0; i < pipeline->num_impls; i++) {
@@ -102,13 +105,14 @@ uint32_t augment_pipeline_forward(
         *out_output = &pipeline->output;
     }
 
+    return 0;
 }
 
 
 uint32_t augment_pipeline_destroy(augment_pipeline_t pipeline)
 {
     if (pipeline->tensor_allocated) {
-        tensor_destory(&pipeline->scratch_mem);
+        tensor_destory(&pipeline->output);
     }
 
     if (pipeline->impls != NULL) {

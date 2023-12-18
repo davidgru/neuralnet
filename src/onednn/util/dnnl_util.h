@@ -23,6 +23,7 @@ const_dnnl_primitive_desc_t nn_dnnl_primitive_get_primitive_desc(const_dnnl_prim
 
 int32_t dnnlutil_memory_desc_get_ndims(const_dnnl_memory_desc_t memory_desc);
 const dnnl_dims_t* dnnlutil_memory_desc_get_dims(const_dnnl_memory_desc_t memory_desc);
+int dnnlutil_memory_desc_get_dim(const_dnnl_memory_desc_t memory_desc, int dim);
 dnnl_memory_desc_t dnnlutil_memory_desc_tag_any(const_dnnl_memory_desc_t memory_desc);
 
 const_dnnl_memory_desc_t dnnlutil_primitive_query_md(
@@ -30,3 +31,6 @@ const_dnnl_memory_desc_t dnnlutil_primitive_query_md(
     dnnl_query_t what,
     int index
 );
+
+
+void dnnlutil_log_memory_desc_info(const_dnnl_memory_desc_t desc);

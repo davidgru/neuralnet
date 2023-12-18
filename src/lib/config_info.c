@@ -25,4 +25,12 @@ void dump_compile_time_config()
     printf("    USE_AVX=" XSTR(USE_AVX) "\n");
 #endif
 
+#if defined(BACKEND_NAIVE)
+    printf("    BACKEND=NAIVE\n");
+#endif
+
+#if defined(BACKEND_ONEDNN)
+    printf("    BACKEND=ONEDNN\n");
+#endif
+
 };

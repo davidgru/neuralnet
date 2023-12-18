@@ -33,6 +33,31 @@ tensor_shape_t make_tensor_shape(size_t ndims, ...);
 
 
 /**
+ * @brief Copy a tensor shape
+ * 
+ * @param shape     The shape to copy
+ * @return tensor_shape_t 
+ */
+tensor_shape_t copy_tensor_shape(const tensor_shape_t* shape);
+
+
+/**
+ * @brief Destroy a tensor shape
+ * 
+ * @param shape     The shape to destroy
+ */
+void destroy_tensor_shape(tensor_shape_t* shape);
+
+/**
+ * @brief Get number of shape dimensions.
+ * 
+ * @param shape     A shape
+ * @return size_t 
+ */
+size_t tensor_shape_get_depth_dim(const tensor_shape_t* shape);
+
+
+/**
  * @brief Get size of a specific dimension of the shape.
  * 
  * @param shape     A shape
@@ -89,6 +114,7 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
  * @return uint32_t 
  */
 uint32_t tensor_copy(tensor_t* tensor_to, const tensor_t* tensor_from);
+
 
 /**
  * @brief Set all tensor entries to val.

@@ -25,6 +25,7 @@
 #include "context_impl.h"
 #include "log.h"
 
+#include "util/ai_math.h"
 #include "util/dnnl_reorder.h"
 #include "util/dnnl_util.h"
 
@@ -75,7 +76,7 @@ typedef struct {
 
 
 
-static tensor_shape_t determine_weight_shape(const tensor_shape_t* input_shape, size_t output_size);
+static dnnl_memory_desc_t weight_md_from_src_md(const_dnnl_memory_desc_t src_md, size_t output_size);
 
 
 static uint32_t linear_layer_init(
@@ -91,19 +92,20 @@ static uint32_t linear_layer_init(
     layer->output_channels = linear_create_info->output_size;
 
 
-    /* Allocate parameter tensors */
-    tensor_shape_t weight_shape = determine_weight_shape(input_shape, layer->output_channels);
-    tensor_shape_t bias_shape = {
-        .ndims = 1,
-        .dims = {layer->output_channels},
-        .tag = dnnl_a
-    };
+    /* Allocate parameter tensors */    
+    dnnl_memory_desc_t weight_md = weight_md_from_src_md(input_shape->desc, layer->output_channels);
 
-    tensor_allocate(&layer->weight, &weight_shape);
-    tensor_allocate(&layer->d_weight, &weight_shape);
-    tensor_allocate(&layer->bias, &bias_shape);
-    tensor_allocate(&layer->d_bias, &bias_shape);
+    dnnl_memory_desc_t bias_md;
+    const dnnl_dims_t bias_dims = {layer->output_channels};
+    dnnl_memory_desc_create_with_tag(&bias_md, 1, bias_dims, dnnl_f32, dnnl_a);
 
+    tensor_from_desc(&layer->weight, weight_md, DNNL_MEMORY_ALLOCATE);
+    tensor_from_desc(&layer->d_weight, weight_md, DNNL_MEMORY_ALLOCATE);
+    tensor_from_desc(&layer->bias, bias_md, DNNL_MEMORY_ALLOCATE);
+    tensor_from_desc(&layer->d_bias, bias_md, DNNL_MEMORY_ALLOCATE);
+
+    dnnl_memory_desc_destroy(weight_md);
+    dnnl_memory_desc_destroy(bias_md);
 
     /* Register parameters for optimizer */
 
@@ -119,12 +121,12 @@ static uint32_t linear_layer_init(
         / tensor_shape_get_dim(input_shape, TENSOR_BATCH_DIM);
 
     float* weight_data = tensor_get_data(&layer->weight);
-    for (size_t i = 0; i < tensor_size_from_shape(&weight_shape); i++) {
+    for (size_t i = 0; i < tensor_size_from_shape(tensor_get_shape(&layer->weight)); i++) {
         weight_data[i] = linear_create_info->weight_init(input_channels, layer->output_channels);
     }
 
     float* bias_data = tensor_get_data(&layer->bias);
-    for (size_t i = 0; i < tensor_size_from_shape(&bias_shape); i++) {
+    for (size_t i = 0; i < tensor_size_from_shape(tensor_get_shape(&layer->bias)); i++) {
         bias_data[i] = linear_create_info->bias_init(input_channels, layer->output_channels);
     }
 
@@ -153,44 +155,35 @@ static dnnl_primitive_t linear_layer_create_fwd_primitive(
     size_t output_size
 )
 {
-    tensor_shape_t fwd_input_shape = {
-        .ndims = input_shape->ndims,
-        .tag = dnnl_format_tag_any
-    };
-    memcpy(fwd_input_shape.dims, input_shape->dims, sizeof(fwd_input_shape.dims));
-
-    tensor_shape_t weight_shape = determine_weight_shape(input_shape, output_size);
-    weight_shape.tag = dnnl_format_tag_any;
+    dnnl_memory_desc_t fwd_src_md_any = dnnlutil_memory_desc_tag_any(input_shape->desc);
+    dnnl_memory_desc_t weight_md = weight_md_from_src_md(fwd_src_md_any, output_size);
+    dnnl_memory_desc_t fwd_weight_md_any = dnnlutil_memory_desc_tag_any(weight_md);
     
-    tensor_shape_t bias_shape = {
-        .ndims = 1,
-        .dims = { output_size},
-        .tag = dnnl_a
-    };
-    
-    tensor_shape_t output_shape = {
-        .ndims = 1,
-        .dims = {input_shape->dims[TENSOR_BATCH_DIM], output_size},
-        .tag = dnnl_format_tag_any
-    };
+    dnnl_memory_desc_t fwd_bias_md;
+    const dnnl_dims_t bias_dims = {output_size};
+    dnnl_memory_desc_create_with_tag(&fwd_bias_md, 1, bias_dims, dnnl_f32, dnnl_a);
 
-    dnnl_memory_desc_t fwd_src_md_any = memory_desc_from_shape(&fwd_input_shape);
-    dnnl_memory_desc_t fwd_weight_md_any = memory_desc_from_shape(&weight_shape);
-    dnnl_memory_desc_t fwd_bias_md = memory_desc_from_shape(&bias_shape);
-    dnnl_memory_desc_t fwd_dst_md_any = memory_desc_from_shape(&output_shape);
+    dnnl_memory_desc_t fwd_dst_md_any;
+    const int batch_size = dnnlutil_memory_desc_get_dim(fwd_src_md_any, 0);
+    const dnnl_dims_t output_dims = {batch_size, output_size};
+    dnnl_memory_desc_create_with_tag(&fwd_dst_md_any, 2, output_dims, dnnl_f32, dnnl_format_tag_any);
 
 
     dnnl_status_t status = dnnl_success;
+    dnnl_engine_t engine = get_dnnl_engine();
 
     dnnl_primitive_desc_t pd;
-    status = dnnl_inner_product_forward_primitive_desc_create(&pd, get_dnnl_engine(),
+    status = dnnl_inner_product_forward_primitive_desc_create(&pd, engine,
         dnnl_forward_training, fwd_src_md_any, fwd_weight_md_any, fwd_bias_md, fwd_dst_md_any, NULL);
+
+    dnnl_memory_desc_destroy(fwd_src_md_any);
+    dnnl_memory_desc_destroy(weight_md);
+    dnnl_memory_desc_destroy(fwd_weight_md_any);
+    dnnl_memory_desc_destroy(fwd_bias_md);
+    dnnl_memory_desc_destroy(fwd_dst_md_any);
+
     if (status != dnnl_success) {
         LOG_ERROR("Creating linear forward pd failed with code %d\n", status);
-        dnnl_memory_desc_destroy(fwd_src_md_any);
-        dnnl_memory_desc_destroy(fwd_weight_md_any);
-        dnnl_memory_desc_destroy(fwd_bias_md);
-        dnnl_memory_desc_destroy(fwd_dst_md_any);
         return NULL;
     }
 
@@ -201,10 +194,6 @@ static dnnl_primitive_t linear_layer_create_fwd_primitive(
     }
 
 
-    dnnl_memory_desc_destroy(fwd_src_md_any);
-    dnnl_memory_desc_destroy(fwd_weight_md_any);
-    dnnl_memory_desc_destroy(fwd_bias_md);
-    dnnl_memory_desc_destroy(fwd_dst_md_any);
     dnnl_primitive_desc_destroy(pd);
 
     return primitive;    
@@ -576,6 +565,10 @@ static dnnl_status_t linear_layer_backward_data(
         LOG_ERROR("stream_wait failed with code %d\n", status);
         return 1;
     }
+
+    if (out_gradient != NULL) {
+        *out_gradient = &layer->gradient;
+    }
     
     return status;
 }
@@ -631,7 +624,6 @@ static dnnl_status_t linear_layer_backward_weights(
         return 1;
     }
 
-
     if (need_diff_weights_reorder) {
         /* TODO: This is really ugly and needs to be changed. */
         status = dnnl_reorder_execute(&layer->bwd_weights_reorder_diff_weight,
@@ -641,6 +633,21 @@ static dnnl_status_t linear_layer_backward_weights(
             return status;
         }
     }
+
+
+    /* onednn will sum over the gradients of a batch. Average over them instead to get more
+        representative gradient estimate. */
+    const tensor_shape_t* input_shape = tensor_get_shape(input);
+    const size_t batch_size = tensor_shape_get_dim(input_shape, TENSOR_BATCH_DIM);
+
+    float* d_weight_data = tensor_get_data(&layer->d_weight);
+    const size_t weight_size = tensor_size_from_shape(tensor_get_shape(&layer->d_weight));
+    VectorScale(d_weight_data, 1.0f / batch_size, weight_size);
+
+    float* d_bias_data = tensor_get_data(&layer->d_bias);
+    const size_t bias_size = tensor_size_from_shape(tensor_get_shape(&layer->d_bias));
+    VectorScale(d_bias_data, 1.0f / batch_size, bias_size);
+
 
     return status;
 }
@@ -751,7 +758,10 @@ static uint32_t linear_layer_get_output_shape(
     const_dnnl_memory_desc_t dst_md = dnnlutil_primitive_query_md(fwd, dnnl_query_dst_md, 0);
 
 
-    *out_output_shape = shape_from_memory_desc(dst_md);
+    /* write desc to output */
+    dnnl_memory_desc_t dst_md_out;
+    dnnl_memory_desc_clone(&dst_md_out, dst_md);
+    out_output_shape->desc = dst_md_out;
 
 
     /* clean */
@@ -761,29 +771,41 @@ static uint32_t linear_layer_get_output_shape(
 }
 
 
-static tensor_shape_t determine_weight_shape(const tensor_shape_t* input_shape, size_t output_size)
+static dnnl_memory_desc_t weight_md_from_src_md(const_dnnl_memory_desc_t src_md, size_t output_size)
 {
-    tensor_shape_t weight_shape;
-    
-    if (input_shape->ndims == 2) {
-        weight_shape.ndims = 2;
-        weight_shape.dims[0] = output_size;
-        weight_shape.dims[1] = input_shape->dims[1];
-        weight_shape.tag = dnnl_oi;
-    } else if (input_shape->ndims == 4) {
-        weight_shape.ndims = 4;
-        weight_shape.dims[0] = output_size;
-        weight_shape.dims[1] = input_shape->dims[1];
-        weight_shape.dims[2] = input_shape->dims[2];
-        weight_shape.dims[3] = input_shape->dims[3];
-        weight_shape.tag = dnnl_oihw;
+    const int32_t src_ndims = dnnlutil_memory_desc_get_ndims(src_md);
+    const dnnl_dims_t* src_dims = dnnlutil_memory_desc_get_dims(src_md);
+
+    int32_t weight_ndims;
+    dnnl_dims_t weight_dims;
+    dnnl_format_tag_t weight_format_tag;
+    if (src_ndims == 2) {
+        weight_ndims = 2;
+        weight_dims[0] = output_size;
+        weight_dims[1] = (*src_dims)[1];
+        weight_format_tag = dnnl_oi;
+    } else if (src_ndims == 4) {
+        weight_ndims = 4;
+        weight_dims[0] = output_size;
+        weight_dims[1] = (*src_dims)[1];
+        weight_dims[2] = (*src_dims)[2];
+        weight_dims[3] = (*src_dims)[3];
+        weight_format_tag = dnnl_oihw;
     } else {
-        LOG_ERROR("Can not handle input ndims=%zu\n", input_shape->ndims);
-        weight_shape.ndims = 0;
-        weight_shape.tag = dnnl_format_kind_undef;
+        LOG_ERROR("Can not handle input ndims=%zu\n", src_ndims);
+        weight_ndims = 0;
+        weight_format_tag = dnnl_format_kind_undef;
     }
 
-    return weight_shape;
+    dnnl_memory_desc_t weight_md;
+    dnnl_status_t status = dnnl_memory_desc_create_with_tag(&weight_md, weight_ndims, weight_dims,
+        dnnl_f32, weight_format_tag);
+    if (status != dnnl_success) {
+        LOG_ERROR("Creating weight_md failed with code %d\n", status);
+        return NULL;
+    }
+
+    return weight_md;
 }
 
 

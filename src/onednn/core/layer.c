@@ -4,6 +4,8 @@
 #include "core/layer.h"
 #include "core/layer_impl.h"
 
+#include "util/dnnl_util.h"
+
 #include "tensor_impl.h"
 
 

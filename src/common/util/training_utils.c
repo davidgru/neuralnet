@@ -40,7 +40,7 @@ void module_test(
         iteration++;
     }
 
-    const size_t dataset_size = dataset_get_shape(test_set)->dims[TENSOR_BATCH_DIM];
+    const size_t dataset_size = tensor_shape_get_dim(dataset_get_shape(test_set), TENSOR_BATCH_DIM);
     *out_accuracy = test_accuracy / (float)dataset_size;
     *out_loss = test_loss / (float)dataset_size;
 }
@@ -131,7 +131,8 @@ void module_train(
             dataset_iteration_next(train_set, &current_inputs, &current_targets);
         }
 
-        const size_t train_set_size = dataset_get_shape(train_set)->dims[TENSOR_BATCH_DIM];
+        const size_t train_set_size = tensor_shape_get_dim(dataset_get_shape(train_set),
+            TENSOR_BATCH_DIM);
         train_loss = train_loss / (float)train_set_size;
         train_accuracy = train_accuracy / (float)train_set_size;
 

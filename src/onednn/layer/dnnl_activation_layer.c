@@ -24,8 +24,6 @@
 #include "util/dnnl_reorder.h"
 #include "util/dnnl_assert.h"
 
-#include "dnnl_activation_layer.h"
-
 #include <malloc.h>
 #include <stdio.h>
 
@@ -313,10 +311,10 @@ static uint32_t activation_layer_get_output_shape(
 {
     const activation_layer_create_info_t* act_create_info = create_info;
 
-    dnnl_memory_desc_t src_md = memory_desc_from_shape(input_shape);
 
     /* create a primitive on the fly to check the output shape */
-    dnnl_primitive_t fwd = act_create_fwd_primitive(act_create_info->activation_function, src_md);
+    dnnl_primitive_t fwd = act_create_fwd_primitive(act_create_info->activation_function,
+        input_shape->desc);
     if (fwd == NULL) {
         LOG_ERROR("Failed to create activation fwd primitive\n");
         return 1;
@@ -324,11 +322,13 @@ static uint32_t activation_layer_get_output_shape(
     const_dnnl_memory_desc_t dst_md = dnnlutil_primitive_query_md(fwd, dnnl_query_dst_md, 0);
 
 
-    *out_output_shape = shape_from_memory_desc(dst_md);
+    /* write desc to output */
+    dnnl_memory_desc_t dst_md_out;
+    dnnl_memory_desc_clone(&dst_md_out, dst_md);
+    out_output_shape->desc = dst_md_out;
 
 
     /* clean */
-    dnnl_memory_desc_destroy(src_md);
     dnnl_primitive_destroy(fwd);
 
     return 0;

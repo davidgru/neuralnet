@@ -10,10 +10,18 @@ static void softmaxv(const float* in, float* out, size_t size);
 
 uint32_t LossInit(Loss* loss, const tensor_shape_t* input_shape, size_t max_batch_size, LossFunctionEnum loss_function)
 {
-    tensor_shape_t max_input_shape = *input_shape;
-    max_input_shape.dims[TENSOR_BATCH_DIM] = max_batch_size;
+    const size_t input_height = tensor_shape_get_dim(input_shape, TENSOR_HEIGHT_DIM);
+    const size_t input_width = tensor_shape_get_dim(input_shape, TENSOR_WIDTH_DIM);
+
+    tensor_shape_t max_input_shape = make_tensor_shape(
+        2,
+        max_batch_size,
+        tensor_shape_get_dim(input_shape, TENSOR_CHANNEL_DIM)
+    );
+
     tensor_allocate(&loss->gradient_mem, &max_input_shape);
     tensor_allocate(&loss->scratch_mem, &max_input_shape);
+
 
     switch (loss_function) {
         case LOSS_FUNCTION_MSE:
@@ -35,8 +43,8 @@ uint32_t LossAccuracy(Loss* loss, const tensor_t* input, const uint8_t* labels)
     const tensor_shape_t* shape = tensor_get_shape(input);
     const float* input_data = tensor_get_data_const(input);
 
-    const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
-    const size_t channels = shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t batch_size = tensor_shape_get_dim(shape, TENSOR_BATCH_DIM);
+    const size_t channels = tensor_shape_get_dim(shape, TENSOR_CHANNEL_DIM);
 
     uint32_t accuracy = 0;
     for (size_t i = 0; i < batch_size; i++) {
@@ -54,8 +62,8 @@ float LossCompute(Loss* loss, const tensor_t* input, const uint8_t* labels)
     const float* input_data = tensor_get_data_const(input);
     float* scratch_data = tensor_get_data(&loss->scratch_mem);
 
-    const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
-    const size_t channels = shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t batch_size = tensor_shape_get_dim(shape, TENSOR_BATCH_DIM);
+    const size_t channels = tensor_shape_get_dim(shape, TENSOR_CHANNEL_DIM);
 
 
     float sum = 0.0f;
@@ -80,8 +88,9 @@ void LossBackward(Loss* loss, const tensor_t* input, const uint8_t* labels, tens
     float* gradient = tensor_get_data(&loss->gradient);
     float* scratch_data = tensor_get_data(&loss->scratch_mem);
 
-    const size_t batch_size = shape->dims[TENSOR_BATCH_DIM];
-    const size_t channels = shape->dims[TENSOR_CHANNEL_DIM];
+    const size_t batch_size = tensor_shape_get_dim(shape, TENSOR_BATCH_DIM);
+    const size_t channels = tensor_shape_get_dim(shape, TENSOR_CHANNEL_DIM);
+
 
     for (size_t i = 0; i < batch_size; i++) {
         const float* channels_input = input_data + i * channels;

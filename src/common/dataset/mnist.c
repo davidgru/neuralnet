@@ -112,7 +112,6 @@ static uint32_t mnist_init(
 
     *out_data_shape = make_tensor_shape(TENSOR_MAX_DIMS, dataset_info->num_samples, 1, image_height, image_width);
 
-
     /* allocate memory for input and labels */
     const size_t total_memory_requirement = tensor_size_from_shape(out_data_shape) * sizeof(float)
         + dataset_info->num_samples * sizeof(uint8_t); /* don't forget the labels */

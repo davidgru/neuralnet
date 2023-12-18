@@ -10,37 +10,52 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include "core/layer.h"
+#include "core/loss.h"
+#include "core/optimizer.h"
+
+#include "dataset/dataset.h"
+#include "dataset/mnist.h"
+
 #include "sequential/model_desc.h"
-#include "sequential/sequential_net.h"
-#include "mnist.h"
+#include "sequential/sequential_model.h"
+
+#include "optimizer/sgd.h"
+
+#include "util/training_utils.h"
+
 #include "log.h"
 #include "config_info.h"
 
 #include "tensor.h"
+#include "context.h"
 #include "tensor_impl.h"
 
 
-sequential_network_t* create_mlp(float learning_rate, tensor_shape_t* input_shape, size_t batch_size)
+layer_t create_mlp(const tensor_shape_t* input_shape, size_t batch_size)
 {
-    model_desc_t* desc = NULL;
-    sequential_network_t* model = NULL;
+    model_desc_t* desc;
+    layer_t model;
 
-
-    /* Allocate resources for the model descriptor. */
     model_desc_create(&desc);
 
-    model_desc_add_linear_layer(desc, learning_rate, 300, LinearWeightInitXavier, LinearBiasInitZeros);
+    model_desc_add_linear_layer(desc, 300, linear_weight_init_xavier, linear_bias_init_zeros);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_SIGMOID);
 
-    model_desc_add_linear_layer(desc, learning_rate, 10, LinearWeightInitXavier, LinearBiasInitZeros);
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_SIGMOID);
-
+    model_desc_add_linear_layer(desc, 10, linear_weight_init_xavier, linear_bias_init_zeros);
 
     /* Print a model overview to stdout. */
     model_desc_dump(desc);
 
+    const sequential_model_create_info_t config = {
+        .desc = desc,
+        .max_batch_size = batch_size
+    };
 
-    sequential_network_create(&model, input_shape, batch_size, desc);
+    layer_create(&model, &sequential_model_impl, &config, input_shape, batch_size);
+
+    /* Model desc not needed anymore */
+    model_desc_destroy(desc);
 
     return model;
 }
@@ -60,53 +75,72 @@ void train_callback(training_info_t* p)
 }
 
 
+dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind)
+{
+    dataset_t dataset = NULL;
+    mnist_create_info_t mnist_train_info = {
+        .path = path,
+        .dataset_kind = dataset_kind,
+        .padding = 0
+    };
+    dataset_create(&dataset, &mnist_dataset, &mnist_train_info);
+    return dataset;
+}
+
+
 int main()
 {
-    MnistDataset mnist;
-    sequential_network_t* mlp;
-
-
     /* set to location of mnist or fashion_mnist root folder */
     const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
 
 
-    size_t num_epochs = 25;
-    size_t batch_size = 10; /* Only batch size of 1 supported at the moment */
-    float learning_rate = 1.0f;
-    LossFunctionEnum loss_type = LOSS_FUNCTION_MSE;
+    const size_t num_epochs = 10;
+    const size_t batch_size = 32;
+    const LossFunctionEnum loss_type = LOSS_FUNCTION_CROSS_ENTROPY;
+    const optimizer_impl_t* optimizer = &sgd_optimizer;
+    const sgd_config_t optimizer_config = {
+        .learning_rate = 0.5f,
+        .weight_reg_kind = WEIGHT_REG_NONE
+    };
 
 
     /* Verify the compile time configuration. For example, that avx is used */
     dump_compile_time_config();
 
 
-    /* Load mnist with a padding of two because lenet expects 32x32 input and the naive
-        convolutional layers do not support padding at this time. */
-    if (MnistDatasetLoad(&mnist, mnist_path, 2) != 0) {
+    /* Initialize the backend context. Only needed for the oneDNN backend */
+    if (backend_context_init() != 0) {
+        LOG_ERROR("Failed to initialize the backend context\n");
+        return 1;
+    }
+
+
+    dataset_t train_set = load_mnist(mnist_path, MNIST_TRAIN_SET);
+    dataset_t test_set = load_mnist(mnist_path, MNIST_TEST_SET);
+    if (train_set == NULL || test_set == NULL) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
         return 1;
     }
     LOG_INFO("Successfully loaded mnist\n");
 
 
-    tensor_shape_t input_shape = {
-        .dims[TENSOR_BATCH_DIM] = 1,
-        .dims[TENSOR_CHANNEL_DIM] = mnist.image_height * mnist.image_width,
-        .dims[TENSOR_HEIGHT_DIM] = 1,
-        .dims[TENSOR_WIDTH_DIM] = 1
-    };
-    mlp = create_mlp(learning_rate, &input_shape, batch_size);
+    layer_t mlp = create_mlp(dataset_get_shape(train_set), batch_size);
+    if (mlp == NULL) {
+        LOG_ERROR("There was an error creating the model\n");
+        return 1;
+    }
     LOG_INFO("Created the model. Start training...\n");
 
 
-    sequential_network_train(mlp, mnist.train_images, mnist.test_images, mnist.train_labels,
-        mnist.test_labels, mnist.num_train_images, mnist.num_test_images, num_epochs, learning_rate,
-        batch_size, loss_type, train_callback);
+    /* Training loop */
+    module_train(mlp, train_set, test_set, NULL, num_epochs, batch_size, optimizer,
+    &optimizer_config, loss_type, 0, train_callback);
 
 
     /* Free resources */
-    sequential_network_destroy(mlp);
-    MnistDatasetFree(&mnist);
-
+    layer_destroy(mlp);
+    dataset_destroy(train_set);
+    dataset_destroy(test_set);
+    
     return 0;
 }

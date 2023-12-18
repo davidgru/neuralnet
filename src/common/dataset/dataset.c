@@ -84,14 +84,19 @@ uint32_t dataset_iteration_begin(
             free(dataset->current_out_labels);
         }
 
-        tensor_shape_t scratch_shape = dataset->data_shape;
-        scratch_shape.dims[TENSOR_BATCH_DIM] = batch_size;
+        tensor_shape_t scratch_shape = make_tensor_shape(
+            TENSOR_MAX_DIMS,
+            batch_size,
+            tensor_shape_get_dim(&dataset->data_shape, TENSOR_CHANNEL_DIM),
+            tensor_shape_get_dim(&dataset->data_shape, TENSOR_HEIGHT_DIM),
+            tensor_shape_get_dim(&dataset->data_shape, TENSOR_WIDTH_DIM)
+        );
         tensor_allocate(&dataset->scratch, &scratch_shape);
     
-        dataset->current_out_labels = (uint8_t*)malloc(batch_size);
+        dataset->current_out_labels = malloc(batch_size);
     }
 
-    const size_t num_samples = dataset->data_shape.dims[TENSOR_BATCH_DIM];
+    const size_t num_samples = tensor_shape_get_dim(&dataset->data_shape, TENSOR_BATCH_DIM);
     if (dataset->ordering == NULL) {
         dataset->ordering = (size_t*)calloc(num_samples, sizeof(size_t));
         for (size_t i = 0; i < num_samples; i++) {
@@ -114,7 +119,7 @@ uint32_t dataset_iteration_begin(
 
 uint32_t dataset_iteration_next(dataset_t dataset, tensor_t** out_batch, uint8_t** out_labels)
 {
-    const size_t num_samples = dataset->data_shape.dims[TENSOR_BATCH_DIM];
+    const size_t num_samples = tensor_shape_get_dim(&dataset->data_shape, TENSOR_BATCH_DIM);
 
     /* The iteration is complete. */
     if (dataset->current == num_samples) {
@@ -130,19 +135,34 @@ uint32_t dataset_iteration_next(dataset_t dataset, tensor_t** out_batch, uint8_t
         this_batch_size = num_samples - dataset->current;
     }
 
-    /* Reflect specific batch size in the output tensor and use previously scratch mem as buffer. */
-    tensor_shape_t current_out_shape = *tensor_get_shape(&dataset->scratch);
-    current_out_shape.dims[TENSOR_BATCH_DIM] = this_batch_size;
-    tensor_from_memory(&dataset->current_out_batch, &current_out_shape,
-        tensor_get_data(&dataset->scratch));
+    if (this_batch_size == dataset->batch_size) {
+        dataset->impl->get_batch_func(dataset->impl_context, &dataset->ordering[dataset->current],
+            &dataset->scratch, dataset->current_out_labels);
+        
+        *out_batch = &dataset->scratch;
+        *out_labels = dataset->current_out_labels;
+    } else {
+        /* Reflect specific batch size in the output tensor and use scratch mem as buffer. */
+        /* Will cause memory allocation when using onednn :( */
+        tensor_shape_t current_out_shape = make_tensor_shape(
+            TENSOR_MAX_DIMS,
+            this_batch_size,
+            tensor_shape_get_dim(&dataset->data_shape, TENSOR_CHANNEL_DIM),
+            tensor_shape_get_dim(&dataset->data_shape, TENSOR_HEIGHT_DIM),
+            tensor_shape_get_dim(&dataset->data_shape, TENSOR_WIDTH_DIM)
+        );
 
-    dataset->impl->get_batch_func(dataset->impl_context, &dataset->ordering[dataset->current],
-        &dataset->current_out_batch, dataset->current_out_labels);
-    
+        tensor_from_memory(&dataset->current_out_batch, &current_out_shape,
+            tensor_get_data(&dataset->scratch));
+        
+        dataset->impl->get_batch_func(dataset->impl_context, &dataset->ordering[dataset->current],
+            &dataset->current_out_batch, dataset->current_out_labels);
+        
+        *out_batch = &dataset->current_out_batch;
+        *out_labels = dataset->current_out_labels;
+    }
+
     dataset->current += this_batch_size;
-
-    *out_batch = &dataset->current_out_batch;
-    *out_labels = dataset->current_out_labels;
 
     return num_samples - dataset->current;
 }

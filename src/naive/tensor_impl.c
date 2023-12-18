@@ -23,6 +23,24 @@ tensor_shape_t make_tensor_shape(size_t ndims, ...)
 }
 
 
+tensor_shape_t copy_tensor_shape(const tensor_shape_t* shape)
+{
+    return *shape;
+}
+
+
+void destroy_tensor_shape(tensor_shape_t* shape)
+{
+    (void)shape;
+}
+
+
+size_t tensor_shape_get_depth_dim(const tensor_shape_t* shape)
+{
+    return TENSOR_MAX_DIMS;
+}
+
+
 size_t tensor_shape_get_dim(const tensor_shape_t* shape, size_t dim)
 {
     return shape->dims[dim];

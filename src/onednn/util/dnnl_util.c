@@ -1,7 +1,10 @@
-
-#include "dnnl_util.h"
+#include <inttypes.h>
 
 #include "dnnl.h"
+
+#include "log.h"
+#include "dnnl_util.h"
+
 
 dnnl_status_t dnnl_reorder_primitive_create(dnnl_primitive_t* reorder_primitive, const_dnnl_memory_desc_t src_md, const_dnnl_memory_desc_t dst_md, dnnl_engine_t engine, dnnl_primitive_attr_t attr)
 {
@@ -109,6 +112,8 @@ dnnl_status_t dnnl_memory_create_from_dims(dnnl_memory_t* mem, int ndims, dnnl_d
 {
     dnnl_status_t status = dnnl_success;
 
+    LOG_WARN("Deprecated function\n");
+
     // Create a memory descriptor
     dnnl_memory_desc_t md;
     status = dnnl_memory_desc_create_with_tag(&md, ndims, dims, data_type, tag);
@@ -181,6 +186,16 @@ const dnnl_dims_t* dnnlutil_memory_desc_get_dims(const_dnnl_memory_desc_t memory
     return dims;
 }
 
+
+int dnnlutil_memory_desc_get_dim(const_dnnl_memory_desc_t memory_desc, int dim)
+{
+    const dnnl_dims_t* dims;
+
+    dnnl_memory_desc_query(memory_desc, dnnl_query_dims, &dims);
+
+    return (*dims)[dim];
+}
+
 dnnl_memory_desc_t dnnlutil_memory_desc_tag_any(const_dnnl_memory_desc_t memory_desc)
 {
     int32_t ndims = dnnlutil_memory_desc_get_ndims(memory_desc);
@@ -200,6 +215,22 @@ const_dnnl_memory_desc_t dnnlutil_primitive_query_md(
 )
 {
     const_dnnl_primitive_desc_t pd;
-    dnnl_primitive_get_primitive_desc(primitive, &pd);
+    dnnl_status_t status = dnnl_primitive_get_primitive_desc(primitive, &pd);
+    if (status != dnnl_success) {
+        LOG_ERROR("Failed to obtain primitive desc from primitive with code %d\n", status);
+        return NULL;
+    }
     return dnnl_primitive_desc_query_md(pd, what, index);
+}
+
+
+void dnnlutil_log_memory_desc_info(const_dnnl_memory_desc_t desc)
+{
+    int ndims = dnnlutil_memory_desc_get_ndims(desc);
+    const dnnl_dims_t* dims = dnnlutil_memory_desc_get_dims(desc);
+
+    LOG_INFO("ndims: %d\n", ndims);
+    for (int i = 0; i < ndims; i++) {
+        LOG_INFO("dim %d: %" PRIi64 " \n", i, (*dims)[i]);
+    }
 }
