@@ -108,7 +108,7 @@ static uint32_t batchnorm_layer_get_params(
 {
     batchnorm_layer_t* layer = context;
     
-    out_layer_params->num_params = 0; // NUM_PARAM_TENSORS; /* shift and scale not working */
+    out_layer_params->num_params = NUM_PARAM_TENSORS;
     out_layer_params->param_refs = layer->param_refs;
     
     return 0;
@@ -123,7 +123,7 @@ static dnnl_primitive_t batchnorm_create_fwd_primitive(
     dnnl_status_t status = dnnl_success;
     dnnl_engine_t engine = get_dnnl_engine();
 
-    unsigned int flags = dnnl_normalization_flags_none; // dnnl_use_scale | dnnl_use_shift;
+    unsigned int flags = dnnl_use_scale | dnnl_use_shift;
     if (prop_kind == dnnl_forward_inference) {
         flags |= dnnl_use_global_stats;
     }
@@ -214,8 +214,8 @@ static uint32_t batchnorm_layer_forward(
         dnnl_stream_t stream = get_dnnl_stream();
         dnnl_exec_arg_t exec_args[] = {
             { DNNL_ARG_SRC, input->mem },
-            // { DNNL_ARG_SCALE, layer->gamma.mem },
-            // { DNNL_ARG_SHIFT, layer->beta.mem },
+            { DNNL_ARG_SCALE, layer->gamma.mem },
+            { DNNL_ARG_SHIFT, layer->beta.mem },
             { DNNL_ARG_DST, layer->output.mem },
             { DNNL_ARG_MEAN, layer->mean.mem },
             { DNNL_ARG_VARIANCE, layer->var.mem },
@@ -259,8 +259,8 @@ static uint32_t batchnorm_layer_forward(
         dnnl_stream_t stream = get_dnnl_stream();
         dnnl_exec_arg_t exec_args[] = {
             { DNNL_ARG_SRC, input->mem },
-            // { DNNL_ARG_SCALE, layer->gamma.mem },
-            // { DNNL_ARG_SHIFT, layer->beta.mem },
+            { DNNL_ARG_SCALE, layer->gamma.mem },
+            { DNNL_ARG_SHIFT, layer->beta.mem },
             { DNNL_ARG_MEAN, layer->running_mean.mem },
             { DNNL_ARG_VARIANCE, layer->running_var.mem },
             { DNNL_ARG_DST, layer->output.mem },
@@ -304,7 +304,7 @@ static dnnl_primitive_t batchnorm_create_bwd_primitive(
 
     const_dnnl_memory_desc_t src_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_src_md, 0);
 
-    unsigned int flags = dnnl_use_global_stats; // | dnnl_use_shift | dnnl_use_scale;
+    unsigned int flags = dnnl_use_global_stats | dnnl_use_shift | dnnl_use_scale;
     float eps;
     dnnl_primitive_desc_query(fwd_pd, dnnl_query_epsilon_f32, 0, &eps);
 
@@ -401,12 +401,12 @@ static uint32_t batchnorm_layer_backward(
         { DNNL_ARG_SRC, layer->input->mem },
         { DNNL_ARG_MEAN, layer->mean.mem },
         { DNNL_ARG_VARIANCE, layer->var.mem },
-        // { DNNL_ARG_SCALE, layer->beta.mem },
+        { DNNL_ARG_SCALE, layer->gamma.mem },
         // { DNNL_ARG_SHIFT, layer->beta.mem },
         { DNNL_ARG_DIFF_DST, reordered_prev_gradient->mem },
         { DNNL_ARG_DIFF_SRC, layer->gradient.mem },
-        // { DNNL_ARG_DIFF_SCALE, layer->d_beta.mem },
-        // { DNNL_ARG_DIFF_SHIFT, layer->d_beta.mem },
+        { DNNL_ARG_DIFF_SCALE, layer->d_gamma.mem },
+        { DNNL_ARG_DIFF_SHIFT, layer->d_beta.mem },
     };
 
     status = dnnl_primitive_execute(layer->bwd, stream, sizeof(exec_args) / sizeof(*exec_args),
@@ -421,6 +421,18 @@ static uint32_t batchnorm_layer_backward(
         LOG_ERROR("stream_wait failed with code %d\n", status);
         return 1;
     }
+
+
+    /* onednn will sum over the gradients of a batch. Average over them instead to get more
+        representative gradient estimate. */
+    const size_t batch_size = tensor_shape_get_dim(tensor_get_shape(layer->input), TENSOR_BATCH_DIM);
+    const size_t channels = tensor_shape_get_dim(tensor_get_shape(layer->input), TENSOR_CHANNEL_DIM);
+
+    float* d_gamma_data = tensor_get_data(&layer->d_gamma);
+    float* d_beta_data = tensor_get_data(&layer->d_beta);
+    VectorScale(d_gamma_data, 1.0f / batch_size, channels);
+    VectorScale(d_beta_data, 1.0f / batch_size, channels);
+
 
     if (*out_gradient != NULL) {
         *out_gradient = &layer->gradient;
