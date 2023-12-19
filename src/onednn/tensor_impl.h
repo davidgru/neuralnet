@@ -23,3 +23,4 @@ uint32_t tensor_from_desc(tensor_t* tensor, const_dnnl_memory_desc_t desc, void*
 
 /* conversion between memory desc and shape */
 void shape_from_memory_desc(const_dnnl_memory_desc_t memory_desc);
+dnnl_format_tag_t packed_format_tag_from_ndims(size_t ndims);

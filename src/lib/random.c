@@ -43,3 +43,14 @@ float RandomUniform(float min, float max)
 
     return random_uniform() * (max - min) + min;
 }
+
+
+void random_mask(tensor_t* tensor, float ratio)
+{
+    const size_t size = tensor_size_from_shape(tensor_get_shape(tensor));
+    float* data = tensor_get_data(tensor);
+
+    for (size_t i = 0; i < size; i++) {
+        data[i] = (RandomUniform(0.0f, 1.0f) < ratio);
+    }
+}

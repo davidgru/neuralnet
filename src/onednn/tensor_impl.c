@@ -6,8 +6,6 @@
 #include "tensor_impl.h"
 #include "context_impl.h"
 
-static dnnl_format_tag_t packed_format_tag_from_ndims(size_t ndims);
-
 
 tensor_shape_t make_tensor_shape(size_t ndims, ...)
 {
@@ -210,7 +208,7 @@ void shape_from_memory_desc(const_dnnl_memory_desc_t memory_desc)
 }
 
 
-static dnnl_format_tag_t packed_format_tag_from_ndims(size_t ndims)
+dnnl_format_tag_t packed_format_tag_from_ndims(size_t ndims)
 {
     dnnl_format_tag_t tag;
 
