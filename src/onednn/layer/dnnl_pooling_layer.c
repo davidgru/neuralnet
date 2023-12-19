@@ -158,7 +158,7 @@ static uint32_t pooling_layer_forward(
     dnnl_exec_arg_t exec_args[] = {
         { DNNL_ARG_SRC, input->mem },
         { DNNL_ARG_DST, layer->output.mem },
-        //{ DNNL_ARG_WORKSPACE, layer->workspace.mem }
+        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
     };
 
     status = dnnl_primitive_execute(layer->fwd, stream, sizeof(exec_args) / sizeof(*exec_args),
@@ -194,7 +194,7 @@ static dnnl_primitive_t pooling_create_bwd_primitive(
     /* Want to keep diff memory formats up to the primitive. Probably will choose the same memory
         format as for the output(dst_md) */
     const_dnnl_memory_desc_t src_md = dnnl_primitive_desc_query_md(fwd_pd, dnnl_query_src_md, 0);
-    dnnl_memory_desc_t diff_src_md_any = dnnlutil_memory_desc_tag_any(src_md);
+    dnnl_memory_desc_t diff_dst_md_any = dnnlutil_memory_desc_tag_any(diff_dst_md);
 
 
     dnnl_alg_kind_t alg_kind;
@@ -212,9 +212,9 @@ static dnnl_primitive_t pooling_create_bwd_primitive(
     dnnl_primitive_desc_query(fwd_pd, dnnl_query_padding_r, 0, &padding_r);
 
     dnnl_primitive_desc_t pd;
-    status = dnnl_pooling_backward_primitive_desc_create(&pd, engine, alg_kind, diff_src_md_any,
-        diff_dst_md, *strides, *kernel, *dilates, *padding_l, *padding_r, fwd_pd, NULL);
-    dnnl_memory_desc_destroy(diff_src_md_any);
+    status = dnnl_pooling_backward_primitive_desc_create(&pd, engine, alg_kind, src_md,
+        diff_dst_md_any, *strides, *kernel, *dilates, *padding_l, *padding_r, fwd_pd, NULL);
+    dnnl_memory_desc_destroy(diff_dst_md_any);
     if (status != dnnl_success) {
         LOG_ERROR("Creating pooling backward pd failed with code %d\n", status);
         return NULL;
@@ -303,7 +303,7 @@ static uint32_t pooling_layer_backward(
     dnnl_exec_arg_t exec_args[] = {
         { DNNL_ARG_DIFF_SRC, layer->gradient.mem },
         { DNNL_ARG_DIFF_DST, reordered_prev_gradient->mem },
-        //{ DNNL_ARG_WORKSPACE, layer->workspace.mem }
+        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
     };
 
     status = dnnl_primitive_execute(layer->bwd, stream, sizeof(exec_args) / sizeof(*exec_args),
