@@ -98,6 +98,7 @@ static dnnl_primitive_t pooling_create_fwd_primitive(
     dnnl_primitive_desc_t fwd_pd;
     status = dnnl_pooling_forward_primitive_desc_create(&fwd_pd, engine, dnnl_forward_training,
         alg_kind, src_md, dst_md_any, strides, kernel, dilates, padding_l, padding_r, NULL);
+    dnnl_memory_desc_destroy(dst_md_any);
     if (status != dnnl_success) {
         LOG_ERROR("Creating pooling fwd pd failed with code %d\n", status);
         return NULL;
@@ -157,7 +158,7 @@ static uint32_t pooling_layer_forward(
     dnnl_exec_arg_t exec_args[] = {
         { DNNL_ARG_SRC, input->mem },
         { DNNL_ARG_DST, layer->output.mem },
-        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
+        //{ DNNL_ARG_WORKSPACE, layer->workspace.mem }
     };
 
     status = dnnl_primitive_execute(layer->fwd, stream, sizeof(exec_args) / sizeof(*exec_args),
@@ -302,7 +303,7 @@ static uint32_t pooling_layer_backward(
     dnnl_exec_arg_t exec_args[] = {
         { DNNL_ARG_DIFF_SRC, layer->gradient.mem },
         { DNNL_ARG_DIFF_DST, reordered_prev_gradient->mem },
-        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
+        //{ DNNL_ARG_WORKSPACE, layer->workspace.mem }
     };
 
     status = dnnl_primitive_execute(layer->bwd, stream, sizeof(exec_args) / sizeof(*exec_args),

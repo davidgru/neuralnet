@@ -3,7 +3,7 @@
 #include "tensor.h"
 #include "tensor_impl.h"
 
-#include "layer/bachnorm_layer.h"
+#include "layer/batchnorm_layer.h"
 #include "util/ai_math.h"
 
 #include "log.h"

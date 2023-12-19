@@ -8,7 +8,7 @@
 #include "core/layer.h"
 
 #include "layer/activation_layer.h"
-#include "layer/bachnorm_layer.h"
+#include "layer/batchnorm_layer.h"
 #include "layer/convolutional_layer.h"
 #include "layer/dropout_layer.h"
 #include "layer/linear_layer.h"

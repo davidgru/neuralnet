@@ -315,7 +315,6 @@ static uint32_t conv_layer_forward(
         { DNNL_ARG_WEIGHTS, weight_reordered->mem },
         { DNNL_ARG_BIAS, layer->bias.mem },
         { DNNL_ARG_DST, layer->output.mem },
-        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
     };
 
     status = dnnl_primitive_execute(layer->fwd, stream, sizeof(exec_args) / sizeof(*exec_args),
@@ -594,7 +593,6 @@ static dnnl_status_t conv_layer_backward_data(
         { DNNL_ARG_DIFF_SRC, layer->gradient.mem },
         { DNNL_ARG_WEIGHTS, weight_reordered->mem },
         { DNNL_ARG_DIFF_DST, prev_gradient_reordered->mem },
-        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
     };
 
     status = dnnl_primitive_execute(layer->bwd_data, stream, sizeof(exec_args) / sizeof(*exec_args),
@@ -652,7 +650,6 @@ static dnnl_status_t conv_layer_backward_weights(
             need_diff_weights_reorder ? layer->bwd_weights_diff_weight.mem : layer->d_weight.mem },
         { DNNL_ARG_DIFF_BIAS, layer->d_bias.mem },
         { DNNL_ARG_DIFF_DST, prev_gradient_reordered->mem },
-        { DNNL_ARG_WORKSPACE, layer->workspace.mem }
     };
 
     status = dnnl_primitive_execute(layer->bwd_weights, stream,
