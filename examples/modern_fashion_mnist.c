@@ -26,12 +26,14 @@
 
 #include "augment/augment_pipeline.h"
 #include "augment/image_flip.h"
+#include "augment/random_crop.h"
 
 #include "util/training_utils.h"
 
 #include "config_info.h"
 #include "log.h"
 #include "tensor.h"
+#include "context.h"
 
 
 layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, bool use_batchnorm, size_t batch_size)
@@ -43,18 +45,6 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, boo
     /* Allocate resources for the model descriptor. */
     model_desc_create(&desc);
 
-    model_desc_add_convolutional_layer(desc, 6, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
-    if (use_batchnorm) {
-        model_desc_add_batch_norm_layer(desc);
-    }
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
-    model_desc_add_convolutional_layer(desc, 16, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
-    if (use_batchnorm) {
-        model_desc_add_batch_norm_layer(desc);
-    }
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
-    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
-
     model_desc_add_convolutional_layer(desc, 32, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
     if (use_batchnorm) {
         model_desc_add_batch_norm_layer(desc);
@@ -67,17 +57,29 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, boo
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
-    model_desc_add_linear_layer(desc, 512, linear_weight_init_he, linear_bias_init_zeros);
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
-    if (dropout_rate > 0.0f) {
-        model_desc_add_dropout_layer(desc, dropout_rate);
+    model_desc_add_convolutional_layer(desc, 64, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
+    if (use_batchnorm) {
+        model_desc_add_batch_norm_layer(desc);
     }
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_convolutional_layer(desc, 64, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
+    if (use_batchnorm) {
+        model_desc_add_batch_norm_layer(desc);
+    }
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
-    model_desc_add_linear_layer(desc, 194, linear_weight_init_he, linear_bias_init_zeros);
-    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
-    if (dropout_rate > 0.0f) {
-        model_desc_add_dropout_layer(desc, dropout_rate);
+    model_desc_add_convolutional_layer(desc, 64, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
+    if (use_batchnorm) {
+        model_desc_add_batch_norm_layer(desc);
     }
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_convolutional_layer(desc, 64, 3, 1, 1, conv_weight_init_he, conv_bias_init_zeros);
+    if (use_batchnorm) {
+        model_desc_add_batch_norm_layer(desc);
+    }
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
     model_desc_add_linear_layer(desc, 10, linear_weight_init_he, linear_bias_init_zeros);
 
@@ -99,17 +101,22 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, boo
 
 augment_pipeline_t setup_augment_pipeline()
 {
-    image_flip_config_t flip_config = {
+    const image_flip_config_t flip_config = {
         .horizontal_flip_prob = 0.5f,
         .vertical_flip_prob = 0.0f,
     };
 
-
-    augment_pipeline_config_entry_t pipeline_entries[] = {
-        { .impl = &aug_image_flip, .config = &flip_config },
+    const random_crop_config_t crop_config = {
+        .padding = 1,
     };
 
-    augment_pipeline_config_t pipeline_config = {
+
+    const augment_pipeline_config_entry_t pipeline_entries[] = {
+        { .impl = &aug_image_flip, .config = &flip_config },
+        { .impl = &aug_random_crop, .config = &crop_config }
+    };
+
+    const augment_pipeline_config_t pipeline_config = {
         .entries = pipeline_entries,
         .num_entries = sizeof(pipeline_entries) / sizeof(*pipeline_entries),
     };
@@ -158,25 +165,25 @@ int main()
     size_t batch_size = 32;
     LossFunctionEnum loss_type = LOSS_FUNCTION_CROSS_ENTROPY;
     /* use sgd optimizer */
-    const optimizer_impl_t* optimizer = &adam_optimizer;
-    // sgd_config_t optimizer_config = {
-    //     .learning_rate = 1e-2f,
-    //     .weight_reg_kind = SGD_WEIGHT_REG_L2,
-    //     .weight_reg_strength = 1e-4,
-    // };
+    const optimizer_impl_t* optimizer = &sgd_optimizer;
+    sgd_config_t optimizer_config = {
+        .learning_rate = 3e-2f,
+        .weight_reg_kind = SGD_WEIGHT_REG_L2,
+        .weight_reg_strength = 1e-4,
+    };
     // rmsprop_config_t optimizer_config = {
     //     .learning_rate = 1e-3f,
     //     .gamma = 0.9f,
     //     .weight_reg_kind = WEIGHT_REG_L2,
     //     .weight_reg_strength = 1e-4f,
     // };
-    adam_config_t optimizer_config = {
-        .learning_rate = 1e-4f,
-        .gamma1 = 0.999f,
-        .gamma2 = 0.9f,
-        .weight_reg_kind = WEIGHT_REG_L2,
-        .weight_reg_strength = 1e-4f,
-    };
+    // adam_config_t optimizer_config = {
+    //     .learning_rate = 1e-3f,
+    //     .gamma1 = 0.999f,
+    //     .gamma2 = 0.9f,
+    //     .weight_reg_kind = WEIGHT_REG_L2,
+    //     .weight_reg_strength = 1e-4f,
+    // };
     /* reduce learning rate after 5 epochs without progress on training loss */
     size_t reduce_learning_rate_after = 5;
     bool use_batchnorm = true;
@@ -186,6 +193,13 @@ int main()
 
     /* Verify the compile time configuration. For example, that avx is used */
     dump_compile_time_config();
+
+
+    /* Initialize the backend context. Only needed for the oneDNN backend */
+    if (backend_context_init() != 0) {
+        LOG_ERROR("Failed to initialize the backend context\n");
+        return 1;
+    }
 
 
     /* Load mnist with a padding of two because lenet expects 32x32 input and the naive

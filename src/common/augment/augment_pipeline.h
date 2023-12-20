@@ -32,7 +32,7 @@ typedef struct {
 
 
 typedef struct {
-    augment_pipeline_config_entry_t* entries;
+    const augment_pipeline_config_entry_t* entries;
     size_t num_entries;
 } augment_pipeline_config_t;
 
