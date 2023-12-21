@@ -81,6 +81,12 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, float dropout_rate, boo
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     model_desc_add_pooling_layer(desc, 2, 1, 0, POOLING_MAX);
 
+    model_desc_add_linear_layer(desc, 256, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
+    if (dropout_rate > 0.0f) {
+        model_desc_add_dropout_layer(desc, dropout_rate);    
+    }
+    
     model_desc_add_linear_layer(desc, 10, linear_weight_init_he, linear_bias_init_zeros);
 
 
