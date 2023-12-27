@@ -22,11 +22,10 @@
 #define GAMMA_PARAM_IDX    0
 #define BETA_PARAM_IDX      1
 
-#define BN_UPDATE_MOMENTUM 0.9f
-#define BN_EPS 1e-8f
-
 
 typedef struct {
+    batchnorm_layer_create_info_t config;
+
     /* parameters */
     tensor_t gamma;
     tensor_t d_gamma;
@@ -63,6 +62,8 @@ static uint32_t batchnorm_layer_init(
 )
 {
     batchnorm_layer_t* layer = context;
+
+    layer->config = *(const batchnorm_layer_create_info_t*)create_info;
 
 
     /* Allocate parameter tensors */
@@ -117,6 +118,7 @@ static uint32_t batchnorm_layer_get_params(
 
 static dnnl_primitive_t batchnorm_create_fwd_primitive(
     const_dnnl_memory_desc_t src_md,
+    float eps,
     dnnl_prop_kind_t prop_kind
 )
 {
@@ -130,7 +132,7 @@ static dnnl_primitive_t batchnorm_create_fwd_primitive(
 
     dnnl_primitive_desc_t fwd_pd;
     status = dnnl_batch_normalization_forward_primitive_desc_create(&fwd_pd, get_dnnl_engine(),
-        prop_kind, src_md, src_md, BN_EPS, flags, NULL);
+        prop_kind, src_md, src_md, eps, flags, NULL);
     if (status != dnnl_success) {
         LOG_ERROR("Creating batchnorm fwd pd failed with code %d\n", status);
         return NULL;
@@ -166,7 +168,7 @@ static dnnl_status_t batchnorm_layer_forward_init(
     }
 
     /* create the primitive */
-    *fwd = batchnorm_create_fwd_primitive(src_md, prop_kind);
+    *fwd = batchnorm_create_fwd_primitive(src_md, layer->config.eps, prop_kind);
 
     if (!layer->output_mem_initialized) {
         /* need allocate the destination memory */
@@ -240,10 +242,10 @@ static uint32_t batchnorm_layer_forward(
         float* running_var_data = tensor_get_data(&layer->running_var);
         const float* mean_data = tensor_get_data(&layer->mean);
         const float* var_data = tensor_get_data(&layer->var);
-        VectorScale(running_mean_data, BN_UPDATE_MOMENTUM, channels);
-        VectorScale(running_var_data, BN_UPDATE_MOMENTUM, channels);
-        VectorScaledAdd(running_mean_data, mean_data, 1.0f - BN_UPDATE_MOMENTUM, channels);
-        VectorScaledAdd(running_var_data, var_data, 1.0f - BN_UPDATE_MOMENTUM, channels);
+        VectorScale(running_mean_data, layer->config.momentum, channels);
+        VectorScale(running_var_data, layer->config.momentum, channels);
+        VectorScaledAdd(running_mean_data, mean_data, 1.0f - layer->config.momentum, channels);
+        VectorScaledAdd(running_var_data, var_data, 1.0f - layer->config.momentum, channels);
 
     } else if (forward_kind == LAYER_FORWARD_INFERENCE) {
 
@@ -489,8 +491,11 @@ static uint32_t batchnorm_layer_get_output_shape(
     const tensor_shape_t* input_shape
 )
 {
+    const batchnorm_layer_create_info_t* batchnorm_create_info = create_info;
+
     /* create a primitive on the fly to check the output shape */
-    dnnl_primitive_t fwd = batchnorm_create_fwd_primitive(input_shape->desc, dnnl_forward_training);
+    dnnl_primitive_t fwd = batchnorm_create_fwd_primitive(input_shape->desc,
+        batchnorm_create_info->eps, dnnl_forward_training);
     if (fwd == NULL) {
         LOG_ERROR("Failed to create batchnorm fwd primitive\n");
         return 1;

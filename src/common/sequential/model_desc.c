@@ -55,11 +55,16 @@ uint32_t model_desc_add_activation_layer(
 }
 
 
-uint32_t model_desc_add_batch_norm_layer(model_desc_t* desc)
+uint32_t model_desc_add_batch_norm_layer(model_desc_t* desc, float momentum, float eps)
 {
+    batchnorm_layer_create_info_t* batchnorm_create_info =
+        malloc(sizeof(batchnorm_layer_create_info_t));
+    batchnorm_create_info->momentum = momentum;
+    batchnorm_create_info->eps = eps;
+
     model_desc_entry_t entry = {
         .layer_impl = &batchnorm_layer_impl,
-        .create_info = NULL,
+        .create_info = batchnorm_create_info,
         .allocated = false,
     };
     return model_desc_add_entry(desc, &entry);

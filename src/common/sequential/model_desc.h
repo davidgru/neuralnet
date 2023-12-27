@@ -71,9 +71,15 @@ uint32_t model_desc_add_activation_layer(
  * @brief Add a batch norm layer.
  * 
  * @param desc          The model descriptor.
+ * @param momentum      Momentum for mean and variance update.
+ * @param eps           Stability parameter when normalizing.
  * @return uint32_t 
  */
-uint32_t model_desc_add_batch_norm_layer(model_desc_t* desc);
+uint32_t model_desc_add_batch_norm_layer(
+    model_desc_t* desc,
+    float momentum,
+    float eps
+);
 
 
 /**
