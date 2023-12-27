@@ -6,6 +6,19 @@
 
 #include "training_utils.h"
 
+size_t module_get_num_params(layer_t module)
+{
+    layer_param_ref_list_t param_refs;
+    layer_get_param_refs(module, &param_refs);
+
+    size_t num_params = 0;
+    for (size_t i = 0; i < param_refs.num_params; i++) {
+        num_params += tensor_size_from_shape(
+                tensor_get_shape(param_refs.param_refs[i].param));
+    }
+    return num_params;
+}
+
 
 void module_test(
     layer_t layer,

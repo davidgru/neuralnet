@@ -22,6 +22,9 @@ typedef struct {
 typedef void (*training_callback_t)(training_info_t* progress_info);
 
 
+size_t module_get_num_params(layer_t module);
+
+
 void module_test(
     layer_t net,
     dataset_t test_set,
