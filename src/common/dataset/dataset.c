@@ -1,8 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "dataset.h"
 #include "tensor_impl.h"
+
+
+#include "util/ai_math.h"
 
 
 struct dataset_s {
@@ -20,16 +24,23 @@ struct dataset_s {
     size_t current;
     size_t batch_size;
     bool shuffle;
+
+    bool normalize;
+    dataset_statistics_t statistics;
 };
 
 
 static void shuffle_array(size_t* array, size_t size);
+static void calc_dataset_statistics(dataset_t dataset, float* out_mean, float* out_stddev);
 
 
 uint32_t dataset_create(
     dataset_t* dataset,
     const dataset_impl_t* impl,
-    const dataset_create_info_t* create_info
+    const dataset_create_info_t* create_info,
+    bool normalize,
+    /* can be null. in this case calculate statistics */
+    const dataset_statistics_t* statistics
 )
 {
     *dataset = (dataset_t)malloc(sizeof(struct dataset_s));
@@ -59,6 +70,16 @@ uint32_t dataset_create(
     (*dataset)->current_out_labels = NULL;
     (*dataset)->ordering = NULL;
 
+    (*dataset)->normalize = normalize;
+    if (normalize) {
+        if (statistics == NULL) {
+            calc_dataset_statistics(*dataset, &(*dataset)->statistics.mean,
+                &(*dataset)->statistics.stddev);
+        } else {
+            (*dataset)->statistics = *statistics;
+        }
+    }
+
     return 0;
 }
 
@@ -66,6 +87,16 @@ uint32_t dataset_create(
 const tensor_shape_t* dataset_get_shape(dataset_t dataset)
 {
     return &dataset->data_shape;
+}
+
+
+const dataset_statistics_t* dataset_get_statistics(dataset_t dataset)
+{
+    if (!dataset->normalize) {
+        calc_dataset_statistics(dataset, &dataset->statistics.mean,
+                &dataset->statistics.stddev);
+    }
+    return &dataset->statistics;
 }
 
 
@@ -123,8 +154,12 @@ uint32_t dataset_iteration_next(dataset_t dataset, tensor_t** out_batch, uint8_t
 
     /* The iteration is complete. */
     if (dataset->current == num_samples) {
-        *out_batch = NULL;
-        *out_labels = NULL;
+        if (out_batch != NULL) {
+            *out_batch = NULL;
+        }
+        if (out_labels != NULL) {
+            *out_labels = NULL;
+        }
         return 0;
     }
 
@@ -135,12 +170,14 @@ uint32_t dataset_iteration_next(dataset_t dataset, tensor_t** out_batch, uint8_t
         this_batch_size = num_samples - dataset->current;
     }
 
+    tensor_t* o_batch;
+    uint8_t* o_labels;
     if (this_batch_size == dataset->batch_size) {
         dataset->impl->get_batch_func(dataset->impl_context, &dataset->ordering[dataset->current],
             &dataset->scratch, dataset->current_out_labels);
         
-        *out_batch = &dataset->scratch;
-        *out_labels = dataset->current_out_labels;
+        o_batch = &dataset->scratch;
+        o_labels = dataset->current_out_labels;
     } else {
         /* Reflect specific batch size in the output tensor and use scratch mem as buffer. */
         /* Will cause memory allocation when using onednn :( */
@@ -158,8 +195,22 @@ uint32_t dataset_iteration_next(dataset_t dataset, tensor_t** out_batch, uint8_t
         dataset->impl->get_batch_func(dataset->impl_context, &dataset->ordering[dataset->current],
             &dataset->current_out_batch, dataset->current_out_labels);
         
-        *out_batch = &dataset->current_out_batch;
-        *out_labels = dataset->current_out_labels;
+        o_batch = &dataset->current_out_batch;
+        o_labels = dataset->current_out_labels;
+    }
+
+    if (dataset->normalize) {
+        float* data = tensor_get_data(o_batch);
+        const size_t numelem = tensor_size_from_shape(tensor_get_shape(o_batch));
+        VectorAddScalar(data, -dataset->statistics.mean, numelem);
+        VectorScale(data, 1.0f / dataset->statistics.stddev, numelem);
+    }
+
+    if (out_batch != NULL) {
+        *out_batch = o_batch;
+    }
+    if (out_labels != NULL) {
+        *out_labels = o_labels;
     }
 
     dataset->current += this_batch_size;
@@ -201,5 +252,56 @@ static void shuffle_array(size_t* array, size_t size)
         size_t tmp = array[i];
         array[i] = array[j];
         array[j] = tmp;
+    }
+}
+
+
+static void calc_dataset_statistics(dataset_t dataset, float* out_mean, float* out_stddev)
+{
+    const size_t dataset_size = tensor_shape_get_dim(&dataset->data_shape, TENSOR_BATCH_DIM);
+    tensor_t* out_batch;
+    float mean;
+    float stddev;
+
+    /* need to set dataset mean and stddev because in the following iterations the
+        normalization is applied already. */
+    dataset->statistics.mean = 0.0f;
+    dataset->statistics.stddev = 1.0f;
+
+    /* first iteration for mean calculation */
+    out_batch = NULL;
+    mean = 0.0f;
+    dataset_iteration_begin(dataset, 1, false, &out_batch, NULL);
+    while (out_batch != NULL) {
+        float* data = tensor_get_data(out_batch);
+        mean += Mean(data, tensor_size_from_shape(tensor_get_shape(out_batch)));
+        dataset_iteration_next(dataset, &out_batch, NULL);
+    }
+    mean /= dataset_size;
+
+    /* second iteration for variance calculation */
+    out_batch = NULL;
+    dataset_iteration_begin(dataset, 1, false, &out_batch, NULL);
+    float var = 0.0f;
+    while (out_batch != NULL) {
+        float batch_var = 0.0f;
+        const float* data = tensor_get_data_const(out_batch);
+        const size_t numelem = tensor_size_from_shape(tensor_get_shape(out_batch));
+        for (size_t i = 0; i < numelem; i++) {
+            batch_var += (data[i] - mean) * (data[i] - mean);
+        }
+        batch_var /= numelem;
+        var += batch_var;
+        dataset_iteration_next(dataset, &out_batch, NULL);
+    }
+    var /= dataset_size;
+    stddev = sqrtf(var);
+
+    if (out_mean != NULL) {
+        *out_mean = mean;
+    }
+
+    if (out_stddev != NULL) {
+        *out_stddev = stddev;
     }
 }

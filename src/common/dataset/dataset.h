@@ -35,17 +35,29 @@ typedef struct {
 } dataset_impl_t;
 
 
+typedef struct {
+    float mean;
+    float stddev;
+} dataset_statistics_t;
+
+
 typedef struct dataset_s* dataset_t;
 
 
 uint32_t dataset_create(
     dataset_t* dataset,
     const dataset_impl_t* impl,
-    const dataset_create_info_t* create_info
+    const dataset_create_info_t* create_info,
+    bool normalize,
+    /* can be null. in this case calculate statistics */
+    const dataset_statistics_t* statistics
 );
 
 
 const tensor_shape_t* dataset_get_shape(dataset_t dataset);
+
+
+const dataset_statistics_t* dataset_get_statistics(dataset_t dataset);
 
 
 uint32_t dataset_iteration_begin(

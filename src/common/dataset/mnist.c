@@ -276,7 +276,7 @@ static uint32_t read_images(FILE* fp, float* dest, size_t image_sample_size, siz
     for (size_t i = 0; i < image_sample_size; i++)
         for (size_t j = 0; j < IMAGE_HEIGHT; j++)
             for (size_t k = 0; k < IMAGE_WIDTH; k++)
-                dest[i * image_size + (j + padding) * image_width + k + padding] = temp_buffer[i * IMAGE_SIZE + j * IMAGE_WIDTH + k] / 127.5f - 1.0f;
+                dest[i * image_size + (j + padding) * image_width + k + padding] = temp_buffer[i * IMAGE_SIZE + j * IMAGE_WIDTH + k];
     
     free(temp_buffer);
     return 0;
