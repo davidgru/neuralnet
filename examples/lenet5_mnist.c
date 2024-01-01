@@ -105,20 +105,33 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
 }
 
 
-dataset_t load_mnist(const char* path, mnist_dataset_kind_t dataset_kind)
+uint32_t load_mnist(const char* path, dataset_t* train, dataset_t* test)
 {
-    dataset_t dataset = NULL;
-    mnist_create_info_t mnist_train_info = {
+    /* load train set and calculate dataset mean and variance for normalization */
+    const mnist_create_info_t train_config = {
         .path = path,
-        .dataset_kind = dataset_kind,
+        .dataset_kind = TRAIN_SET,
         .padding = 0
     };
-    dataset_create(&dataset, &mnist_dataset, &mnist_train_info);
-    return dataset;
+    uint32_t status = dataset_create(train, &mnist_dataset, &train_config, true, NULL);
+    if (status != 0) {
+        return status;
+    }
+    const dataset_statistics_t* train_statistics = dataset_get_statistics(*train);
+    LOG_INFO("Dataset mean %f stddev %f\n", train_statistics->mean, train_statistics->stddev);
+
+    /* load test set and use mean and variance of train set for normalization */
+    const mnist_create_info_t test_config = {
+        .path = path,
+        .dataset_kind = TEST_SET,
+        .padding = 0
+    };
+    return dataset_create(test, &mnist_dataset, &test_config, true, train_statistics);
 }
 
 
-void train_callback(training_info_t* p)
+
+void train_callback(const training_state_t* p)
 {
     printf("Epoch %" PRIi32 " | Train loss %f | Train accuracy %5.3f%% | Test loss %f "
         "| Test accuracy %5.3f%%\n",
@@ -162,9 +175,8 @@ int main()
     }
 
 
-    dataset_t train_set = load_mnist(mnist_path, MNIST_TRAIN_SET);
-    dataset_t test_set = load_mnist(mnist_path, MNIST_TEST_SET);
-    if (train_set == NULL || test_set == NULL) {
+    dataset_t train_set = NULL, test_set = NULL;
+    if (load_mnist(mnist_path, &train_set, &test_set) != 0) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
         return 1;
     }
@@ -176,7 +188,7 @@ int main()
 
 
     module_train(lenet5, train_set, test_set, NULL, num_epochs, batch_size, optimizer,
-        &optimizer_config, loss_type, 0, train_callback);
+        &optimizer_config, NULL, loss_type, 0, train_callback);
 
 
     /* Free resources */
