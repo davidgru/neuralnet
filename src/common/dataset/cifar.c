@@ -175,12 +175,24 @@ static uint32_t cifar_get_batch(
     
         out_labels[i] = cifar_context->labels[indices[i]];
     }
+
+    return 0;
 }
 
 
 static uint32_t cifar_deinit(dataset_context_t* context)
 {
+    cifar_context_t* cifar_context = (cifar_context_t*)context;
 
+    if (cifar_context->data != NULL) {
+        free(cifar_context->data);
+    }
+
+    if (cifar_context->labels != NULL) {
+        free(cifar_context->labels);
+    }
+
+    return 0;
 }
 
 
