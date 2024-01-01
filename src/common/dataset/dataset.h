@@ -35,6 +35,12 @@ typedef struct {
 } dataset_impl_t;
 
 
+typedef enum {
+    TRAIN_SET,
+    TEST_SET
+} dataset_kind_t;
+
+
 typedef struct {
     float mean;
     float stddev;

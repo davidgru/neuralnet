@@ -6,9 +6,8 @@
 
 typedef struct {
     const char* path;
-    size_t padding;
     dataset_kind_t dataset_kind;
-} mnist_create_info_t;
+} cifar_create_info_t;
 
 
-const extern dataset_impl_t mnist_dataset;
+const extern dataset_impl_t cifar_dataset;

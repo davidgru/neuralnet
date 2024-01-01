@@ -99,7 +99,7 @@ static uint32_t mnist_init(
     mnist_context_t* mnist_context = (mnist_context_t*)context;
     
     const mnist_create_info_t* mnist_create_info = (const mnist_create_info_t*) create_info;
-    const mnist_dataset_info_t* dataset_info = mnist_create_info->dataset_kind == MNIST_TRAIN_SET
+    const mnist_dataset_info_t* dataset_info = mnist_create_info->dataset_kind == TRAIN_SET
         ? &train_info : &test_info;
 
 
