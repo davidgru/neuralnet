@@ -68,6 +68,7 @@ void module_train(
     size_t batch_size,
     const optimizer_impl_t* optimizer_impl,
     const optimizer_config_t* optimizer_config,
+    learning_rate_schedule_func_t lr_schedule,
     LossFunctionEnum loss_type,
     size_t reduce_lr_after,
     training_callback_t callback
@@ -85,29 +86,29 @@ void module_train(
     layer_get_param_refs(layer, &param_refs);
     optimizer_add_params(optimizer, &param_refs);
 
-    float* loss_history = NULL;
-    if (reduce_lr_after != 0) {
-        loss_history = (float*)calloc(reduce_lr_after, sizeof(float));
-        for (size_t i = 0; i < reduce_lr_after; i++) {
-            loss_history[i] = INFINITY;
-        }
-    }
-
 
     LOG_TRACE("Performing initial test\n");
     float test_accuracy;
     float test_loss;
     module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
 
-    if (callback) {
-        training_info_t progress_info = {
+    if (callback || lr_schedule) {
+        const training_state_t state = {
+            .model = layer,
+            .optimizer = optimizer,
             .epoch = 0,
-            .train_loss = 0.0f,
+            .train_loss = INFINITY,
             .train_accuracy = 0.0f,
             .test_loss = test_loss,
             .test_accuracy = test_accuracy
         };
-        callback(&progress_info);
+        if (lr_schedule) {
+            const float lr = lr_schedule(&state);
+            optimizer_set_learning_rate(optimizer, lr);
+        }
+        if (callback) {
+            callback(&state);
+        }
     }
 
 
@@ -153,42 +154,27 @@ void module_train(
         /* Test */
         module_test(layer, test_set, batch_size, &loss, &test_accuracy, &test_loss);
 
-        if (callback) {
-            training_info_t progress_info = {
+        if (callback || lr_schedule) {
+            const training_state_t state = {
+                .model = layer,
+                .optimizer = optimizer,
                 .epoch = i + 1,
                 .train_loss = train_loss,
                 .train_accuracy = train_accuracy,
                 .test_loss = test_loss,
                 .test_accuracy = test_accuracy
             };
-            callback(&progress_info);
-        }
-
-
-        /* Do we want to reduce the learning rate? */
-        if (loss_history != NULL) {
-            bool reduce = true;
-            for (size_t j = 0; j < reduce_lr_after; j++) {
-                if (train_loss < loss_history[j]) {
-                    reduce = false;
-                    break;
-                }
+            if (lr_schedule) {
+                const float lr = lr_schedule(&state);
+                optimizer_set_learning_rate(optimizer, lr);
             }
-            loss_history[i % reduce_lr_after] = train_loss;
-
-            if (reduce) {
-                LOG_INFO("no progress for %d epochs -> reducing learning rate\n",
-                    reduce_lr_after);
-                float lr = optimizer_get_learning_rate(optimizer);
-                optimizer_set_learning_rate(optimizer, lr / 2.0f);
+            if (callback) {
+                callback(&state);
             }
         }
+
     }
 
-
-    if (loss_history != NULL) {
-        free(loss_history);
-    }
 
     optimizer_destroy(optimizer);
     LossDeinit(&loss);

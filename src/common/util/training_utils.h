@@ -11,15 +11,19 @@
 
 
 typedef struct {
+    layer_t model;
+    optimizer_t optimizer;
+
     int32_t epoch;
     float train_loss;
     float train_accuracy;
     float test_loss;
     float test_accuracy;
-} training_info_t;
+} training_state_t;
 
 
-typedef void (*training_callback_t)(training_info_t* progress_info);
+typedef void (*training_callback_t)(const training_state_t* training_state);
+typedef float (*learning_rate_schedule_func_t)(const training_state_t* training_state);
 
 
 size_t module_get_num_params(layer_t module);
@@ -44,6 +48,7 @@ void module_train(
     size_t batch_size,
     const optimizer_impl_t* optimizer_impl,
     const optimizer_config_t* optimizer_config,
+    learning_rate_schedule_func_t learning_rate_schedule_func_t,
     LossFunctionEnum loss_type,
     size_t reduce_lr_after,
     training_callback_t callback
