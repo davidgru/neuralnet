@@ -320,7 +320,7 @@ static uint32_t conv_layer_forward(
     status = dnnl_primitive_execute(layer->fwd, stream, sizeof(exec_args) / sizeof(*exec_args),
         exec_args);
     if (status != dnnl_success) {
-        LOG_ERROR("primitive execute failed with code %d\n", status);
+        LOG_ERROR("conv primitive execute failed with code %d\n", status);
         return 1;
     }
 

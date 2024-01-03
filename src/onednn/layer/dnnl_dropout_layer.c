@@ -167,7 +167,7 @@ static uint32_t dropout_layer_forward(
         status = dnnl_primitive_execute(layer->fwd_train, get_dnnl_stream(),
             sizeof(exec_args) / sizeof(*exec_args), exec_args);
         if (status != dnnl_success) {
-            LOG_ERROR("primitive execute failed with code %d\n", status);
+            LOG_ERROR("dropout train primitive execute failed with code %d\n", status);
             return 1;
         }
 
@@ -189,7 +189,7 @@ static uint32_t dropout_layer_forward(
         status = dnnl_primitive_execute(layer->fwd_inference, get_dnnl_stream(),
             sizeof(exec_args) / sizeof(*exec_args), exec_args);
         if (status != dnnl_success) {
-            LOG_ERROR("primitive execute failed with code %d\n", status);
+            LOG_ERROR("dropout inference primitive execute failed with code %d\n", status);
             return 1;
         }
 

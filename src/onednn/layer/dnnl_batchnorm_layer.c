@@ -226,7 +226,7 @@ static uint32_t batchnorm_layer_forward(
         status = dnnl_primitive_execute(layer->fwd_train, stream,
             sizeof(exec_args) / sizeof(*exec_args), exec_args);
         if (status != dnnl_success) {
-            LOG_ERROR("primitive execute failed with code %d\n", status);
+            LOG_ERROR("bachnorm training primitive execute failed with code %d\n", status);
             return 1;
         }
         status = dnnl_stream_wait(stream);
@@ -271,7 +271,7 @@ static uint32_t batchnorm_layer_forward(
         status = dnnl_primitive_execute(layer->fwd_inference, stream,
             sizeof(exec_args) / sizeof(*exec_args), exec_args);
         if (status != dnnl_success) {
-            LOG_ERROR("primitive execute failed with code %d\n", status);
+            LOG_ERROR("batchnorm inference primitive execute failed with code %d\n", status);
             return 1;
         }
         status = dnnl_stream_wait(stream);
