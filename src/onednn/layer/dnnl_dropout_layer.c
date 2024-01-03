@@ -174,7 +174,7 @@ static uint32_t dropout_layer_forward(
     } else if (forward_kind == LAYER_FORWARD_INFERENCE) {
 
         /* initialize forward pass on first call to forward */
-        if (layer->fwd_train == NULL) {
+        if (layer->fwd_inference == NULL) {
             status = dropout_layer_forward_inf_init(layer, input);
             if (status != dnnl_success) {
                 return status;
