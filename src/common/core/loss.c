@@ -5,9 +5,6 @@
 #include <stdlib.h>
 
 
-static void softmaxv(const float* in, float* out, size_t size);
-
-
 uint32_t LossInit(Loss* loss, const tensor_shape_t* input_shape, size_t max_batch_size, LossFunctionEnum loss_function)
 {
     const size_t input_height = tensor_shape_get_dim(input_shape, TENSOR_HEIGHT_DIM);
@@ -49,7 +46,7 @@ uint32_t LossAccuracy(Loss* loss, const tensor_t* input, const uint8_t* labels)
     uint32_t accuracy = 0;
     for (size_t i = 0; i < batch_size; i++) {
         const float* channels_input = input_data + i * channels;
-        uint32_t prediction = Max(channels_input, channels);
+        uint32_t prediction = argmax(channels_input, channels);
         accuracy += (uint32_t)(prediction == labels[i]);
     }
     return accuracy;
@@ -150,7 +147,7 @@ void DLossCrossEntropy(const float* input, float* scratch, float* gradient, size
 
 
 
-uint32_t Max(const float* v, size_t size)
+uint32_t argmax(const float* v, size_t size)
 {
     uint32_t max = 0;
     for (size_t i = 1; i < size; i++)
@@ -160,7 +157,7 @@ uint32_t Max(const float* v, size_t size)
 }
 
 
-static void softmaxv(const float* in, float* out, size_t size)
+void softmaxv(const float* in, float* out, size_t size)
 {
     // Find the max value
     float max = -3.4028235e38;

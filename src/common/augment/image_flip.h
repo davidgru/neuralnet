@@ -13,3 +13,13 @@ typedef struct {
 
 
 extern const augment_impl_t aug_image_flip;
+
+
+void flip_image_inplace(
+    float* image,
+    size_t channels,
+    size_t height,
+    size_t width,
+    bool flip_horizontal,
+    bool flip_vertical
+);

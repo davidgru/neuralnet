@@ -32,6 +32,36 @@ static void random_crop_deinit(augment_context_t* context)
 }
 
 
+void crop_image(
+    const float* input,
+    float* output,
+    int32_t channels,
+    int32_t height,
+    int32_t width,
+    int32_t startY,
+    int32_t startX
+)
+{
+    const int32_t channel_size = height * width;
+
+    for (int32_t ch = 0; ch < channels; ch++) {
+        for (int32_t r = 0; r < height; r++) {
+            for (int32_t c = 0; c < width; c++) {
+                const int32_t input_r = r + startY;
+                const int32_t input_c = c + startX;
+
+                float out = 0.0f;
+                if (input_r >= 0 && input_r < height && input_c >= 0 && input_c < width) {
+                    out = input[ch * channel_size + input_r * width + input_c];
+                }
+                output[ch * channel_size + r * width + c] = out;
+            }
+        }
+    }
+
+}
+
+
 static void random_crop_inplace(augment_context_t* context, tensor_t* input_output)
 {
     random_crop_context_t* crop_context = context;
@@ -62,11 +92,11 @@ static void random_crop_inplace(augment_context_t* context, tensor_t* input_outp
 
         float* current_input = &data[n * per_batch_size];
 
-
         /* indices in the unpadded input */
         const int32_t start_y = RandomUniform(0.0f, 1.0f) * 2.0f * crop_context->config.padding;
         const int32_t start_x = RandomUniform(0.0f, 1.0f) * 2.0f * crop_context->config.padding;
 
+        crop_image(current_input, crop_context->scratch, channels, height, width, start_y, start_x);
         
         /* write cropped image to scratch */
         for (int32_t ch = 0; ch < channels; ch++) {

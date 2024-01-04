@@ -39,6 +39,10 @@ void LossBackward(Loss* loss, const tensor_t* input, const uint8_t* labels, tens
 
 void LossDeinit(Loss* loss);
 
+void softmaxv(const float* in, float* out, size_t size);
+uint32_t argmax(const float* v, size_t size);
+
+
 
 
 
@@ -49,6 +53,4 @@ void DLossMSE(const float* input, float* scratch, float* gradient, size_t size, 
 
 float LossCrossEntropy(const float* v, float* scratch, size_t size, uint32_t label);
 void DLossCrossEntropy(const float* input, float* scratch, float* gradient, size_t size, uint32_t label);
-
-uint32_t Max(const float* v, size_t size);
 
