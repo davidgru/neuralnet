@@ -87,6 +87,8 @@ void module_test_10crop(
     const size_t input_width = tensor_shape_get_dim(input_shape, TENSOR_WIDTH_DIM);
     const size_t image_size = input_channels * input_height * input_width;
 
+    const size_t samples_per_batch = batch_size / 10;
+
     /* create temporary buffer to hold cropped images */
     tensor_t input_tmp;
     tensor_shape_t input_tmp_shape = make_tensor_shape(
@@ -112,41 +114,49 @@ void module_test_10crop(
 
     tensor_t* current_inputs = NULL;
     uint8_t* current_targets = NULL;
-    dataset_iteration_begin(test_set, 1, false, &current_inputs, &current_targets);
+    dataset_iteration_begin(test_set, samples_per_batch, false, &current_inputs, &current_targets);
 
     uint32_t iteration = 0;
 
     uint32_t correct_predictions = 0;
 
     while (current_inputs != NULL) {
+        const tensor_shape_t* current_input_shape = tensor_get_shape(current_inputs);
+        const float* current_input_batch_buf = tensor_get_data_const(current_inputs);
 
-        const float* current_input_buf = tensor_get_data_const(current_inputs);
-
-        /* center crop - could also do memcpy */
-        crop_image(current_input_buf, input_buf, input_channels, input_height, input_width, 0, 0);
-        crop_image(current_input_buf, &input_buf[image_size], input_channels, input_height, input_width, 0, 0);
-        flip_image_inplace(&input_buf[image_size], input_channels, input_height, input_width, true, false);
-
-        /* top left crop */
-        crop_image(current_input_buf, &input_buf[image_size * 2], input_channels, input_height, input_width, -padding, -padding);
-        crop_image(current_input_buf, &input_buf[image_size * 3], input_channels, input_height, input_width, -padding, -padding);
-        flip_image_inplace(&input_buf[image_size * 3], input_channels, input_height, input_width, true, false);
-
-        /* top right crop */
-        crop_image(current_input_buf, &input_buf[image_size * 4], input_channels, input_height, input_width, -padding, padding);
-        crop_image(current_input_buf, &input_buf[image_size * 5], input_channels, input_height, input_width, -padding, padding);
-        flip_image_inplace(&input_buf[image_size * 5], input_channels, input_height, input_width, true, false);
+        const size_t current_batch_size = tensor_shape_get_dim(current_input_shape, TENSOR_BATCH_DIM);
 
 
-        /* bottom left crop */
-        crop_image(current_input_buf, &input_buf[image_size * 6], input_channels, input_height, input_width, padding, -padding);
-        crop_image(current_input_buf, &input_buf[image_size * 7], input_channels, input_height, input_width, padding, -padding);
-        flip_image_inplace(&input_buf[image_size * 7], input_channels, input_height, input_width, true, false);
+        for (size_t i = 0; i < current_batch_size; i++) {
+            const float* current_input_image = &current_input_batch_buf[image_size * i];
+            float* current_input_buf = &input_buf[image_size * 10 * i];
 
-        /* bottom right crop */
-        crop_image(current_input_buf, &input_buf[image_size * 8], input_channels, input_height, input_width, padding, padding);
-        crop_image(current_input_buf, &input_buf[image_size * 9], input_channels, input_height, input_width, padding, padding);
-        flip_image_inplace(&input_buf[image_size * 9], input_channels, input_height, input_width, true, false);
+            /* center crop - could also do memcpy */
+            crop_image(current_input_image, current_input_buf, input_channels, input_height, input_width, 0, 0);
+            crop_image(current_input_image, &current_input_buf[image_size], input_channels, input_height, input_width, 0, 0);
+            flip_image_inplace(&current_input_buf[image_size], input_channels, input_height, input_width, true, false);
+
+            /* top left crop */
+            crop_image(current_input_image, &current_input_buf[image_size * 2], input_channels, input_height, input_width, -padding, -padding);
+            crop_image(current_input_image, &current_input_buf[image_size * 3], input_channels, input_height, input_width, -padding, -padding);
+            flip_image_inplace(&current_input_buf[image_size * 3], input_channels, input_height, input_width, true, false);
+
+            /* top right crop */
+            crop_image(current_input_image, &current_input_buf[image_size * 4], input_channels, input_height, input_width, -padding, padding);
+            crop_image(current_input_image, &current_input_buf[image_size * 5], input_channels, input_height, input_width, -padding, padding);
+            flip_image_inplace(&current_input_buf[image_size * 5], input_channels, input_height, input_width, true, false);
+
+
+            /* bottom left crop */
+            crop_image(current_input_image, &current_input_buf[image_size * 6], input_channels, input_height, input_width, padding, -padding);
+            crop_image(current_input_image, &current_input_buf[image_size * 7], input_channels, input_height, input_width, padding, -padding);
+            flip_image_inplace(&current_input_buf[image_size * 7], input_channels, input_height, input_width, true, false);
+
+            /* bottom right crop */
+            crop_image(current_input_buf, &current_input_buf[image_size * 8], input_channels, input_height, input_width, padding, padding);
+            crop_image(current_input_buf, &current_input_buf[image_size * 9], input_channels, input_height, input_width, padding, padding);
+            flip_image_inplace(&current_input_buf[image_size * 9], input_channels, input_height, input_width, true, false);
+        }
 
 
         /* forward */
@@ -155,14 +165,16 @@ void module_test_10crop(
         const float* current_output_buf = tensor_get_data_const(current_output);
 
         /* accumulate softmax activations */
-        tensor_fill(&output_tmp, 0.0f);
-        for (size_t i = 0; i < 10; i++) {
-            softmaxv(&current_output_buf[num_classes * i], softmax_buf, num_classes);
-            VectorAdd(output_buf, softmax_buf, num_classes);
-        }
+        for (size_t i = 0; i < current_batch_size; i++) {
+            tensor_fill(&output_tmp, 0.0f);
+            for (size_t j = 0; j < 10; j++) {
+                softmaxv(&current_output_buf[num_classes * 10 * i + num_classes * j], softmax_buf, num_classes);
+                VectorAdd(output_buf, softmax_buf, num_classes);
+            }
 
-        const uint32_t prediction = argmax(output_buf, num_classes);
-        correct_predictions += prediction == (uint32_t)current_targets[0];
+            const uint32_t prediction = argmax(output_buf, num_classes);
+            correct_predictions += prediction == (uint32_t)current_targets[i];
+        }
 
         /* prepare next round */
         dataset_iteration_next(test_set, &current_inputs, &current_targets);
