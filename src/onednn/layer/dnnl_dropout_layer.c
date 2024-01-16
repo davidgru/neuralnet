@@ -156,7 +156,7 @@ static uint32_t dropout_layer_forward(
         }
 
         /* generate dropout mask*/
-        random_mask(&layer->mask, layer->config.dropout_rate);
+        random_mask(&layer->mask, 1.0f - layer->config.dropout_rate);
 
         dnnl_exec_arg_t exec_args[] = {
             { DNNL_ARG_SRC_0, input->mem },
