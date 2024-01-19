@@ -2,12 +2,11 @@
 
 #include "context_impl.h"
 
-
 static dnnl_engine_t engine = NULL;
 static dnnl_stream_t stream = NULL;
 
 
-uint32_t backend_context_init()
+static uint32_t backend_context_init()
 {
     dnnl_status_t status;
 
@@ -30,11 +29,17 @@ uint32_t backend_context_init()
 
 dnnl_engine_t get_dnnl_engine()
 {
+    if (engine == NULL) {
+        backend_context_init();
+    }
     return engine;
 }
 
 
 dnnl_stream_t get_dnnl_stream()
 {
+    if (stream == NULL) {
+        backend_context_init();
+    }
     return stream;
 }

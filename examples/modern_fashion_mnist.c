@@ -36,7 +36,6 @@
 #include "config_info.h"
 #include "log.h"
 #include "tensor.h"
-#include "context.h"
 
 
 /* set to location of mnist or fashion_mnist root folder */
@@ -268,13 +267,6 @@ float linear_lr_schedule(const training_state_t* state)
 
 int main()
 {
-    /* Initialize the backend context. Only needed for the oneDNN backend */
-    if (backend_context_init() != 0) {
-        LOG_ERROR("Failed to initialize the backend context\n");
-        return 1;
-    }
-
-
     /* load the dataset */
     if (load_mnist(mnist_path, &train_set, &test_set) != 0) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
