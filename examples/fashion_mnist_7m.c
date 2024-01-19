@@ -1,9 +1,8 @@
 /**
  * @file lenet5_mnist.c
- * @brief Train LeNet-5 on the MNIST dataset
+ * @brief Training a CNN on Fashion MNIST
  * 
- * This example illustrates how this library can be used to implement the LeNet-5 architecture
- * and trains it on the MNIST dataset.
+ * Training a CNN on Fashion MNIST.
  */
 
 
@@ -91,12 +90,13 @@ void model_desc_add_conv_block(model_desc_t* desc, size_t out_channels, size_t f
 /* linear -> relu -> ?dropout */
 void model_desc_add_linear_dropout(model_desc_t* desc, size_t out_channels, float dropout_rate)
 {
-    model_desc_add_linear_layer(desc, 512, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_linear_layer(desc, out_channels, linear_weight_init_he, linear_bias_init_zeros);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     if (dropout_rate > 0.0f) {
         model_desc_add_dropout_layer(desc, dropout_rate);
     }
 }
+
 
 /* crop1: 93.51% */
 layer_t create_small_cnn(const tensor_shape_t* input_shape, float dropout_rate, size_t batch_size)
