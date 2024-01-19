@@ -9,3 +9,6 @@ main
 
 # Ignore external libraries
 lib/
+
+# Ignore datasets
+datasets/
