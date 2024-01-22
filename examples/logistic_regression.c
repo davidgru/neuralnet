@@ -1,9 +1,7 @@
 /**
- * @file two_layer_mlp_mnist.c
- * @brief Train a two-layered MLP on the MNIST dataset
+ * @file logistic_regression.c
+ * @brief Multi-class logistic regression with linear classifier
  * 
- * This example illustrates how this library can be used to implement a two layer deep MLP and
- * trains it on the MNIST dataset.
  */
 
 
@@ -27,6 +25,7 @@ static const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
 /* config */
 static const size_t num_epochs = 1000;
 static const float learning_rate = 0.1f;
+static const float l2_reg_strength = 0.0f; /* ridge regression */
 
 
 dataset_t train_set, test_set;
@@ -99,7 +98,8 @@ int main()
     /* training loop */
     const sgd_config_t optimizer_config = {
         .learning_rate = learning_rate,
-        .weight_reg_kind = WEIGHT_REG_NONE
+        .weight_reg_kind = WEIGHT_REG_L2,
+        .weight_reg_strength = l2_reg_strength
     };
     module_train(classifier, train_set, NULL, num_epochs, num_samples, &sgd_optimizer, &optimizer_config,
                  NULL, &loss, train_callback);
