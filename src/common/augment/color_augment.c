@@ -44,8 +44,8 @@ static void color_aug_inplace(augment_context_t* context, tensor_t* input_output
 
         /* Adjusting brightness: img = factor * img, factor ~ N(1, brightness_std) */
         if (RandomUniform(0.0f, 1.0f) < aug_context->config.brightness_augment_prob) {
-            const float factor = RandomNormal(1.0f, aug_context->config.brightness_std);
-            VectorScale(current_image, factor, per_batch_size);
+            const float factor = RandomNormal(0.0f, aug_context->config.brightness_std);
+            VectorAddScalar(current_image, factor, per_batch_size);
         }
 
         /* Adjust contrast: img = mid + factor * (img - mid), factor ~ N(1, contrast_std) */
