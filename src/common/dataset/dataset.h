@@ -9,9 +9,16 @@ typedef void dataset_context_t;
 typedef void dataset_create_info_t;
 
 
+typedef enum {
+    TRAIN_SET,
+    TEST_SET
+} dataset_kind_t;
+
+
 typedef uint32_t(*dataset_init_func_t)(
     dataset_context_t* context,
     const dataset_create_info_t* create_info,
+    dataset_kind_t train_test,
     tensor_shape_t* out_data_shape
 );
 
@@ -35,12 +42,6 @@ typedef struct {
 } dataset_impl_t;
 
 
-typedef enum {
-    TRAIN_SET,
-    TEST_SET
-} dataset_kind_t;
-
-
 typedef struct {
     float mean;
     float stddev;
@@ -54,6 +55,7 @@ uint32_t dataset_create(
     dataset_t* dataset,
     const dataset_impl_t* impl,
     const dataset_create_info_t* create_info,
+    dataset_kind_t train_test,
     bool normalize,
     /* can be null. in this case calculate statistics */
     const dataset_statistics_t* statistics

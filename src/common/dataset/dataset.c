@@ -38,6 +38,7 @@ uint32_t dataset_create(
     dataset_t* dataset,
     const dataset_impl_t* impl,
     const dataset_create_info_t* create_info,
+    dataset_kind_t train_test,
     bool normalize,
     /* can be null. in this case calculate statistics */
     const dataset_statistics_t* statistics
@@ -57,7 +58,8 @@ uint32_t dataset_create(
         *dataset = NULL;
         return 1;
     }
-    if (impl->init_func((*dataset)->impl_context, create_info, &(*dataset)->data_shape) != 0) {
+    if (impl->init_func((*dataset)->impl_context, create_info, train_test,
+                        &(*dataset)->data_shape) != 0) {
         free((*dataset)->impl_context);
         free(*dataset);
         *dataset = NULL;

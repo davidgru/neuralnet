@@ -110,13 +110,14 @@ error:
 static uint32_t cifar_init(
     dataset_context_t* context,
     const dataset_create_info_t* create_info,
+    dataset_kind_t train_test,
     tensor_shape_t* out_data_shape
 )
 {
     cifar_context_t* cifar_context = context;
     const cifar_create_info_t* cifar_create_info = create_info;
 
-    const size_t num_images = cifar_create_info->dataset_kind == TRAIN_SET ? NUM_TRAIN_IMAGES : NUM_TEST_IMAGES;
+    const size_t num_images = train_test == TRAIN_SET ? NUM_TRAIN_IMAGES : NUM_TEST_IMAGES;
     *out_data_shape = make_tensor_shape(4, num_images, IMAGE_CHANNELS, IMAGE_HEIGHT, IMAGE_WIDTH);
 
     /* allocating memory buffers */
@@ -133,7 +134,7 @@ static uint32_t cifar_init(
     }
 
     uint32_t status = 0;
-    if (cifar_create_info->dataset_kind == TRAIN_SET) {
+    if (train_test == TRAIN_SET) {
         /* read in the NUM_BATCH_FILES batch files */
         char batch_fn[FILENAME_MAXLEN];
         for (int i = 1; i <= NUM_BATCH_FILES; i++) {

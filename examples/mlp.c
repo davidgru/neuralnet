@@ -77,17 +77,11 @@ void train_callback(const training_state_t* state)
 int main()
 {
     /* load the dataset */
-    const mnist_create_info_t train_config = {
+    const mnist_create_info_t dataset_config = {
         .path = mnist_path,
-        .dataset_kind = TRAIN_SET,
         .padding = 0,
     };
-    const mnist_create_info_t test_config = {
-        .path = mnist_path,
-        .dataset_kind = TEST_SET,
-        .padding = 0,
-    };
-    if (dataset_create_train_and_test(&mnist_dataset, &train_config, &test_config, true, &train_set,
+    if (dataset_create_train_and_test(&mnist_dataset, &dataset_config, true, &train_set,
                                       &test_set) != 0) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
         return 1;

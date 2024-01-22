@@ -6,7 +6,6 @@
 
 typedef struct {
     const char* path;
-    dataset_kind_t dataset_kind;
 } cifar_create_info_t;
 
 

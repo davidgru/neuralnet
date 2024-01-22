@@ -25,6 +25,7 @@ typedef struct {
 static uint32_t mnist_init(
     dataset_context_t* context,
     const dataset_create_info_t* create_info,
+    dataset_kind_t train_test,
     tensor_shape_t* out_data_shape
 );
 
@@ -93,14 +94,14 @@ static uint32_t read_label_file(uint8_t* dest, char* file_path, const char* file
 static uint32_t mnist_init(
     dataset_context_t* context,
     const dataset_create_info_t* create_info,
+    dataset_kind_t train_test,
     tensor_shape_t* out_data_shape
 )
 {
     mnist_context_t* mnist_context = (mnist_context_t*)context;
     
     const mnist_create_info_t* mnist_create_info = (const mnist_create_info_t*) create_info;
-    const mnist_dataset_info_t* dataset_info = mnist_create_info->dataset_kind == TRAIN_SET
-        ? &train_info : &test_info;
+    const mnist_dataset_info_t* dataset_info = train_test == TRAIN_SET ? &train_info : &test_info;
 
 
     const size_t image_height = dataset_info->image_height + 2 * mnist_create_info->padding;
