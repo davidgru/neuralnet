@@ -79,3 +79,4 @@ uint32_t dataset_iteration_next(dataset_t dataset, tensor_t** out_batch, uint8_t
 
 
 uint32_t dataset_destroy(dataset_t dataset);
+

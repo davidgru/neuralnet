@@ -13,7 +13,7 @@
 typedef struct {
     layer_t model;
     optimizer_t optimizer;
-
+    Loss* loss;
     int32_t epoch;
     float train_loss;
     float train_accuracy;

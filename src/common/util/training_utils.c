@@ -221,6 +221,7 @@ void module_train(
         const training_state_t state = {
             .model = layer,
             .optimizer = optimizer,
+            .loss = loss,
             .epoch = 0,
             .train_loss = INFINITY,
             .train_accuracy = 0.0f
@@ -277,6 +278,7 @@ void module_train(
             const training_state_t state = {
                 .model = layer,
                 .optimizer = optimizer,
+                .loss = loss,
                 .epoch = i + 1,
                 .train_loss = train_loss,
                 .train_accuracy = train_accuracy
