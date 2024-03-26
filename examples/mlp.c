@@ -19,7 +19,7 @@
 #include "optimizer/sgd.h"
 
 
-static const char* mnist_path = "/home/david/projects/neuralnet/datasets/mnist";
+static const char* mnist_path = "datasets/mnist";
 
 /* config */
 static const size_t num_epochs = 100;

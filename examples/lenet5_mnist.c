@@ -3,7 +3,7 @@
  * @brief Train LeNet-5 on the MNIST dataset
  * 
  * This example illustrates how this library can be used to implement the LeNet-5 architecture
- * and trains it on the MNIST dataset.
+ * and train it on the MNIST dataset.
  */
 
 #include <inttypes.h>
@@ -16,11 +16,11 @@
 #include "optimizer/sgd.h"
 
 /* path to MNIST or Fashion MNIST dataset */
-const char* mnist_path = "/home/david/projects/neuralnet/datasets/fashion_mnist";
+const char* mnist_path = "datasets/mnist";
 
 /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
     after one epoch and an accuracy of ~98.5% after 10 epochs */
-static const size_t num_epochs = 1000;
+static const size_t num_epochs = 40;
 static const size_t batch_size = 32;
 static const sgd_config_t optimizer_config = {
     .learning_rate = 2e-2f,
@@ -127,7 +127,9 @@ int main()
 
 
     layer_t lenet5 = create_lenet5(dataset_get_shape(train_set), batch_size);
-    LOG_INFO("Created the model. #parameters %d. Start training...\n", module_get_num_params(lenet5));
+
+    const size_t num_params = module_get_num_params(lenet5);
+    LOG_INFO("Created the model. #parameters %d. Start training...\n", num_params);
 
     /* create the loss */
     Loss loss;
