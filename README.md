@@ -1,5 +1,5 @@
 # Neuralnet
-Library for training and of neural networks implemented in C. Includes two backends:
+Library for training neural networks implemented in C. Includes two backends:
 * naive implementation where all primitives are implemented from scratch
 * [Intel oneDNN](https://github.com/oneapi-src/oneDNN) backend (only cpu)
 
