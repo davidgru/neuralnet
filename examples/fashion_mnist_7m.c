@@ -38,7 +38,7 @@
 
 
 /* set to location of mnist or fashion_mnist root folder */
-static const char* mnist_path = "/home/david/projects/neuralnet/datasets/fashion_mnist";
+static const char* mnist_path = "datasets/fashion_mnist";
 
 static const size_t batch_size = 32;
 static const size_t num_epochs = 10000;
