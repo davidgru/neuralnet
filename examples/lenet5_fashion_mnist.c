@@ -134,7 +134,7 @@ void train_callback(training_info_t* p)
 int main()
 {
     /* set to location of mnist or fashion_mnist root folder */
-    const char* mnist_path = "/home/david/projects/neuralnet/datasets/fashion_mnist";
+    const char* mnist_path = "./datasets/fashion_mnist";
 
 
     /* When training on mnist with this configuration, the model should eventually
