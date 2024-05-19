@@ -100,8 +100,8 @@ uint32_t model_desc_add_convolutional_layer(
     size_t kernel_size,
     size_t stride,
     size_t padding,
-    conv_weight_init_func_t weight_init,
-    conv_bias_init_func_t bias_init
+    weight_init_func_t weight_init,
+    weight_init_func_t bias_init
 );
 
 
@@ -133,8 +133,8 @@ uint32_t model_desc_add_convolutional_layer_ext(
     size_t padding_left,
     size_t padding_bottom,
     size_t padding_right,
-    conv_weight_init_func_t weight_init,
-    conv_bias_init_func_t bias_init
+    weight_init_func_t weight_init,
+    weight_init_func_t bias_init
 );
 
 
@@ -160,8 +160,8 @@ uint32_t model_desc_add_dropout_layer(model_desc_t* desc, float dropout_rate);
 uint32_t model_desc_add_linear_layer(
     model_desc_t* desc,
     size_t output_size,
-    linear_weight_init_func_t weight_init,
-    linear_bias_init_func_t bias_init
+    weight_init_func_t weight_init,
+    weight_init_func_t bias_init
 );
 
 

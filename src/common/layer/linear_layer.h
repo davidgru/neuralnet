@@ -8,8 +8,8 @@
 
 typedef struct {
     size_t output_size;
-    linear_weight_init_func_t weight_init;
-    linear_bias_init_func_t bias_init;
+    weight_init_func_t weight_init;
+    weight_init_func_t bias_init;
 } linear_layer_create_info_t;
 
 

@@ -42,8 +42,8 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
         .pooling_operation = POOLING_AVERAGE,
     };
     const linear_layer_create_info_t linear_default_config = {
-        .weight_init = linear_weight_init_xavier,
-        .bias_init = linear_bias_init_zeros,
+        .weight_init = winit_xavier,
+        .bias_init = winit_zeros,
     };
 
     model_desc_create(&desc);

@@ -86,8 +86,8 @@ const convolutional_layer_create_info_t conv_default_config = {
     .stride_x = 1,
     .padding_y = 0,
     .padding_x = 0,
-    .weight_init = conv_weight_init_xavier,
-    .bias_init = conv_bias_init_zeros,
+    .weight_init = winit_xavier,
+    .bias_init = winit_zeros,
 };
 
 
@@ -135,10 +135,10 @@ static uint32_t conv_layer_init(
     tensor_allocate(&conv_layer->d_weights, &weights_shape);
 
     tensor_shape_t bias_shape = {
-        .dims[0] = 0,
+        .dims[0] = conv_create_info->output_channels,
         .dims[1] = 0,
         .dims[2] = 0,
-        .dims[3] = conv_create_info->output_channels
+        .dims[3] = 0,
     };
     tensor_allocate(&conv_layer->bias, &bias_shape);
     tensor_allocate(&conv_layer->d_bias, &bias_shape);
@@ -156,26 +156,9 @@ static uint32_t conv_layer_init(
 
 
     /* initialize weights and bias */
-    float* weights_data = tensor_get_data(&conv_layer->weights);
-    const size_t weights_size = tensor_size_from_shape(&weights_shape);
-    for (size_t i = 0; i < weights_size; i++) {
-        weights_data[i] = conv_create_info->weight_init(
-            input_shape->dims[TENSOR_WIDTH_DIM], 
-            input_shape->dims[TENSOR_HEIGHT_DIM], 
-            input_shape->dims[TENSOR_CHANNEL_DIM]
-        );
-    }
-
-    float* bias_data = tensor_get_data(&conv_layer->bias);
-    const size_t bias_size = tensor_size_from_shape(&bias_shape);
-    for (size_t i = 0; i < bias_size; i++) {
-        bias_data[i] = conv_create_info->bias_init(
-            input_shape->dims[TENSOR_WIDTH_DIM], 
-            input_shape->dims[TENSOR_HEIGHT_DIM], 
-            input_shape->dims[TENSOR_CHANNEL_DIM]
-        );
-    }
-
+    conv_create_info->weight_init(&conv_layer->weights);
+    conv_create_info->bias_init(&conv_layer->bias);
+    
     return 0;
 }
 

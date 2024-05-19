@@ -17,8 +17,8 @@
 #define LINEAR_LAYER_BIAS_PARAM 1
 
 
-#define LINEAR_WEIGHTS_OUTPUT_DIM 2
-#define LINEAR_WEIGHTS_INPUT_DIM  3
+#define LINEAR_WEIGHTS_OUTPUT_DIM 0
+#define LINEAR_WEIGHTS_INPUT_DIM  1
 
 
 typedef struct linear_layer_t {
@@ -97,21 +97,21 @@ static uint32_t linear_layer_init(
     /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
         future. */
     tensor_shape_t weights_shape = {
-        .dims[0] = 0,
-        .dims[1] = 0,
         .dims[LINEAR_WEIGHTS_OUTPUT_DIM] = output_shape->dims[TENSOR_CHANNEL_DIM],
         .dims[LINEAR_WEIGHTS_INPUT_DIM] = input_shape->dims[TENSOR_CHANNEL_DIM]
             * input_shape->dims[TENSOR_HEIGHT_DIM]
-            * input_shape->dims[TENSOR_WIDTH_DIM]
+            * input_shape->dims[TENSOR_WIDTH_DIM],
+        .dims[2] = 0,
+        .dims[3] = 0,
     };
     tensor_allocate(&linear_layer->weights, &weights_shape);
     tensor_allocate(&linear_layer->d_weights, &weights_shape);
 
     tensor_shape_t bias_shape = {
-        .dims[0] = 0,
+        .dims[0] = linear_create_info->output_size,
         .dims[1] = 0,
         .dims[2] = 0,
-        .dims[3] = linear_create_info->output_size
+        .dims[3] = 0,
     };
     tensor_allocate(&linear_layer->bias, &bias_shape);
     tensor_allocate(&linear_layer->d_bias, &bias_shape);
@@ -124,25 +124,10 @@ static uint32_t linear_layer_init(
     linear_layer->param_refs[LINEAR_LAYER_BIAS_PARAM].gradient = &linear_layer->d_bias;
 
 
-    /* Initialise weights and bias */    
-    float* weights_data = tensor_get_data(&linear_layer->weights);
-    const size_t weights_size = tensor_size_from_shape(&weights_shape);
-    for (size_t i = 0; i < weights_size; i++) {
-        weights_data[i] = linear_create_info->weight_init(
-            weights_shape.dims[LINEAR_WEIGHTS_INPUT_DIM],
-            weights_shape.dims[LINEAR_WEIGHTS_OUTPUT_DIM]
-        );
-    }
-
-    float* bias_data = tensor_get_data(&linear_layer->bias);
-    const size_t bias_size = tensor_size_from_shape(&bias_shape);
-    for (size_t i = 0; i < bias_size; i++) {
-        bias_data[i] = linear_create_info->bias_init(
-            weights_shape.dims[LINEAR_WEIGHTS_INPUT_DIM],
-            weights_shape.dims[LINEAR_WEIGHTS_OUTPUT_DIM]
-        );
-    }
-
+    /* Initialise weights and bias */
+    linear_create_info->weight_init(&linear_layer->weights);
+    linear_create_info->bias_init(&linear_layer->bias);
+    
     return 0;
 };
 

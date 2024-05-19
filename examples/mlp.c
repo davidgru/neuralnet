@@ -36,9 +36,9 @@ layer_t create_mlp(const tensor_shape_t* input_shape, size_t hidden_size, size_t
 
     model_desc_create(&desc);
 
-    model_desc_add_linear_layer(desc, hidden_size, linear_weight_init_xavier, linear_bias_init_zeros);
+    model_desc_add_linear_layer(desc, hidden_size, winit_xavier, winit_zeros);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_SIGMOID);
-    model_desc_add_linear_layer(desc, 10, linear_weight_init_xavier, linear_bias_init_zeros);
+    model_desc_add_linear_layer(desc, 10, winit_xavier, winit_zeros);
 
     /* Print a model overview to stdout. */
     model_desc_dump(desc);

@@ -116,20 +116,8 @@ static uint32_t linear_layer_init(
 
 
     /* Initialize parameter tensors */
-
-    size_t input_channels = tensor_size_from_shape(input_shape)
-        / tensor_shape_get_dim(input_shape, TENSOR_BATCH_DIM);
-
-    float* weight_data = tensor_get_data(&layer->weight);
-    for (size_t i = 0; i < tensor_size_from_shape(tensor_get_shape(&layer->weight)); i++) {
-        weight_data[i] = linear_create_info->weight_init(input_channels, layer->output_channels);
-    }
-
-    float* bias_data = tensor_get_data(&layer->bias);
-    for (size_t i = 0; i < tensor_size_from_shape(tensor_get_shape(&layer->bias)); i++) {
-        bias_data[i] = linear_create_info->bias_init(input_channels, layer->output_channels);
-    }
-
+    linear_create_info->weight_init(&layer->weight);
+    linear_create_info->bias_init(&layer->bias);
 
     return 0;
 }

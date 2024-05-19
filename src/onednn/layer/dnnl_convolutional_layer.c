@@ -112,7 +112,6 @@ static uint32_t conv_layer_init(
     dnnl_memory_desc_destroy(bias_md);
 
     /* Register parameters for optimizer */
-
     layer->param_refs[WEIGHT_PARAM_IDX].param = &layer->weight;
     layer->param_refs[WEIGHT_PARAM_IDX].gradient = &layer->d_weight;
     layer->param_refs[BIAS_PARAM_IDX].param = &layer->bias;
@@ -120,22 +119,9 @@ static uint32_t conv_layer_init(
 
 
     /* Initialize parameter tensors */
-    const size_t src_height = tensor_shape_get_dim(input_shape, TENSOR_HEIGHT_DIM);
-    const size_t src_width = tensor_shape_get_dim(input_shape, TENSOR_WIDTH_DIM);
-    const size_t src_channels = tensor_size_from_shape(input_shape)
-        / tensor_shape_get_dim(input_shape, TENSOR_BATCH_DIM);
-
-    float* weight_data = tensor_get_data(&layer->weight);
-    for (size_t i = 0; i < tensor_size_from_shape(tensor_get_shape(&layer->weight)); i++) {
-        weight_data[i] = layer->config.weight_init(src_width, src_height, src_channels);
-    }
-
-    float* bias_data = tensor_get_data(&layer->bias);
-    for (size_t i = 0; i < tensor_size_from_shape(tensor_get_shape(&layer->bias)); i++) {
-        bias_data[i] = layer->config.bias_init(src_width, src_height, src_channels);
-    }
-
-
+    layer->config.weight_init(&layer->weight);
+    layer->config.bias_init(&layer->bias);
+    
     return 0;
 }
 
@@ -845,8 +831,8 @@ const convolutional_layer_create_info_t conv_default_config = {
     .stride_x = 1,
     .padding_y = 0,
     .padding_x = 0,
-    .weight_init = conv_weight_init_xavier,
-    .bias_init = conv_bias_init_zeros,
+    .weight_init = winit_xavier,
+    .bias_init = winit_zeros,
 };
 
 

@@ -23,6 +23,7 @@
 #include "sequential/sequential_model.h"
 
 #include "dataset/dataset.h"
+#include "dataset/dataset_utils.h"
 #include "dataset/mnist.h"
 
 #include "augment/augment_pipeline.h"
@@ -74,13 +75,11 @@ void model_desc_add_conv_block(model_desc_t* desc, size_t out_channels, size_t f
     
     const size_t padding = filter_size / 2;
 
-    model_desc_add_convolutional_layer(desc, out_channels, filter_size, 1, padding,
-        conv_weight_init_he, conv_bias_init_zeros);
+    model_desc_add_convolutional_layer(desc, out_channels, filter_size, 1, padding, winit_he, winit_zeros);
     model_desc_add_batch_norm_layer(desc, bn_momentum, bn_eps);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     
-    model_desc_add_convolutional_layer(desc, out_channels, filter_size, 1, padding,
-        conv_weight_init_he, conv_bias_init_zeros);
+    model_desc_add_convolutional_layer(desc, out_channels, filter_size, 1, padding, winit_he, winit_zeros);
     model_desc_add_batch_norm_layer(desc, bn_momentum, bn_eps);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     
@@ -90,7 +89,7 @@ void model_desc_add_conv_block(model_desc_t* desc, size_t out_channels, size_t f
 /* linear -> relu -> ?dropout */
 void model_desc_add_linear_dropout(model_desc_t* desc, size_t out_channels, float dropout_rate)
 {
-    model_desc_add_linear_layer(desc, out_channels, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_linear_layer(desc, out_channels, winit_he, winit_zeros);
     model_desc_add_activation_layer(desc, ACTIVATION_FUNCTION_RELU);
     if (dropout_rate > 0.0f) {
         model_desc_add_dropout_layer(desc, dropout_rate);
@@ -110,7 +109,7 @@ layer_t create_small_cnn(const tensor_shape_t* input_shape, float dropout_rate, 
     model_desc_add_conv_block(desc, 64, 3);
     model_desc_add_linear_dropout(desc, 512, dropout_rate);
     model_desc_add_linear_dropout(desc, 128, dropout_rate);
-    model_desc_add_linear_layer(desc, 10, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_linear_layer(desc, 10, winit_he, winit_zeros);
 
     model_desc_dump(desc);
 
@@ -137,7 +136,7 @@ layer_t create_cnn(const tensor_shape_t* input_shape, float dropout_rate, size_t
     model_desc_add_conv_block(desc, 128, 3);
     model_desc_add_linear_dropout(desc, 1024, dropout_rate);
     model_desc_add_linear_dropout(desc, 256, dropout_rate);
-    model_desc_add_linear_layer(desc, 10, linear_weight_init_he, linear_bias_init_zeros);
+    model_desc_add_linear_layer(desc, 10, winit_he, winit_zeros);
 
 
     /* Print a model overview to stdout. */
@@ -192,31 +191,6 @@ augment_pipeline_t setup_augment_pipeline()
 
 
 static dataset_t train_set = NULL, test_set = NULL;
-uint32_t load_mnist(const char* path, dataset_t* train, dataset_t* test)
-{
-    /* load train set and calculate dataset mean and variance for normalization */
-    const mnist_create_info_t train_config = {
-        .path = path,
-        .dataset_kind = TRAIN_SET,
-        .padding = 0
-    };
-    uint32_t status = dataset_create(train, &mnist_dataset, &train_config, true, NULL);
-    if (status != 0) {
-        return status;
-    }
-    const dataset_statistics_t* train_statistics = dataset_get_statistics(*train);
-    LOG_INFO("Dataset mean %f stddev %f\n", train_statistics->mean, train_statistics->stddev);
-
-    /* load test set and use mean and variance of train set for normalization */
-    const mnist_create_info_t test_config = {
-        .path = path,
-        .dataset_kind = TEST_SET,
-        .padding = 0
-    };
-    return dataset_create(test, &mnist_dataset, &test_config, true, train_statistics);
-}
-
-
 static Loss loss;
 void train_callback(const training_state_t* state)
 {
@@ -268,7 +242,13 @@ float linear_lr_schedule(const training_state_t* state)
 int main()
 {
     /* load the dataset */
-    if (load_mnist(mnist_path, &train_set, &test_set) != 0) {
+    const mnist_create_info_t dataset_config = {
+        .path = mnist_path,
+        .padding = 0,
+    };
+
+    if (dataset_create_train_and_test(&mnist_dataset, &dataset_config, true, &train_set,
+                                      &test_set) != 0) {
         LOG_ERROR("There was an error loading the mnist dataset\n");
         return 1;
     }
