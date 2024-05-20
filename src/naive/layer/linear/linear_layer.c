@@ -35,42 +35,6 @@ static uint32_t linear_layer_init(
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
     const tensor_shape_t* output_shape
-);
-
-static uint32_t linear_layer_get_params(
-    layer_context_t* context,
-    layer_param_ref_list_t* out_layer_params
-);
-
-static uint32_t linear_layer_deinit(layer_context_t* context);
-
-static uint32_t linear_layer_forward(
-    layer_context_t* context,
-    layer_forward_kind_t forward_kind,
-    const tensor_t* input,
-    tensor_t* out_output
-);
-
-static uint32_t linear_layer_backward(
-    layer_context_t* context,
-    const tensor_t* input,
-    const tensor_t* output,
-    const tensor_t* prev_gradient,
-    tensor_t* out_gradient
-);
-
-static uint32_t linear_layer_calc_output_shape(
-    tensor_shape_t* out_output_shape,
-    const layer_create_info_t* create_info,
-    const tensor_shape_t* input_shape
-);
-
-
-static uint32_t linear_layer_init(
-    layer_context_t* context,
-    const layer_create_info_t* create_info,
-    const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
 )
 {
     linear_layer_t* linear_layer = (linear_layer_t*)context;
