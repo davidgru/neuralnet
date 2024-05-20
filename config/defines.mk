@@ -77,7 +77,6 @@ LDFLAGS += -lcudart
 endif
 CFLAGS += -DBACKEND_NAIVE
 CUFLAGS += -DBACKEND_NAIVE
-$(info ${SRC})
 else ifeq ($(BACKEND),onednn)
 INCLUDE += -I$(SOURCEDIR)/onednn -I$(ONEDNN_INCLUDE_DIR)
 SRC += $(shell find $(SOURCEDIR)/onednn -name '*.c')
@@ -93,4 +92,3 @@ OBJ := $(SRC:.c=.o)
 ifeq ($(USE_GPU),1)
 OBJ := $(OBJ:.cu=.o)
 endif
-$(info ${OBJ})

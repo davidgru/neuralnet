@@ -97,10 +97,17 @@ uint32_t tensor_allocate_device(tensor_t* tensor, const tensor_shape_t* shape, d
 
 uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float* mem)
 {
+    return tensor_from_memory_device(tensor, shape, mem, device_cpu);
+}
+
+uint32_t tensor_from_memory_device(tensor_t* tensor, const tensor_shape_t* shape, float* mem, device_t device)
+{
     tensor->shape = *shape;
+    tensor->device = device;
     tensor->data = mem;
     return 0;
 }
+
 
 
 uint32_t tensor_copy(tensor_t* tensor_to, const tensor_t* tensor_from)
@@ -176,6 +183,12 @@ uint32_t tensor_set_zero(tensor_t* tensor)
 const tensor_shape_t* tensor_get_shape(const tensor_t* tensor)
 {
     return &tensor->shape;
+}
+
+
+size_t tensor_get_size(const tensor_t* tensor)
+{
+    return tensor_size_from_shape(&tensor->shape);
 }
 
 

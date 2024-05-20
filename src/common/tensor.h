@@ -126,6 +126,18 @@ uint32_t tensor_from_memory(tensor_t* tensor, const tensor_shape_t* shape, float
 
 
 /**
+ * @brief Create tensor object as a wrapper to existing memory.
+ * 
+ * @param tensor    A tensor
+ * @param shape     The shape of the memory
+ * @param mem       Memory consistent with shape
+ * @param device    Device of the memory
+ * @return uint32_t 
+ */
+uint32_t tensor_from_memory_device(tensor_t* tensor, const tensor_shape_t* shape, float* mem, device_t device);
+
+
+/**
  * @brief Copy tensor data between two allocated tensors
  * 
  * @param tensor_to     Source tensor of the copy operation
@@ -160,6 +172,14 @@ uint32_t tensor_set_zero(tensor_t* tensor);
  */
 const tensor_shape_t* tensor_get_shape(const tensor_t* tensor);
 
+
+/**
+ * @brief Get number of tensor elements
+ * 
+ * @param tensor    A tensor
+ * @return          Total number of elements in the tensor
+*/
+size_t tensor_get_size(const tensor_t* tensor);
 
 /**
  * @brief Get the device of the tensor
