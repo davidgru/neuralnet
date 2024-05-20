@@ -76,6 +76,14 @@ size_t tensor_shape_get_dim(const tensor_shape_t* shape, size_t dim);
 size_t tensor_size_from_shape(const tensor_shape_t* shape);
 
 
+/**
+ * @brief Device of a tensor
+*/
+typedef enum {
+    device_cpu = 0,
+    device_gpu
+} device_t;
+
 
 /**
  * @brief A tensor handle
@@ -85,13 +93,24 @@ typedef struct tensor tensor_t;
 
 
 /**
- * @brief Allocate tensor resources
+ * @brief Allocate tensor resources on cpu
  * 
  * @param tensor    A tensor
  * @param shape     The tensor shape
  * @return uint32_t 
  */
 uint32_t tensor_allocate(tensor_t* tensor, const tensor_shape_t* shape);
+
+
+/**
+ * @brief Allocate tensor resources on device
+ * 
+ * @param tensor    A tensor
+ * @param shape     The tensor shape
+ * @param device    Device of the tensor
+ * @return uint32_t 
+ */
+uint32_t tensor_allocate_device(tensor_t* tensor, const tensor_shape_t* shape, device_t device);
 
 
 
@@ -140,6 +159,15 @@ uint32_t tensor_set_zero(tensor_t* tensor);
  * @return          Number of tensor elements
  */
 const tensor_shape_t* tensor_get_shape(const tensor_t* tensor);
+
+
+/**
+ * @brief Get the device of the tensor
+ * 
+ * @param tensor A tensor
+ * @return Device of tensor
+*/
+device_t tensor_get_device(const tensor_t* tensor);
 
 
 /**

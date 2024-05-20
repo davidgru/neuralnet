@@ -1,5 +1,7 @@
 CC := gcc
-
+ifeq ($(USE_GPU),1)
+CUCC := nvcc
+endif
 
 # Select backend files based on selected backend
 # Supported values: naive, onednn
@@ -30,16 +32,24 @@ endif
 
 
 CFLAGS :=
+CUFLAGS :=
 ifdef LOG_LEVEL
 CFLAGS += -DLOG_LEVEL=$(LOG_LEVEL)
+CUFLAGS += -DLOG_LEVEL=$(LOG_LEVEL)
 endif
 ifeq ($(USE_AVX),1)
 CFLAGS += -march=haswell -DUSE_AVX
 endif
+ifeq ($(USE_GPU),1)
+CFLAGS += -DUSE_GPU
+CUFLAGS += -DUSE_GPU
+endif
 ifeq ($(DEBUG),1)
 CFLAGS += -g -DDEBUG
+CUFLAGS += -g -DDEBUG
 else
 CFLAGS += -O3 -Ofast
+CUFLAGS += -O3
 endif
 
 
@@ -61,7 +71,13 @@ SRC += $(TARGET).c
 ifeq ($(BACKEND),naive)
 INCLUDE += -I$(SOURCEDIR)/naive -I$(SOURCEDIR)/include
 SRC += $(shell find $(SOURCEDIR)/naive -name '*.c')
+ifeq ($(USE_GPU),1)
+SRC += $(shell find $(SOURCEDIR)/naive -name '*.cu')
+LDFLAGS += -lcudart
+endif
 CFLAGS += -DBACKEND_NAIVE
+CUFLAGS += -DBACKEND_NAIVE
+$(info ${SRC})
 else ifeq ($(BACKEND),onednn)
 INCLUDE += -I$(SOURCEDIR)/onednn -I$(ONEDNN_INCLUDE_DIR)
 SRC += $(shell find $(SOURCEDIR)/onednn -name '*.c')
@@ -74,3 +90,7 @@ endif
 
 # Object files are placed in same directory as src files, just with different file extension
 OBJ := $(SRC:.c=.o)
+ifeq ($(USE_GPU),1)
+OBJ := $(OBJ:.cu=.o)
+endif
+$(info ${OBJ})

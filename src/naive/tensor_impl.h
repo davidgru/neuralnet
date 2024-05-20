@@ -12,5 +12,6 @@ struct tensor_shape {
 
 struct tensor {
     struct tensor_shape shape;
+    device_t device;
     float* data;
 };

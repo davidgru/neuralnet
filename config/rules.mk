@@ -10,6 +10,12 @@ $(TARGET): $(OBJ)
 %.o: %.c
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
+# Rule to compile a single cuda translation unit
+ifeq ($(USE_GPU),1)
+%.o: %.cu
+	$(CUCC) $(INCLUDE) $(CUFLAGS) -c $< -o $@
+endif
+
 
 clean:
 	@$(RM) -rv $(TARGET) $(OBJ)
