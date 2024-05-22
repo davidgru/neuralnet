@@ -17,3 +17,11 @@ void tensor_eltwise_add_cpu(tensor_t* v, const tensor_t* w)
     size_t n = tensor_get_size(v);
     VectorAdd(v_data, w_data, n);
 }
+
+void tensor_eltwise_mul_cpu(tensor_t* v, const tensor_t* w)
+{
+    float* v_data = tensor_get_data(v);
+    const float* w_data = tensor_get_data_const(w);
+    size_t n = tensor_get_size(v);
+    VectorMul(v_data, w_data, n);
+}

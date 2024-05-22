@@ -31,3 +31,18 @@ void tensor_eltwise_add(tensor_t* v, const tensor_t* w)
         LOG_ERROR("Tensors must be on same device\n");
     }
 }
+
+void tensor_eltwise_mul(tensor_t* v, const tensor_t* w)
+{
+    if (v->device == device_cpu && w->device == device_cpu) {
+        tensor_eltwise_mul_cpu(v, w);
+    } else if (v->device == device_gpu && w->device == device_gpu) {
+#if defined(USE_GPU)
+        tensor_eltwise_mul_gpu(v, w);
+#else
+        LOG_ERROR("Invalid device\n");
+#endif
+    } else {
+        LOG_ERROR("Tensors must be on same device\n");
+    }
+}
