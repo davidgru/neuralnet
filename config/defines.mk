@@ -16,6 +16,10 @@ ONEDNN_ROOT_DIR ?= lib/onednn
 ONEDNN_INCLUDE_DIR := $(ONEDNN_ROOT_DIR)/include
 ONEDNN_SHARED_DIR := $(ONEDNN_ROOT_DIR)/lib/
 
+# Can be set in case the directory where libcudart.so is located is not
+# in the default directories
+CUDA_LIB_DIR ?=
+
 # Select log level
 # Supported values: 1(error), 2(warn), 3(info), 4(trace)
 LOG_LEVEL ?= 3
@@ -73,6 +77,9 @@ INCLUDE += -I$(SOURCEDIR)/naive -I$(SOURCEDIR)/include
 SRC += $(shell find $(SOURCEDIR)/naive -name '*.c')
 ifeq ($(USE_GPU),1)
 SRC += $(shell find $(SOURCEDIR)/naive -name '*.cu')
+ifneq ($(CUDA_LIB_DIR),)
+LDFLAGS += -L$(CUDA_LIB_DIR)
+endif
 LDFLAGS += -lcudart
 endif
 CFLAGS += -DBACKEND_NAIVE
