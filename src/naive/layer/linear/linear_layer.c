@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "util/ai_math.h"
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 #include "tensor/tensor_math.h"
 #include "log.h"
 
@@ -30,16 +30,52 @@ typedef struct linear_layer_t {
 } linear_layer_t;
 
 
+static void matrix_product(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim, device_t device)
+{
+    if (device == device_cpu) {
+        matrix_product_cpu(m1, m2, output, height1, width2, sharedDim);
+    } else {
+#if defined(USE_GPU)
+        matrix_product_gpu(m1, m2, output, height1, width2, sharedDim);
+#endif
+    }
+}
+
+static void matrix_product_t1(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim, device_t device)
+{
+    if (device == device_cpu) {
+        matrix_product_t1_cpu(m1, m2, output, width1, width2, sharedDim);
+    } else {
+#if defined(USE_GPU)
+        matrix_product_t1_gpu(m1, m2, output, width1, width2, sharedDim);
+#endif
+    }
+}
+
+static void matrix_product_t2(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim, device_t device)
+{
+    if (device == device_cpu) {
+        matrix_product_t2_cpu(m1, m2, output, height1, height2, sharedDim);
+    } else {
+#if defined(USE_GPU)
+        matrix_product_t2_gpu(m1, m2, output, height1, height2, sharedDim);
+#endif
+    }
+}
+
+
 static uint32_t linear_layer_init(
     layer_context_t* context,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
+    const tensor_shape_t* output_shape,
+    device_t device
 )
 {
     linear_layer_t* linear_layer = (linear_layer_t*)context;
     const linear_layer_create_info_t* linear_create_info = (linear_layer_create_info_t*)create_info;
 
+    linear_layer->device = device;
 
     /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
         future. */
@@ -51,8 +87,8 @@ static uint32_t linear_layer_init(
         .dims[2] = 0,
         .dims[3] = 0,
     };
-    tensor_allocate_device(&linear_layer->weights, &weights_shape, linear_layer->device);
-    tensor_allocate_device(&linear_layer->d_weights, &weights_shape, linear_layer->device);
+    tensor_allocate_device(&linear_layer->weights, &weights_shape, device);
+    tensor_allocate_device(&linear_layer->d_weights, &weights_shape, device);
 
     tensor_shape_t bias_shape = {
         .dims[0] = linear_create_info->output_size,
@@ -60,8 +96,8 @@ static uint32_t linear_layer_init(
         .dims[2] = 0,
         .dims[3] = 0,
     };
-    tensor_allocate_device(&linear_layer->bias, &bias_shape, linear_layer->device);
-    tensor_allocate_device(&linear_layer->d_bias, &bias_shape, linear_layer->device);
+    tensor_allocate_device(&linear_layer->bias, &bias_shape, device);
+    tensor_allocate_device(&linear_layer->d_bias, &bias_shape, device);
 
     /* need to register the params for the optimizer */
     linear_layer->param_refs[LINEAR_LAYER_WEIGHTS_PARAM].param = &linear_layer->weights;
@@ -71,7 +107,7 @@ static uint32_t linear_layer_init(
 
 
     /* Initialise weights and bias */
-    if (linear_layer->device == device_gpu) {
+    if (device == device_gpu) {
         tensor_t tmp_weights;
         tensor_t tmp_bias;
         tensor_allocate_device(&tmp_weights, &weights_shape, device_cpu);
@@ -140,7 +176,7 @@ static uint32_t linear_layer_forward(
 
 
     /* output = input * weights */
-    matrix_product(input_data, weights, output_data, batch_size, output_size, per_batch_input_size);
+    matrix_product(input_data, weights, output_data, batch_size, output_size, per_batch_input_size, linear_layer->device);
 
     /* output += bias */
     for (size_t i = 0; i < batch_size; i++) {
@@ -186,11 +222,11 @@ static uint32_t linear_layer_backward(
 
     /* Calculate gradient for backprop: gradient = prev_gradient * weights.T */
     matrix_product_t2(prev_gradient_data, weights, gradient_data, batch_size, per_batch_input_size,
-        output_channels);
+        output_channels, linear_layer->device);
 
     /* Calculate gradient of weights: d_weights = input.T * prev_gradient */
     matrix_product_t1(input_data, prev_gradient_data, d_weights, per_batch_input_size, output_channels,
-        batch_size);
+        batch_size, linear_layer->device);
     
     /* Calculate gradient of bias */
     tensor_set_zero(&linear_layer->d_bias);

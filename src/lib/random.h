@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "tensor.h"
+#include "tensor/tensor.h"
 
 
 float RandomNormal(float mean, float stddev);

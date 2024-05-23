@@ -4,6 +4,7 @@
 
 #include "log.h"
 #include "util/ai_math.h"
+#include "tensor/tensor_impl.h"
 
 #include "adam.h"
 

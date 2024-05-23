@@ -1,8 +1,5 @@
 
-extern "C" {
-#include "tensor_math_internal.h"
-}
-
+#include "tensor/tensor_math_internal.h"
 #include "_cuda.h"
 
 __global__
@@ -15,11 +12,11 @@ void tensor_scale_kernel(float* v, float f, int n)
 }
 
 __global__
-void tensor_eltwise_add_kernel(float* v, const float* w, int n)
+void tensor_eltwise_scaled_add_kernel(float* v, const float* w, float f, int n)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < n) {
-        v[idx] += w[idx];
+        v[idx] += f * w[idx];
     }
 }
 
@@ -49,18 +46,7 @@ void tensor_scale_gpu(tensor_t* v, float f)
 
 void tensor_eltwise_add_gpu(tensor_t* v, const tensor_t* w)
 {
-    float* v_data = tensor_get_data(v);
-    const float* w_data = tensor_get_data_const(w);
-    unsigned int n = tensor_get_size(v);
-
-    const cuda_props_t* props = get_cuda_props();
-    const dim3 block_size = props->default_block_size_1d;
-    const dim3 block_dim = {
-        cuda_calc_num_blocks(n, block_size.x)
-    };
-
-    tensor_eltwise_add_kernel<<<block_dim, block_size>>>(v_data, w_data, n);
-    cuda_check_error();
+    tensor_scaled_add_gpu(v, w, 1.0f);
 }
 
 void tensor_eltwise_mul_gpu(tensor_t* v, const tensor_t* w)
@@ -76,5 +62,21 @@ void tensor_eltwise_mul_gpu(tensor_t* v, const tensor_t* w)
     };
 
     tensor_eltwise_mul_kernel<<<block_dim, block_size>>>(v_data, w_data, n);
+    cuda_check_error();
+}
+
+void tensor_scaled_add_gpu(tensor_t* v, const tensor_t* w, float f)
+{
+    float* v_data = tensor_get_data(v);
+    const float* w_data = tensor_get_data_const(w);
+    unsigned int n = tensor_get_size(v);
+
+    const cuda_props_t* props = get_cuda_props();
+    const dim3 block_size = props->default_block_size_1d;
+    const dim3 block_dim = {
+        cuda_calc_num_blocks(n, block_size.x)
+    };
+
+    tensor_eltwise_scaled_add_kernel<<<block_dim, block_size>>>(v_data, w_data, f, n);
     cuda_check_error();
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tensor.h"
+#include "tensor/tensor.h"
 
 #ifdef __cplusplus
 extern "C" {

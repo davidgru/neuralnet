@@ -1,6 +1,5 @@
 #include "layer/linear/linear_layer_internal.h"
 
-#if !defined(USE_GPU)
 #if defined(USE_AVX)
 
 
@@ -8,7 +7,7 @@
 
 
 // AVX accelerated matrix product: output = m1 * m2
-void matrix_product(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
+void matrix_product_cpu(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = height1;
@@ -42,7 +41,7 @@ void matrix_product(const float* m1, const float* m2, float* output, size_t heig
 }
 
 // AVX accelerated matrix product, where m1 is transposed: output = m1_t * m2
-void matrix_product_t1(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
+void matrix_product_t1_cpu(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = width1;
@@ -76,7 +75,7 @@ void matrix_product_t1(const float* m1, const float* m2, float* output, size_t w
 }
 
 // AVX accelerated matrix product, where m2 is transposed: output = m1 * m2_t
-void matrix_product_t2(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
+void matrix_product_t2_cpu(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
 {
     const size_t owidth = height2;
     const size_t oheight = height1;
@@ -110,7 +109,7 @@ void matrix_product_t2(const float* m1, const float* m2, float* output, size_t h
 #else
 
 
-void matrix_product(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
+void matrix_product_cpu(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = height1;
@@ -126,7 +125,7 @@ void matrix_product(const float* m1, const float* m2, float* output, size_t heig
     }
 }
 
-void matrix_product_t1(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
+void matrix_product_t1_cpu(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
 {
     const size_t owidth = width2;
     const size_t oheight = width1;
@@ -142,7 +141,7 @@ void matrix_product_t1(const float* m1, const float* m2, float* output, size_t w
     }
 }
 
-void matrix_product_t2(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
+void matrix_product_t2_cpu(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
 {
     const size_t owidth = height2;
     const size_t oheight = height1;
@@ -159,5 +158,4 @@ void matrix_product_t2(const float* m1, const float* m2, float* output, size_t h
 }
 
 
-#endif
 #endif

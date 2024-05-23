@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "tensor.h"
-#include "tensor_impl.h"
+#include "tensor/tensor.h"
+#include "tensor/tensor_impl.h"
 
 
 

@@ -2,9 +2,7 @@
 
 #include "layer.h"
 
-#include "tensor.h"
-#include "tensor_impl.h"
-
+#include "tensor/tensor.h"
 
 typedef void optimizer_config_t;
 

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "augment_pipeline.h"
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 #include "random.h"
 
 

@@ -1,4 +1,4 @@
-#include "tensor_math_internal.h"
+#include "tensor/tensor_math_internal.h"
 
 #include "util/ai_math.h"
 
@@ -24,4 +24,12 @@ void tensor_eltwise_mul_cpu(tensor_t* v, const tensor_t* w)
     const float* w_data = tensor_get_data_const(w);
     size_t n = tensor_get_size(v);
     VectorMul(v_data, w_data, n);
+}
+
+void tensor_scaled_add_cpu(tensor_t* v, const tensor_t* w, float f)
+{
+    float* v_data = tensor_get_data(v);
+    const float* w_data = tensor_get_data_const(w);
+    size_t n = tensor_get_size(v);
+    VectorScaledAdd(v_data, w_data, f, n);
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tensor.h"
+#include "tensor/tensor.h"
 
 
 typedef void (*weight_init_func_t)(tensor_t* tensor);

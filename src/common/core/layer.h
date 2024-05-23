@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "tensor.h"
+#include "tensor/tensor.h"
 
 
 typedef void layer_create_info_t;
@@ -40,11 +40,16 @@ uint32_t layer_create(
     const layer_impl_t* layer_impl,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
+    device_t device,
     size_t max_batch_size
 );
 
 
+device_t layer_get_device(layer_t layer);
+
+
 const tensor_shape_t* layer_get_output_shape(layer_t layer);
+
 
 
 uint32_t layer_get_param_refs(layer_t layer, layer_param_ref_list_t* out_param_refs);

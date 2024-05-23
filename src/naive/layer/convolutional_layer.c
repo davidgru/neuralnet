@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include "util/ai_math.h"
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 #include "log.h"
 
 #include "layer/convolutional_layer.h"
@@ -26,58 +26,6 @@
 #define div_ceil(a, b) (((a) + (b) - 1) / (b))
 
 
-typedef struct convolutional_layer_t {
-    tensor_t weights;
-    tensor_t bias;
-    tensor_t d_weights;
-    tensor_t d_bias;
-
-    size_t stride_y;
-    size_t stride_x;
-    size_t padding_y;
-    size_t padding_x;
-
-    layer_param_ref_t param_refs[NUM_CONV_LAYER_PARAMS];
-} convolutional_layer_t;
-
-
-static uint32_t conv_layer_init(
-    layer_context_t* context,
-    const layer_create_info_t* create_info,
-    const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
-);
-
-static uint32_t conv_layer_get_params(
-    layer_context_t* context,
-    layer_param_ref_list_t* out_layer_params
-);
-
-static uint32_t conv_layer_deinit(layer_context_t* context);
-
-static uint32_t conv_layer_forward(
-    layer_context_t* context,
-    layer_forward_kind_t forward_kind,
-    const tensor_t* input,
-    tensor_t* out_output
-);
-
-static uint32_t conv_layer_backward(
-    layer_context_t* context,
-    const tensor_t* input,
-    const tensor_t* output,
-    const tensor_t* prev_gradient,
-    tensor_t* out_gradient
-);
-
-static uint32_t conv_layer_calc_output_shape(
-    tensor_shape_t* out_output_shape,
-    const layer_create_info_t* create_info,
-    const tensor_shape_t* input_shape
-);
-
-
-
 const convolutional_layer_create_info_t conv_default_config = {
     .output_channels = 0,
     .filter_height = 0,
@@ -91,15 +39,19 @@ const convolutional_layer_create_info_t conv_default_config = {
 };
 
 
-const layer_impl_t convolutional_layer_impl = {
-    .init_func = conv_layer_init,
-    .get_param_func = conv_layer_get_params,
-    .deinit_func = conv_layer_deinit,
-    .forward_func = conv_layer_forward,
-    .backward_func = conv_layer_backward,
-    .calc_output_size = conv_layer_calc_output_shape,
-    .layer_context_size = sizeof(convolutional_layer_t)
-};
+typedef struct convolutional_layer_t {
+    tensor_t weights;
+    tensor_t bias;
+    tensor_t d_weights;
+    tensor_t d_bias;
+
+    size_t stride_y;
+    size_t stride_x;
+    size_t padding_y;
+    size_t padding_x;
+
+    layer_param_ref_t param_refs[NUM_CONV_LAYER_PARAMS];
+} convolutional_layer_t;
 
 
 static void conv2d(const float* input, const float* kernel, float* output, int32_t input_height,
@@ -117,7 +69,8 @@ static uint32_t conv_layer_init(
     layer_context_t* context,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
+    const tensor_shape_t* output_shape,
+    device_t device
 )
 {
     convolutional_layer_t* conv_layer = (convolutional_layer_t*)context;
@@ -456,3 +409,13 @@ static void conv2d_flip(
         }
     }
 }
+
+const layer_impl_t convolutional_layer_impl = {
+    .init_func = conv_layer_init,
+    .get_param_func = conv_layer_get_params,
+    .deinit_func = conv_layer_deinit,
+    .forward_func = conv_layer_forward,
+    .backward_func = conv_layer_backward,
+    .calc_output_size = conv_layer_calc_output_shape,
+    .layer_context_size = sizeof(convolutional_layer_t)
+};

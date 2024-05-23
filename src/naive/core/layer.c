@@ -1,6 +1,6 @@
 #include <malloc.h>
 
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 
 #include "core/layer.h"
 #include "core/layer_impl.h"
@@ -8,6 +8,7 @@
 
 struct layer_s {
     tensor_shape_t input_shape;
+    device_t device;
     tensor_t output_mem;
     tensor_t gradient_mem;
     tensor_t output;
@@ -23,6 +24,7 @@ uint32_t layer_create(
     const layer_impl_t* layer_impl,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
+    device_t device,
     size_t max_batch_size
 )
 {
@@ -33,6 +35,7 @@ uint32_t layer_create(
     
     (*layer)->input_shape = *input_shape;
     (*layer)->impl = layer_impl;
+    (*layer)->device = device;
 
 
     /* get the output shape of the primitive. Needed for memory allocation */
@@ -47,8 +50,8 @@ uint32_t layer_create(
     max_input_shape.dims[TENSOR_BATCH_DIM] = max_batch_size;
     max_output_shape.dims[TENSOR_BATCH_DIM] = max_batch_size;
 
-    tensor_allocate(&(*layer)->output_mem, &max_output_shape);
-    tensor_allocate(&(*layer)->gradient_mem, &max_input_shape);
+    tensor_allocate_device(&(*layer)->output_mem, &max_output_shape, device);
+    tensor_allocate_device(&(*layer)->gradient_mem, &max_input_shape, device);
 
 
     /* initialize layer private data */
@@ -57,10 +60,15 @@ uint32_t layer_create(
         free (*layer);
         return 1;
     }
-    layer_impl->init_func((*layer)->context, create_info, input_shape,
-        &output_shape);
+    layer_impl->init_func((*layer)->context, create_info, input_shape, &output_shape, device);
 
     return 0;
+}
+
+
+device_t layer_get_device(layer_t layer)
+{
+    return layer->device;
 }
 
 
@@ -90,7 +98,7 @@ uint32_t layer_forward(layer_t layer, layer_forward_kind_t forward_kind, const t
     /* Construct output tensor with input batch size and embed into output_mem memory pool */
     tensor_shape_t output_shape = *tensor_get_shape(&layer->output_mem);
     output_shape.dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
-    tensor_from_memory(&layer->output, &output_shape, tensor_get_data(&layer->output_mem));
+    tensor_from_memory_device(&layer->output, &output_shape, tensor_get_data(&layer->output_mem), layer->device);
 
     layer->impl->forward_func(layer->context, forward_kind, input, &layer->output);
     
@@ -111,7 +119,7 @@ uint32_t layer_backward(layer_t layer, const tensor_t* prev_gradient, tensor_t**
     /* Construct gradient tensor with input batch size and embed into gradient_mem memory pool */
     tensor_shape_t gradient_shape = *tensor_get_shape(&layer->gradient_mem);
     gradient_shape.dims[TENSOR_BATCH_DIM] = prev_grad_shape->dims[TENSOR_BATCH_DIM];
-    tensor_from_memory(&layer->gradient, &gradient_shape, tensor_get_data(&layer->gradient_mem));
+    tensor_from_memory_device(&layer->gradient, &gradient_shape, tensor_get_data(&layer->gradient_mem), layer->device);
 
     layer->impl->backward_func(layer->context, layer->input, &layer->output,
         prev_gradient, &layer->gradient);

@@ -25,6 +25,48 @@ size_t module_get_num_params(layer_t module)
 }
 
 
+static tensor_shape_t input_shape_from_dataset(dataset_t dataset, size_t batch_size)
+{
+    const tensor_shape_t* data_shape = dataset_get_shape(dataset);
+
+    tensor_shape_t input_shape = make_tensor_shape(TENSOR_MAX_DIMS,
+        batch_size,
+        tensor_shape_get_dim(data_shape, TENSOR_CHANNEL_DIM),
+        tensor_shape_get_dim(data_shape, TENSOR_HEIGHT_DIM),
+        tensor_shape_get_dim(data_shape, TENSOR_WIDTH_DIM)
+    );
+    return input_shape;
+}
+
+static tensor_shape_t output_shape_from_module(layer_t module, size_t batch_size)
+{
+    const tensor_shape_t* module_out_shape = layer_get_output_shape(module);
+
+    tensor_shape_t input_shape = make_tensor_shape(2,
+        batch_size,
+        tensor_shape_get_dim(module_out_shape, TENSOR_CHANNEL_DIM)
+    );
+    return input_shape;
+}
+
+static bool tensor_realloc_to_match(tensor_t* tensor, const tensor_t* target_tensor)
+{
+    const tensor_shape_t* tensor_shape = tensor_get_shape(tensor);
+    const tensor_shape_t* target_shape = tensor_get_shape(target_tensor);
+
+    const device_t device = tensor_get_device(tensor);
+    const size_t tensor_batch = tensor_shape_get_dim(tensor_shape, TENSOR_BATCH_DIM);
+    const size_t target_batch = tensor_shape_get_dim(target_shape, TENSOR_BATCH_DIM);
+
+    if (tensor_batch != target_batch) {
+        tensor_destory(tensor);
+        tensor_allocate_device(tensor, target_shape, device);
+        return true;
+    }
+    return false;
+}
+
+
 void module_test(
     layer_t net,
     dataset_t test_set,
@@ -37,6 +79,22 @@ void module_test(
     float test_accuracy = 0.0f;
     float test_loss = 0.0f;
 
+    device_t device = layer_get_device(net);
+
+#if defined(USE_GPU)
+    tensor_t gpu_input;
+    tensor_t cpu_output;
+    
+    if (device == device_gpu) {
+        tensor_shape_t input_shape = input_shape_from_dataset(test_set, batch_size);
+        tensor_shape_t output_shape = output_shape_from_module(net, batch_size);
+        tensor_allocate_device(&gpu_input, &input_shape, device_gpu);
+        tensor_allocate_device(&cpu_output, &output_shape, device_cpu);
+        destroy_tensor_shape(&input_shape);
+        destroy_tensor_shape(&output_shape);
+    }
+#endif
+
     tensor_t* current_inputs = NULL;
     uint8_t* current_targets = NULL;
     dataset_iteration_begin(test_set, batch_size, false, &current_inputs, &current_targets);
@@ -44,9 +102,25 @@ void module_test(
     uint32_t iteration = 0;
     while (current_inputs != NULL) {
 
+#if defined(USE_GPU)
+        if (device == device_gpu) {
+            tensor_realloc_to_match(&gpu_input, current_inputs);
+            tensor_copy(&gpu_input, current_inputs);
+            current_inputs = &gpu_input;
+        }
+#endif
+
         /* forward */
         tensor_t* current_output = NULL;
         layer_forward(net, LAYER_FORWARD_INFERENCE, current_inputs, &current_output);
+
+#if defined(USE_GPU)
+        if (device == device_gpu) {
+            tensor_realloc_to_match(&cpu_output, current_output);
+            tensor_copy(&cpu_output, current_output);
+            current_output = &cpu_output;
+        }
+#endif
 
         /* metrics */
         test_accuracy += LossAccuracy(loss, current_output, current_targets);
@@ -91,13 +165,7 @@ void module_test_10crop(
 
     /* create temporary buffer to hold cropped images */
     tensor_t input_tmp;
-    tensor_shape_t input_tmp_shape = make_tensor_shape(
-        tensor_shape_get_depth_dim(input_shape),
-        batch_size,
-        input_channels,
-        input_height,
-        input_width
-    );
+    tensor_shape_t input_tmp_shape = input_shape_from_dataset(test_set, batch_size);
     tensor_allocate(&input_tmp, &input_tmp_shape);
     tensor_fill(&input_tmp, 0.0f);
     float* input_buf = tensor_get_data(&input_tmp);
@@ -209,12 +277,31 @@ void module_train(
     training_callback_t callback
 )
 {
+    device_t device = layer_get_device(layer);
+
     /* set up the optimizer */
     optimizer_t optimizer;
     layer_param_ref_list_t param_refs;
     optimizer_create(&optimizer, optimizer_impl, optimizer_config);
     layer_get_param_refs(layer, &param_refs);
     optimizer_add_params(optimizer, &param_refs);
+
+
+#if defined(USE_GPU)
+    tensor_t gpu_input;
+    tensor_t cpu_output;
+    tensor_t gpu_gradient;
+    
+    if (device == device_gpu) {
+        tensor_shape_t input_shape = input_shape_from_dataset(train_set, batch_size);
+        tensor_shape_t output_shape = output_shape_from_module(layer, batch_size);
+        tensor_allocate_device(&gpu_input, &input_shape, device_gpu);
+        tensor_allocate_device(&cpu_output, &output_shape, device_cpu);
+        tensor_allocate_device(&gpu_gradient, &output_shape, device_gpu);
+        destroy_tensor_shape(&input_shape);
+        destroy_tensor_shape(&output_shape);
+    }
+#endif
 
 
     if (callback || lr_schedule) {
@@ -253,8 +340,24 @@ void module_train(
                 augment_pipeline_forward(augment_pipeline, current_inputs, &current_inputs);
             }
 
+#if defined(USE_GPU)
+            if (device == device_gpu) {
+                tensor_realloc_to_match(&gpu_input, current_inputs);
+                tensor_copy(&gpu_input, current_inputs);
+                current_inputs = &gpu_input;
+            }
+#endif
+
             tensor_t* output;
             layer_forward(layer, LAYER_FORWARD_TRAINING, current_inputs, &output);
+
+#if defined(USE_GPU)
+            if (device == device_gpu) {
+                tensor_realloc_to_match(&cpu_output, output);
+                tensor_copy(&cpu_output, output);
+                output = &cpu_output;
+            }
+#endif
 
             /* Loss */
             train_accuracy += LossAccuracy(loss, output, current_targets);
@@ -263,6 +366,15 @@ void module_train(
             /* Backward pass */
             tensor_t* gradient;
             LossBackward(loss, output, current_targets, &gradient);
+
+#if defined(USE_GPU)
+            if (device == device_gpu) {
+                tensor_realloc_to_match(&gpu_gradient, gradient);
+                tensor_copy(&gpu_gradient, gradient);
+                gradient = &gpu_gradient;
+            }
+#endif
+
             layer_backward(layer, gradient, NULL);
             optimizer_step(optimizer);
 
@@ -295,4 +407,11 @@ void module_train(
     }
 
     optimizer_destroy(optimizer);
+
+#if defined(USE_GPU)
+    tensor_destory(&gpu_input);
+    tensor_destory(&cpu_output);
+    tensor_destory(&gpu_gradient);
+#endif
+
 }

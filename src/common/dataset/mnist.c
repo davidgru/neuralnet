@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "mnist.h"
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 
 
 #define IMAGE_WIDTH 28

@@ -3,7 +3,7 @@
 
 #include "log.h"
 
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 #include "tensor/tensor_math.h"
 #include "util/ai_math.h"
 #include "layer/activation_layer.h"
@@ -126,7 +126,8 @@ static uint32_t activation_layer_init(
     layer_context_t* context,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
+    const tensor_shape_t* output_shape,
+    device_t device
 )
 {
     activation_layer_t* activation_layer = (activation_layer_t*)context;

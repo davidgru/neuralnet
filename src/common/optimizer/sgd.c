@@ -1,5 +1,5 @@
+#include "tensor/tensor_math.h"
 #include "log.h"
-#include "util/ai_math.h"
 
 #include "sgd.h"
 
@@ -59,11 +59,7 @@ static uint32_t sgd_update_params(void* private_data, layer_param_ref_list_t* pa
     for (size_t i = 0; i < params->num_params; i++) {
         tensor_t* param = params->param_refs[i].param;
         tensor_t* gradient = params->param_refs[i].gradient;
-
-        float* param_data = tensor_get_data(param);
-        float* gradient_data = tensor_get_data(gradient);
-        size_t param_size = tensor_size_from_shape(tensor_get_shape(param));
-        
+    
         /* regularization step */
         switch (sgd->weight_reg_kind) {
             case WEIGHT_REG_NONE:
@@ -77,8 +73,7 @@ static uint32_t sgd_update_params(void* private_data, layer_param_ref_list_t* pa
             case WEIGHT_REG_L2:
             {
                 /* params -= learning_rate * weight_reg_strength * 2 * params */
-                VectorScaledAdd(param_data, param_data,
-                    (-1.0f) * sgd->learning_rate * 2.0f * sgd->weight_reg_strength, param_size);
+                tensor_scaled_add(param, param, -1.0f * sgd->learning_rate * 2.0f * sgd->weight_reg_strength);
                 break;
             }
             default:
@@ -87,6 +82,6 @@ static uint32_t sgd_update_params(void* private_data, layer_param_ref_list_t* pa
         }
 
         /* main update step params -= learning_rate * gradient */
-        VectorScaledAdd(param_data, gradient_data, (-1.0f) * sgd->learning_rate, param_size);
+        tensor_scaled_add(param, gradient, -1.0f * sgd->learning_rate);
     }
 }

@@ -1,7 +1,7 @@
 #include <malloc.h>
 #include <string.h>
 
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 #include "layer/pooling_layer.h"
 
 #define max(a, b) ((a > b) ? a : b)
@@ -13,46 +13,6 @@ typedef struct pooling_layer_t {
     void (*pooling_operation_func)(const float* input, float* output, size_t input_width, size_t input_height, size_t kernel_width);
     void (*pooling_operation_backward)(const float* x, const float* dy, float* dx, size_t input_width, size_t input_height, size_t kernel_width);
 } pooling_layer_t;
-
-
-static uint32_t pooling_layer_init(
-    layer_context_t* context,
-    const layer_create_info_t* create_info,
-    const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
-);
-
-static uint32_t pooling_layer_forward(
-    layer_context_t* context,
-    layer_forward_kind_t forward_kind,
-    const tensor_t* input,
-    tensor_t* out_output
-);
-
-static uint32_t pooling_layer_backward(
-    layer_context_t* context,
-    const tensor_t* input,
-    const tensor_t* output,
-    const tensor_t* prev_gradient,
-    tensor_t* out_gradient
-);
-
-static uint32_t pooling_layer_calc_output_shape(
-    tensor_shape_t* out_output_shape,
-    const layer_create_info_t* create_info,
-    const tensor_shape_t* input_shape
-);
-
-
-const layer_impl_t pooling_layer_impl = {
-    .init_func = pooling_layer_init,
-    .get_param_func = NULL, /* no params */
-    .deinit_func = NULL,
-    .forward_func = pooling_layer_forward,
-    .backward_func = pooling_layer_backward,
-    .calc_output_size = pooling_layer_calc_output_shape,
-    .layer_context_size = sizeof(pooling_layer_t),
-};
 
 
 static void pooling_operation_average(const float* x, float* y, size_t input_width, size_t input_height, size_t kernel_width);
@@ -70,7 +30,8 @@ static uint32_t pooling_layer_init(
     layer_context_t* context,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
+    const tensor_shape_t* output_shape,
+    device_t device
 )
 {
     pooling_layer_t* pooling_layer = (pooling_layer_t*)context;
@@ -336,3 +297,14 @@ static void pooling_operation_min_backward(const float* x, const float* dy, floa
     }
 
 }
+
+
+const layer_impl_t pooling_layer_impl = {
+    .init_func = pooling_layer_init,
+    .get_param_func = NULL, /* no params */
+    .deinit_func = NULL,
+    .forward_func = pooling_layer_forward,
+    .backward_func = pooling_layer_backward,
+    .calc_output_size = pooling_layer_calc_output_shape,
+    .layer_context_size = sizeof(pooling_layer_t),
+};

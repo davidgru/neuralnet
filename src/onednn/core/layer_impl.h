@@ -8,7 +8,8 @@ typedef uint32_t (*layer_init_func_t)(
     layer_context_t* context,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
+    const tensor_shape_t* output_shape,
+    device_t device,
 );
 
 

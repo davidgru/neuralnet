@@ -22,11 +22,16 @@
 
 static const char* mnist_path = "datasets/mnist";
 
+#if defined(USE_GPU)
+static const device_t device = device_gpu;
+#else
+static const device_t device = device_cpu;
+#endif
+
 /* config */
 static const size_t num_epochs = 1000;
 static const float learning_rate = 0.1f;
 static const float l2_reg_strength = 0.0f; /* ridge regression */
-
 
 dataset_t train_set, test_set;
 void train_callback(const training_state_t* state)
@@ -73,10 +78,10 @@ int main()
     layer_t classifier;
     const linear_layer_create_info_t classifier_config = {
         .output_size = 10,
-        .weight_init = linear_weight_init_xavier,
-        .bias_init = linear_bias_init_zeros
+        .weight_init = winit_xavier,
+        .bias_init = winit_zeros
     };
-    layer_create(&classifier, &linear_layer_impl, &classifier_config, train_set_shape, num_samples);
+    layer_create(&classifier, &linear_layer_impl, &classifier_config, train_set_shape, device, num_samples);
     if (classifier == NULL) {
         LOG_ERROR("There was an error creating the model\n");
         return 1;

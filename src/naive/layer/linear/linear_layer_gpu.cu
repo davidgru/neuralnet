@@ -50,7 +50,7 @@ void matmul_t2(const float* m1, const float* m2, float* output, int height1, int
 }
 
 
-void matrix_product(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
+void matrix_product_gpu(const float* m1, const float* m2, float* output, size_t height1, size_t width2, size_t sharedDim)
 {
     const cuda_props_t* props = get_cuda_props();
 
@@ -66,7 +66,7 @@ void matrix_product(const float* m1, const float* m2, float* output, size_t heig
 }
 
 
-void matrix_product_t1(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
+void matrix_product_t1_gpu(const float* m1, const float* m2, float* output, size_t width1, size_t width2, size_t sharedDim)
 {
     const cuda_props_t* props = get_cuda_props();
 
@@ -82,7 +82,7 @@ void matrix_product_t1(const float* m1, const float* m2, float* output, size_t w
 }
 
 
-void matrix_product_t2(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
+void matrix_product_t2_gpu(const float* m1, const float* m2, float* output, size_t height1, size_t height2, size_t sharedDim)
 {
     const cuda_props_t* props = get_cuda_props();
 

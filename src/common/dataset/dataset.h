@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#include "tensor.h"
+#include "tensor/tensor.h"
 
 
 typedef void dataset_context_t;

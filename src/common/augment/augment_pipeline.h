@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "tensor.h"
+#include "tensor/tensor.h"
 
 
 typedef struct augment_pipeline_s* augment_pipeline_t;

@@ -12,6 +12,8 @@
 #include "util/training_utils.h"
 #include "util/weight_init.h"
 
+#include "tensor/tensor.h"
+#include "tensor/tensor_math.h"
+
 #include "config_info.h"
 #include "log.h"
-#include "tensor.h"

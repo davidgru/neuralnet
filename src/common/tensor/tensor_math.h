@@ -1,6 +1,7 @@
 #pragma once
 
-#include "tensor.h"
+
+#include "tensor/tensor.h"
 
 /* v *= f */
 void tensor_scale(tensor_t* v, float f);
@@ -10,3 +11,6 @@ void tensor_eltwise_add(tensor_t* v, const tensor_t* w);
 
 /* v *= w */
 void tensor_eltwise_mul(tensor_t* v, const tensor_t* w);
+
+/* v += f * w */
+void tensor_scaled_add(tensor_t* v, const tensor_t* w, float f);

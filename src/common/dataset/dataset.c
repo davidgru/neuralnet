@@ -3,7 +3,7 @@
 #include <math.h>
 
 #include "dataset.h"
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 
 
 #include "util/ai_math.h"

@@ -22,6 +22,7 @@ uint32_t layer_create(
     const layer_impl_t* layer_impl,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
+    device_t device,
     size_t max_batch_size
 )
 {
@@ -49,6 +50,12 @@ uint32_t layer_create(
     }
 
     return 0;
+}
+
+
+device_t layer_get_device(layer_t layer)
+{
+    return device_cpu;
 }
 
 

@@ -19,6 +19,13 @@
 #include "optimizer/sgd.h"
 
 
+#if defined(USE_GPU)
+static const device_t device = device_gpu;
+#else
+static const device_t device = device_cpu;
+#endif
+
+
 static const char* mnist_path = "datasets/mnist";
 
 /* config */
@@ -47,7 +54,7 @@ layer_t create_mlp(const tensor_shape_t* input_shape, size_t hidden_size, size_t
         .desc = desc,
         .max_batch_size = batch_size
     };
-    layer_create(&model, &sequential_model_impl, &config, input_shape, batch_size);
+    layer_create(&model, &sequential_model_impl, &config, input_shape, device, batch_size);
 
     /* Model desc not needed anymore */
     model_desc_destroy(desc);

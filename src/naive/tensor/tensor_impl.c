@@ -4,8 +4,7 @@
 
 #include "log.h"
 
-#include "tensor.h"
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 
 #if defined(USE_GPU)
 #include "_cuda.h"
