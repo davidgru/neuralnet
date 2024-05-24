@@ -39,11 +39,11 @@ const cuda_props_t* get_cuda_props()
 }
 
 
-uint32_t cuda_check_error()
+uint32_t cuda_check_error(cudaError_t error, const char* file, int line, bool abort)
 {
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        LOG_ERROR("cuda error: %s\n", cudaGetErrorString(err));
+    if (error != cudaSuccess) {
+        LOG_ERROR("%s:%d cuda error: %s\n", file, line, cudaGetErrorString(error));
+        if (abort) exit(error);
         return 1;
     }
     return 0;
@@ -55,6 +55,7 @@ void* cuda_malloc(size_t size)
     void* dev_ptr = NULL;
 
     cudaError_t err = cudaMalloc(&dev_ptr, size);
+    CUDA_CHECK_ERROR(err);
     if (err != cudaSuccess) {
         dev_ptr = NULL;
     }
@@ -63,19 +64,22 @@ void* cuda_malloc(size_t size)
 }
 
 
-uint32_t cuda_memcpy(void* to, void* from, size_t count, cuda_memcpy_kind_t kind)
+uint32_t cuda_memcpy(void* to, const void* from, size_t count, cuda_memcpy_kind_t kind)
 {
-    return cudaMemcpy(to, from, count, map_memcpy_kind(kind)) != cudaSuccess;
+    CUDA_CHECK_ERROR(cudaMemcpy(to, from, count, map_memcpy_kind(kind)));
+    return 0;
 }
 
 
 uint32_t cuda_memset(void* data, int val, size_t count)
 {
-    return cudaMemset(data, val, count) != cudaSuccess;
+    CUDA_CHECK_ERROR(cudaMemset(data, val, count));
+    return 0;
 }
 
 
 uint32_t cuda_free(void* ptr)
 {
-    return cudaFree(ptr) != cudaSuccess;
+    CUDA_CHECK_ERROR(cudaFree(ptr));
+    return 0;
 }

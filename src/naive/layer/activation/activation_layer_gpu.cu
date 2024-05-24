@@ -16,7 +16,7 @@ __global__ void tanh_kernel(const float* in, float* out, int size)
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < size) {
-        out[idx] = tanhf(-in[idx]);
+        out[idx] = tanhf(in[idx]);
     }
 }
 
@@ -66,7 +66,7 @@ void sigmoid_gpu(const float* in, float* out, size_t size)
     };
 
     sigmoid_kernel<<<block_dim, block_size>>>(in, out, size);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }
 
 void tanh_gpu(const float* in, float* out, size_t size)
@@ -78,7 +78,7 @@ void tanh_gpu(const float* in, float* out, size_t size)
     };
 
     tanh_kernel<<<block_dim, block_size>>>(in, out, size);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }
 
 void relu_gpu(const float* in, float* out, size_t size)
@@ -90,7 +90,7 @@ void relu_gpu(const float* in, float* out, size_t size)
     };
 
     relu_kernel<<<block_dim, block_size>>>(in, out, size);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }
 
 void dsigmoid_gpu(const float* in, float* out, size_t size)
@@ -102,7 +102,7 @@ void dsigmoid_gpu(const float* in, float* out, size_t size)
     };
 
     dsigmoid_kernel<<<block_dim, block_size>>>(in, out, size);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }
 
 void dtanh_gpu(const float* in, float* out, size_t size)
@@ -114,7 +114,7 @@ void dtanh_gpu(const float* in, float* out, size_t size)
     };
 
     dtanh_kernel<<<block_dim, block_size>>>(in, out, size);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }
 
 void drelu_gpu(const float* in, float* out, size_t size)
@@ -126,5 +126,5 @@ void drelu_gpu(const float* in, float* out, size_t size)
     };
 
     drelu_kernel<<<block_dim, block_size>>>(in, out, size);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }

@@ -62,7 +62,7 @@ void matrix_product_gpu(const float* m1, const float* m2, float* output, size_t 
     };
 
     matmul<<<num_blocks, block_size>>>(m1, m2, output, height1, width2, sharedDim);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }
 
 
@@ -78,7 +78,7 @@ void matrix_product_t1_gpu(const float* m1, const float* m2, float* output, size
     };
 
     matmul_t1<<<num_blocks, block_size>>>(m1, m2, output, width1, width2, sharedDim);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }
 
 
@@ -94,5 +94,5 @@ void matrix_product_t2_gpu(const float* m1, const float* m2, float* output, size
     };
 
     matmul_t2<<<num_blocks, block_size>>>(m1, m2, output, height1, height2, sharedDim);
-    cuda_check_error();
+    CUDA_CHECK_LAST_ERROR();
 }

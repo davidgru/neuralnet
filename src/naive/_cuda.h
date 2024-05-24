@@ -15,7 +15,9 @@ typedef struct {
 } cuda_props_t;
 
 const cuda_props_t* get_cuda_props();
-uint32_t cuda_check_error();
+#define CUDA_CHECK_LAST_ERROR() cuda_check_error(cudaGetLastError(), __FILE__, __LINE__)
+#define CUDA_CHECK_ERROR(err) cuda_check_error(err, __FILE__, __LINE__)
+uint32_t cuda_check_error(cudaError_t error, const char* file, int line, bool abort = true);
 #endif
 
 
@@ -31,8 +33,7 @@ typedef enum {
     cuda_memcpy_device_to_host = 2,
     cuda_memcpy_device_to_device = 3,
 } cuda_memcpy_kind_t;
-uint32_t cuda_memcpy(void* to, void* from, size_t count, cuda_memcpy_kind_t kind);
-
+uint32_t cuda_memcpy(void* to, const void* from, size_t count, cuda_memcpy_kind_t kind);
 uint32_t cuda_memset(void* data, int val, size_t count);
 uint32_t cuda_free(void* ptr);
 

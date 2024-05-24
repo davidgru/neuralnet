@@ -18,6 +18,22 @@ void tensor_scale(tensor_t* v, float f)
     }
 }
 
+
+void tensor_add_scalar(tensor_t* v, float f)
+{
+    if (v->device == device_cpu) {
+        tensor_add_scalar_cpu(v, f);
+    } else {
+#if defined(USE_GPU)
+        tensor_add_scalar_gpu(v, f);
+#else
+        LOG_ERROR("Invalid device\n");
+#endif
+    }
+
+}
+
+
 void tensor_eltwise_add(tensor_t* v, const tensor_t* w)
 {
     if (v->device == device_cpu && w->device == device_cpu) {
@@ -55,6 +71,21 @@ void tensor_scaled_add(tensor_t* v, const tensor_t* w, float f)
     } else if (v->device == device_gpu && w->device == device_gpu) {
 #if defined(USE_GPU)
         tensor_scaled_add_gpu(v, w, f);
+#else
+        LOG_ERROR("Invalid device\n");
+#endif
+    } else {
+        LOG_ERROR("Tensors must be on same device\n");
+    }
+}
+
+void tensor_sum(tensor_t* v, const tensor_t* w)
+{
+    if (v->device == device_cpu && w->device == device_cpu) {
+        tensor_sum_cpu(v, w);
+    } else if (v->device == device_gpu && w->device == device_gpu) {
+#if defined(USE_GPU)
+        tensor_sum_gpu(v, w);
 #else
         LOG_ERROR("Invalid device\n");
 #endif
