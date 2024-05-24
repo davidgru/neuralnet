@@ -239,11 +239,14 @@ static uint32_t conv_layer_backward(
                 const float* _w = w + j + filter_size + i * filter_height * filter_width;
                 /* dx = conv2d(w, flip(dy),
                             dilation: (stride_y,stride_x),
-                            padding: (output_height-1,output_width-1)) */
-                conv2d(_w, _dy, _dx, filter_height, filter_width, output_height, output_width,
-                    1, 1, output_height - 1, output_width - 1, conv_layer->stride_y,
-                    conv_layer->stride_x, conv_layer->padding_y, conv_layer->padding_x, true,
-                    conv_layer->device);
+                            padding: (output_height-1,output_width-1))
+                      = conv2d(dy, flip(w),
+                            dilation: (stride_y, stride_x),
+                            padding: (filter_height-1,filter_width-1)) */
+                conv2d(_dy, _w, _dx, output_height, output_width, filter_height, filter_width,
+                        1, 1, filter_height - 1, filter_width - 1, conv_layer->stride_y,
+                        conv_layer->stride_x, conv_layer->padding_y, conv_layer->padding_x,
+                        true, conv_layer->device);
             }
         }
     }
