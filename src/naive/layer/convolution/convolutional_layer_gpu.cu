@@ -61,8 +61,8 @@ void convolution_forward_kernel(const float* input, const float* filter, const f
     output += (batch_idx * output_channels + oc_idx) * output_height * output_width;
 
     if (batch_idx < batch_size) {
+        float sum = 0.0f;
         for (int ic_idx = 0; ic_idx < input_channels; ic_idx++) {
-            float sum = 0.0f;
             for (int kr = 0; kr < filter_height; kr++) {
                 for (int kc = 0; kc < filter_width; kc++) {
                     const int data_rk = input_row + kr * dilation_y;
@@ -75,12 +75,51 @@ void convolution_forward_kernel(const float* input, const float* filter, const f
                     }
                 }
             }
-            output[row * output_width + column] += sum + bias[oc_idx];
-
             input += input_height * input_width;
             filter += filter_height * filter_width;
-            output += output_height * output_width;
         }
+        output[row * output_width + column] += sum + bias[oc_idx];
+    }
+}
+
+
+__global__
+void convolution_backward_data_kernel(const float* prev_grad, const float* filter, float* grad,
+    int batch_size, int prev_grad_height, int prev_grad_width, int in_channels, int out_channels,
+    int filter_height, int filter_width, int grad_height, int grad_width, int stride_y, int stride_x,
+    int padding_y, int padding_x)
+{
+    int batch_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int column = batch_idx % grad_width; batch_idx /= grad_width;
+    const int row = batch_idx % grad_height; batch_idx /= grad_height;
+    const int ic_idx = batch_idx % out_channels; batch_idx /= out_channels;
+
+    const int prev_grad_row = row + padding_y - filter_height + 1;
+    const int prev_grad_column = column + padding_x - filter_width + 1;
+
+    prev_grad += batch_idx * out_channels * prev_grad_height * prev_grad_width;
+    filter += ic_idx * filter_height * filter_width;
+    grad += (batch_idx * in_channels + ic_idx) * grad_height * grad_width;
+    if (batch_idx < batch_size) {
+        float sum = 0.0f;
+        for (int oc_idx = 0; oc_idx < out_channels; oc_idx++) {
+            for (int kr = 0; kr < filter_height; kr++) {
+                for (int kc = 0; kc < filter_width; kc++) {
+                    const int prev_grad_rk = prev_grad_row + kr * stride_y;
+                    const int prev_grad_ck = prev_grad_column + kc * stride_x;
+                    const int kernel_idx = (filter_height - kr - 1) * filter_width
+                                            + (filter_width - kc - 1);
+                    if (prev_grad_rk >= 0 && prev_grad_rk < prev_grad_height
+                        && prev_grad_ck >= 0 && prev_grad_ck < prev_grad_width) {
+                        sum += prev_grad[prev_grad_rk * prev_grad_width + prev_grad_ck]
+                                * filter[kernel_idx];
+                    }
+                }
+            }
+            prev_grad += prev_grad_height * prev_grad_width;
+            filter += filter_height * filter_width;
+        }
+        grad[row * grad_width + column] += sum;
     }
 }
 
@@ -103,7 +142,6 @@ void conv2d_gpu(const float* input, const float* kernel, float* output, int32_t 
         output_width, kernel_height, kernel_width, stride_y, stride_x, padding_y, padding_x, dilation_y,
         dilation_x, skip_output_y, skip_output_x, flip_kernel);
     CUDA_CHECK_LAST_ERROR();
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
 }
 
 
@@ -125,6 +163,25 @@ void convolution_forward_gpu(const tensor_t* input, const tensor_t* filter, cons
         tensor_batch_size(input), tensor_channels(output), tensor_channels(input), tensor_height(input),
         tensor_width(input), _filter_height(filter), _filter_width(filter), tensor_height(output), tensor_width(output),
         stride_y, stride_x, padding_y, padding_x, dilation_y, dilation_x, skip_output_y, skip_output_x, flip_kernel);
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
+    CUDA_CHECK_LAST_ERROR();
+}
+
+
+void convolution_backward_data_gpu(const tensor_t* prev_grad, const tensor_t* filter, tensor_t* grad,
+    int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x)
+{
+    const unsigned int num_threads = tensor_batch_size(grad) * tensor_channels(grad)
+        * tensor_height(grad) * tensor_width(grad);
+
+    const cuda_props_t* props = get_cuda_props();
+    const dim3 block_size = props->default_block_size_1d;
+    const dim3 block_dim = {
+        cuda_calc_num_blocks(num_threads, block_size.x), 1, 1
+    };
+
+    convolution_backward_data_kernel<<<block_dim, block_size>>>(prev_grad->data, filter->data, grad->data,
+        tensor_batch_size(prev_grad), tensor_height(prev_grad), tensor_width(prev_grad), tensor_channels(grad),
+        tensor_channels(prev_grad), _filter_height(filter), _filter_width(filter), tensor_height(grad),
+        tensor_width(grad), stride_y, stride_x, padding_y, padding_x);
     CUDA_CHECK_LAST_ERROR();
 }

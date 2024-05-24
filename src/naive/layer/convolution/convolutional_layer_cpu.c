@@ -43,6 +43,7 @@ void conv2d_cpu(const float* input, const float* kernel, float* output, int32_t 
     }
 }
 
+
 void convolution_forward_cpu(const tensor_t* input, const tensor_t* filter, const tensor_t* bias,
     tensor_t* output, int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x,
     int32_t dilation_y, int32_t dilation_x, int32_t skip_output_y, int32_t skip_output_x,
@@ -66,6 +67,35 @@ void convolution_forward_cpu(const tensor_t* input, const tensor_t* filter, cons
             }
             // Add the bias to every element of the feature map
             VectorAddScalar(_y, b[i], tensor_per_channel_size(output));
+        }
+    }
+}
+
+
+void convolution_backward_data_cpu(const tensor_t* prev_grad, const tensor_t* filter, tensor_t* grad,
+    int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x)
+{
+    const float* dy = prev_grad->data;
+    const float* w = filter->data;
+    float* dx = grad->data;
+
+    for (size_t n = 0; n < tensor_batch_size(prev_grad); n++) {
+        for (size_t i = 0; i < tensor_channels(grad); i++) {
+            float* _dx = dx + n * tensor_per_batch_size(grad) * tensor_channels(grad) + i * tensor_per_channel_size(grad);
+            for (size_t j = 0; j < tensor_channels(prev_grad); j++) {
+                const float* _dy = dy + n * tensor_per_batch_size(prev_grad) + j * tensor_per_channel_size(prev_grad);
+                const float* _w = w + j + _filter_size(filter) + i * _filter_height(filter) * _filter_width(filter);
+                /* dx = conv2d(w, flip(dy),
+                            dilation: (stride_y,stride_x),
+                            padding: (output_height-1,output_width-1))
+                    = conv2d(dy, flip(w),
+                            dilation: (stride_y, stride_x),
+                            padding: (filter_height-1,filter_width-1)) */
+                conv2d_cpu(_dy, _w, _dx, tensor_height(prev_grad), tensor_width(prev_grad), _filter_height(filter), _filter_width(filter),
+                        1, 1, _filter_height(filter) - 1, _filter_width(filter) - 1, stride_y,
+                        stride_x, padding_y, padding_x,
+                        true);
+            }
         }
     }
 }

@@ -231,24 +231,16 @@ static uint32_t conv_layer_backward(
 
     // Calculate gradients with respect to the input and store in dx
     tensor_set_zero(out_gradient);
-    for (size_t n = 0; n < batch_size; n++) {
-        for (size_t i = 0; i < input_channels; i++) {
-            float* _dx = dx + n * input_size * input_channels + i * input_size;
-            for (size_t j = 0; j < output_channels; j++) {
-                const float* _dy = dy + n * output_size * output_channels + j * output_size;
-                const float* _w = w + j + filter_size + i * filter_height * filter_width;
-                /* dx = conv2d(w, flip(dy),
-                            dilation: (stride_y,stride_x),
-                            padding: (output_height-1,output_width-1))
-                      = conv2d(dy, flip(w),
-                            dilation: (stride_y, stride_x),
-                            padding: (filter_height-1,filter_width-1)) */
-                conv2d(_dy, _w, _dx, output_height, output_width, filter_height, filter_width,
-                        1, 1, filter_height - 1, filter_width - 1, conv_layer->stride_y,
-                        conv_layer->stride_x, conv_layer->padding_y, conv_layer->padding_x,
-                        true, conv_layer->device);
-            }
-        }
+    if (conv_layer->device == device_cpu) {
+        convolution_backward_data_cpu(prev_gradient, &conv_layer->weights, out_gradient,
+            conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
+            conv_layer->padding_x);
+    } else {
+#if defined(USE_GPU)
+        convolution_backward_data_gpu(prev_gradient, &conv_layer->weights, out_gradient,
+            conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
+            conv_layer->padding_x);
+#endif
     }
 
     // Compute weight gradients
