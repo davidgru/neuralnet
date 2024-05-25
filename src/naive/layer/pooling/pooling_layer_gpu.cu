@@ -48,7 +48,7 @@ __device__ void pool_bwd_avg(const float* input, float* grad, float prev_grad, i
 {
     for (int kr = 0; kr < kernel_height; kr++) {
         for (int kc = 0; kc < kernel_width; kc++) {
-            grad[kr * input_stride * kc] += prev_grad / (kernel_height * kernel_width);
+            grad[kr * input_stride + kc] += prev_grad / (kernel_height * kernel_width);
         }
     }
 }
