@@ -99,3 +99,24 @@ void convolution_backward_data_cpu(const tensor_t* prev_grad, const tensor_t* fi
         }
     }
 }
+
+void convolution_backward_weights_cpu(const tensor_t* input, const tensor_t* prev_grad, tensor_t* d_weights,
+    int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x)
+{
+    const float* x = input->data;
+    const float* dy = prev_grad->data;
+    float* dw = d_weights->data;
+
+    for (size_t n = 0; n < tensor_batch_size(input); n++) {
+        for (size_t i = 0; i < tensor_channels(input); i++) {
+            const float* _x = x + n * tensor_per_batch_size(input) + i * tensor_per_channel_size(input);
+            for (size_t j = 0; j < tensor_channels(prev_grad); j++) {
+                const float* _dy = dy + n * tensor_per_batch_size(prev_grad) + j * tensor_per_channel_size(prev_grad);
+                float* _dw = dw + j * _filter_size(d_weights) + i * _filter_height(d_weights) * _filter_width(d_weights);
+                /* dw = conv2d(x, dy, dilation: (stride_y, stride_x)) */
+                conv2d_cpu(_x, _dy, _dw, tensor_height(input), tensor_width(input), tensor_height(prev_grad),
+                    tensor_width(prev_grad), 1, 1, padding_y, padding_x, stride_y, stride_x, 0, 0, false);
+            }
+        }
+    }
+}

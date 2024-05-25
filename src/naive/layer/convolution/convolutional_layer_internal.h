@@ -45,6 +45,9 @@ void convolution_forward_cpu(const tensor_t* input, const tensor_t* filter, cons
 void convolution_backward_data_cpu(const tensor_t* prev_grad, const tensor_t* filter, tensor_t* grad,
     int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x);
 
+void convolution_backward_weights_cpu(const tensor_t* input, const tensor_t* prev_grad, tensor_t* d_weights,
+    int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x);
+
 #if defined(USE_GPU)
 
 void conv2d_gpu(const float* input, const float* kernel, float* output, int32_t input_height,
@@ -58,6 +61,9 @@ void convolution_forward_gpu(const tensor_t* input, const tensor_t* filter, cons
     int32_t flip_kernel);
 
 void convolution_backward_data_gpu(const tensor_t* prev_grad, const tensor_t* filter, tensor_t* grad,
+    int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x);
+
+void convolution_backward_weights_gpu(const tensor_t* input, const tensor_t* prev_grad, tensor_t* d_weights,
     int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x);
 
 #endif

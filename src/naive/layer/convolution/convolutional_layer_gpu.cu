@@ -124,6 +124,46 @@ void convolution_backward_data_kernel(const float* prev_grad, const float* filte
 }
 
 
+__global__
+void convolution_backward_weights_kernel(const float* input, const float* prev_grad, float* d_filter,
+    int batch_size, int in_channels, int input_height, int input_width, int prev_grad_channels,
+    int prev_grad_height, int prev_grad_width, int filter_height, int filter_width, int stride_y,
+    int stride_x, int padding_y, int padding_x)
+{
+    int oc_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int kcol = oc_idx % filter_width; oc_idx /= filter_width;
+    const int krow = oc_idx % filter_height; oc_idx /= filter_height;
+    const int ic_idx = oc_idx % in_channels; oc_idx /= in_channels;
+
+    const int input_row = krow - padding_y;
+    const int input_column = kcol - padding_x;        
+
+    input += ic_idx * input_height * input_width;
+    prev_grad += oc_idx * prev_grad_height * prev_grad_width;
+    d_filter += (oc_idx * in_channels + ic_idx) * filter_height * filter_width;
+
+    if (oc_idx < prev_grad_channels) {
+        float sum = 0.0f;
+        for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+            for (int gr = 0; gr < prev_grad_height; gr++) {
+                for (int gc = 0; gc < prev_grad_width; gc++) {
+                    const int data_rk = input_row + gr * stride_y;
+                    const int data_ck = input_column + gc * stride_x;
+                    if (data_rk >= 0 && data_rk < input_height
+                        && data_ck >= 0 && data_ck < input_width) {
+                        sum += input[data_rk * input_width + data_ck]
+                             * prev_grad[gr * prev_grad_width + gc];
+                    }
+                }
+            }
+            input += in_channels * input_height * input_width;
+            prev_grad += prev_grad_channels * prev_grad_height * prev_grad_width;
+        }
+        d_filter[krow * filter_width + kcol] += sum;
+    }
+}
+
+
 void conv2d_gpu(const float* input, const float* kernel, float* output, int32_t input_height,
     int32_t input_width, int32_t kernel_height, int32_t kernel_width, int32_t stride_y,
     int32_t stride_x, int32_t padding_y, int32_t padding_x, int32_t dilation_y, int32_t dilation_x,
@@ -183,5 +223,25 @@ void convolution_backward_data_gpu(const tensor_t* prev_grad, const tensor_t* fi
         tensor_batch_size(prev_grad), tensor_height(prev_grad), tensor_width(prev_grad), tensor_channels(grad),
         tensor_channels(prev_grad), _filter_height(filter), _filter_width(filter), tensor_height(grad),
         tensor_width(grad), stride_y, stride_x, padding_y, padding_x);
+    CUDA_CHECK_LAST_ERROR();
+}
+
+
+void convolution_backward_weights_gpu(const tensor_t* input, const tensor_t* prev_grad, tensor_t* d_weights,
+    int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x)
+{
+    const unsigned int num_threads = tensor_channels(prev_grad) * tensor_channels(d_weights) 
+        * _filter_height(d_weights) * _filter_width(d_weights);
+
+    const cuda_props_t* props = get_cuda_props();
+    const dim3 block_size = props->default_block_size_1d;
+    const dim3 block_dim = {
+        cuda_calc_num_blocks(num_threads, block_size.x), 1, 1
+    };
+
+    convolution_backward_weights_kernel<<<block_dim, block_size>>>(input->data, prev_grad->data, d_weights->data,
+        tensor_batch_size(input), tensor_channels(input), tensor_height(input), tensor_width(input),
+        tensor_channels(prev_grad), tensor_height(prev_grad), tensor_width(prev_grad), _filter_height(d_weights),
+        _filter_width(d_weights), stride_y, stride_x, padding_y, padding_x);
     CUDA_CHECK_LAST_ERROR();
 }
