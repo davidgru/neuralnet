@@ -113,11 +113,17 @@ uint32_t tensor_copy(tensor_t* tensor_to, const tensor_t* tensor_from)
 {
     device_t to_device = tensor_get_device(tensor_to);
     device_t from_device = tensor_get_device(tensor_from);
-    size_t size = tensor_size_from_shape(&tensor_to->shape) * sizeof(float);
+    size_t to_size = tensor_size_from_shape(&tensor_to->shape) * sizeof(float);
+    size_t from_size = tensor_size_from_shape(&tensor_from->shape) * sizeof(float);
     uint32_t err = 0;
 
+    if(to_size != from_size) {
+        LOG_ERROR("Tensor size mismatch\n");
+        return 1;
+    }
+
     if (from_device == device_cpu && to_device == device_cpu) {
-        memcpy(tensor_to->data, tensor_from->data, size);
+        memcpy(tensor_to->data, tensor_from->data, to_size);
     } else {
 #if defined(USE_GPU)
         cuda_memcpy_kind_t kind;
@@ -128,7 +134,7 @@ uint32_t tensor_copy(tensor_t* tensor_to, const tensor_t* tensor_from)
         } else if (from_device == device_gpu && to_device == device_gpu) {
             kind = cuda_memcpy_device_to_device;
         }
-        err = cuda_memcpy(tensor_to->data, tensor_from->data, size, kind);
+        err = cuda_memcpy(tensor_to->data, tensor_from->data, to_size, kind);
 #else
         err = 1;
 #endif

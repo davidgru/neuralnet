@@ -18,6 +18,12 @@
 /* path to MNIST or Fashion MNIST dataset */
 const char* mnist_path = "datasets/mnist";
 
+#if defined(USE_GPU)
+static const device_t device = device_gpu;
+#else
+static const device_t device = device_cpu;
+#endif
+
 /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
     after one epoch and an accuracy of ~98.5% after 10 epochs */
 static const size_t num_epochs = 40;
@@ -86,7 +92,7 @@ layer_t create_lenet5(const tensor_shape_t* input_shape, size_t batch_size)
         .desc = desc,
         .max_batch_size = batch_size,
     };
-    layer_create(&model, &sequential_model_impl, &create_info, input_shape, batch_size);
+    layer_create(&model, &sequential_model_impl, &create_info, input_shape, device, batch_size);
     model_desc_destroy(desc);
 
     return model;

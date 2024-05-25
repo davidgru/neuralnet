@@ -81,7 +81,7 @@ void convolution_backward_data_cpu(const tensor_t* prev_grad, const tensor_t* fi
 
     for (size_t n = 0; n < tensor_batch_size(prev_grad); n++) {
         for (size_t i = 0; i < tensor_channels(grad); i++) {
-            float* _dx = dx + n * tensor_per_batch_size(grad) * tensor_channels(grad) + i * tensor_per_channel_size(grad);
+            float* _dx = dx + n * tensor_per_batch_size(grad) + i * tensor_per_channel_size(grad);
             for (size_t j = 0; j < tensor_channels(prev_grad); j++) {
                 const float* _dy = dy + n * tensor_per_batch_size(prev_grad) + j * tensor_per_channel_size(prev_grad);
                 const float* _w = w + j + _filter_size(filter) + i * _filter_height(filter) * _filter_width(filter);
