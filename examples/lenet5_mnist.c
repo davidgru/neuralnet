@@ -25,7 +25,7 @@ static const device_t device = device_cpu;
 #endif
 
 /* When training on mnist with this configuration, the model should reach an accuracy of 90%+
-    after one epoch and an accuracy of ~98.5% after 10 epochs */
+    after one epoch and an accuracy of ~98% after 10 epochs */
 static const size_t num_epochs = 40;
 static const size_t batch_size = 32;
 static const sgd_config_t optimizer_config = {
