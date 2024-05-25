@@ -101,12 +101,13 @@ void convolution_backward_data_cpu(const tensor_t* prev_grad, const tensor_t* fi
 }
 
 void convolution_backward_weights_cpu(const tensor_t* input, const tensor_t* prev_grad, tensor_t* d_weights,
-    int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x)
+    tensor_t* d_bias, int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x)
 {
     const float* x = input->data;
     const float* dy = prev_grad->data;
     float* dw = d_weights->data;
 
+    /* backward filter */
     for (size_t n = 0; n < tensor_batch_size(input); n++) {
         for (size_t i = 0; i < tensor_channels(input); i++) {
             const float* _x = x + n * tensor_per_batch_size(input) + i * tensor_per_channel_size(input);
@@ -117,6 +118,24 @@ void convolution_backward_weights_cpu(const tensor_t* input, const tensor_t* pre
                 conv2d_cpu(_x, _dy, _dw, tensor_height(input), tensor_width(input), tensor_height(prev_grad),
                     tensor_width(prev_grad), 1, 1, padding_y, padding_x, stride_y, stride_x, 0, 0, false);
             }
+        }
+    }
+
+    /* backward bias */
+    for (size_t n = 0; n < tensor_batch_size(prev_grad); n++) {
+        const float* _dy = dy + n * tensor_per_batch_size(prev_grad);
+        for (size_t i = 0; i < tensor_channels(prev_grad); i++) {
+            const tensor_t out_channel_grad = {
+                .shape = make_tensor_shape(1, tensor_per_channel_size(prev_grad)),
+                .data = _dy + i * tensor_per_channel_size(prev_grad),
+                .device = device_cpu
+            };
+            tensor_t db_tensor = {
+                .shape = make_tensor_shape(1, 1),
+                .data = d_bias->data + i,
+                .device = device_cpu
+            };
+            tensor_sum(&db_tensor, &out_channel_grad);
         }
     }
 }

@@ -245,37 +245,19 @@ static uint32_t conv_layer_backward(
 
     // Compute weight gradients
     tensor_set_zero(&conv_layer->d_weights);
+    tensor_set_zero(&conv_layer->d_bias);
     if (conv_layer->device == device_cpu) {
         convolution_backward_weights_cpu(input, prev_gradient, &conv_layer->d_weights,
-            conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
+            &conv_layer->d_bias, conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
             conv_layer->padding_x);
     } else {
 #if defined(USE_GPU)
         convolution_backward_weights_gpu(input, prev_gradient, &conv_layer->d_weights,
-            conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
+            &conv_layer->d_bias, conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
             conv_layer->padding_x);
 #endif
     }
     tensor_scale(&conv_layer->d_weights, 1.0 / batch_size);
-
-    // Adjust output channel bias
-    tensor_set_zero(&conv_layer->d_bias);
-    for (size_t n = 0; n < batch_size; n++) {
-        const float* _dy = dy + n * output_channels * output_size;
-        for (size_t i = 0; i < output_channels; i++) {
-            const tensor_t out_channel_grad = {
-                .shape = make_tensor_shape(1, output_size),
-                .data = _dy + i * output_size,
-                .device = conv_layer->device
-            };
-            tensor_t db_tensor = {
-                .shape = make_tensor_shape(1, 1),
-                .data = db + i,
-                .device = conv_layer->device
-            };
-            tensor_sum(&db_tensor, &out_channel_grad);
-        }
-    }
     tensor_scale(&conv_layer->d_bias, 1.0 / batch_size);
 }
 

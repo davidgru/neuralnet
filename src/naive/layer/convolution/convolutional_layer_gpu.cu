@@ -163,6 +163,25 @@ void convolution_backward_weights_kernel(const float* input, const float* prev_g
     }
 }
 
+__global__
+void convolution_backward_bias_kernel(const float* prev_grad, float* d_bias, int batch_size,
+    int prev_grad_channels, int prev_grad_height, int prev_grad_width)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < prev_grad_channels) {
+        float sum = 0.0f;
+        for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+            for (int gr = 0; gr < prev_grad_height; gr++) {
+                for (int gc = 0; gc < prev_grad_width; gc++) {
+                    sum += prev_grad[((batch_idx * prev_grad_channels + idx)
+                            * prev_grad_height + gr) * prev_grad_width + gc];
+                }
+            }
+        }
+        d_bias[idx] += sum;
+    }
+}
+
 
 void conv2d_gpu(const float* input, const float* kernel, float* output, int32_t input_height,
     int32_t input_width, int32_t kernel_height, int32_t kernel_width, int32_t stride_y,
@@ -228,7 +247,7 @@ void convolution_backward_data_gpu(const tensor_t* prev_grad, const tensor_t* fi
 
 
 void convolution_backward_weights_gpu(const tensor_t* input, const tensor_t* prev_grad, tensor_t* d_weights,
-    int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x)
+    tensor_t* d_bias, int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x)
 {
     const unsigned int num_threads = tensor_channels(prev_grad) * tensor_channels(d_weights) 
         * _filter_height(d_weights) * _filter_width(d_weights);
@@ -243,5 +262,14 @@ void convolution_backward_weights_gpu(const tensor_t* input, const tensor_t* pre
         tensor_batch_size(input), tensor_channels(input), tensor_height(input), tensor_width(input),
         tensor_channels(prev_grad), tensor_height(prev_grad), tensor_width(prev_grad), _filter_height(d_weights),
         _filter_width(d_weights), stride_y, stride_x, padding_y, padding_x);
+    CUDA_CHECK_LAST_ERROR();
+
+    const dim3 bias_bs = props->default_block_size_1d;
+    const dim3 bias_nb = {
+        cuda_calc_num_blocks(tensor_channels(prev_grad), bias_bs.x)
+    };
+
+    convolution_backward_bias_kernel<<<bias_nb, bias_nb>>>(prev_grad->data, d_bias->data, tensor_batch_size(prev_grad),
+        tensor_channels(prev_grad), tensor_height(prev_grad), tensor_width(prev_grad));
     CUDA_CHECK_LAST_ERROR();
 }
