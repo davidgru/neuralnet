@@ -1,4 +1,4 @@
-#include <cooperative_groups.h>
+#include <curand_kernel.h>
 
 #include "tensor/tensor_math_internal.h"
 #include "_cuda.h"
@@ -263,4 +263,48 @@ void tensor_sum_axis_gpu(tensor_t* v, const tensor_t* w, size_t outer_stride,
         CUDA_CHECK_LAST_ERROR();
         cudaFree(tmp_data);
     }
+}
+
+
+static constexpr int curand_num_threads = 1024;
+static constexpr int seed = 42;
+static bool curand_initialized = false;
+__device__ curandState curand_states[curand_num_threads];
+
+
+__global__
+void random_init_kernel(int curand_num_threads, unsigned long seed)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < curand_num_threads) {
+        curand_init(seed, idx, 0, &curand_states[idx]);
+    }
+}
+
+__global__
+void random_mask_kernel(float* output, int curand_num_threads, int size, float ratio)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < curand_num_threads) {
+        for (int i = idx; i < size; i += curand_num_threads) {
+            output[i] = (curand_uniform(&curand_states[idx]) < ratio) ? 1.0f : 0.0f;
+        }
+    }
+}
+
+
+void tensor_random_mask_gpu(tensor_t* v, float ratio)
+{
+    const cuda_props_t* props = get_cuda_props();
+    const unsigned int num_threads = props->default_block_size_1d.x;
+    const unsigned int num_blocks = cuda_calc_num_blocks(curand_num_threads, num_threads);
+
+    if (!curand_initialized) {
+        random_init_kernel<<<num_blocks, num_threads>>>(curand_num_threads, seed);
+        curand_initialized = true;
+    }
+
+    const size_t size = tensor_get_size(v);
+    float* data = tensor_get_data(v);
+    random_mask_kernel<<<num_blocks, num_threads>>>(data, curand_num_threads, size, ratio);
 }

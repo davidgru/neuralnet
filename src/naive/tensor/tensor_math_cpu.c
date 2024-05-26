@@ -2,6 +2,7 @@
 
 #include "util/ai_math.h"
 #include "tensor/tensor_impl.h"
+#include "random.h"
 
 
 void tensor_scale_cpu(tensor_t* v, float f)
@@ -59,5 +60,13 @@ void tensor_sum_axis_cpu(tensor_t* v, const tensor_t* w, size_t outer_stride, si
                 v->data[i * inner_stride + k] += w->data[i * outer_stride + j * inner_stride + k];
             }
         }
+    }
+}
+
+void tensor_random_mask_cpu(tensor_t* v, float ratio)
+{
+    const size_t size = tensor_get_size(v);
+    for (size_t i = 0; i < size; i++) {
+        v->data[i] = (RandomUniform(0.0f, 1.0f) < ratio);
     }
 }

@@ -30,7 +30,6 @@ void tensor_add_scalar(tensor_t* v, float f)
         LOG_ERROR("Invalid device\n");
 #endif
     }
-
 }
 
 
@@ -126,5 +125,18 @@ void tensor_sum_axis(tensor_t* v, const tensor_t* w, int axis)
 #endif
     } else {
         LOG_ERROR("Tensors must be on same device\n");
+    }
+}
+
+void tensor_random_mask(tensor_t* v, float ratio)
+{
+    if (v->device == device_cpu) {
+        tensor_random_mask_cpu(v, ratio);
+    } else {
+#if defined(USE_GPU)
+        tensor_random_mask_gpu(v, ratio);
+#else
+        LOG_ERROR("Invalid device\n");
+#endif
     }
 }

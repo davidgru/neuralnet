@@ -23,3 +23,6 @@ void tensor_sum(tensor_t* v, const tensor_t* w);
 
 /* v += sum(w, axis=axis)*/
 void tensor_sum_axis(tensor_t* v, const tensor_t* w, int axis);
+
+/* v = random(1 with prob ratio)*/
+void tensor_random_mask(tensor_t* v, float ratio);
