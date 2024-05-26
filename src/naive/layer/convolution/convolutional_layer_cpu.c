@@ -2,6 +2,7 @@
 
 #include "util/ai_math.h"
 #include "tensor/tensor_impl.h"
+#include "tensor/tensor_math.h"
 
 
 void conv2d_cpu(const float* input, const float* kernel, float* output, int32_t input_height,
