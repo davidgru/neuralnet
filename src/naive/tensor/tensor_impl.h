@@ -7,6 +7,7 @@
 struct tensor_shape {
     /* Dimensions of the tensor. Set unused dimensions to zero. */
     size_t dims[TENSOR_MAX_DIMS];
+    size_t ndims;
 };
 
 

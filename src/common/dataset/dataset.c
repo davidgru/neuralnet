@@ -118,7 +118,7 @@ uint32_t dataset_iteration_begin(
         }
 
         tensor_shape_t scratch_shape = make_tensor_shape(
-            TENSOR_MAX_DIMS,
+            DATA_TENSOR_DIMS,
             batch_size,
             tensor_shape_get_dim(&dataset->data_shape, TENSOR_CHANNEL_DIM),
             tensor_shape_get_dim(&dataset->data_shape, TENSOR_HEIGHT_DIM),
@@ -184,7 +184,7 @@ uint32_t dataset_iteration_next(dataset_t dataset, tensor_t** out_batch, uint8_t
         /* Reflect specific batch size in the output tensor and use scratch mem as buffer. */
         /* Will cause memory allocation when using onednn :( */
         tensor_shape_t current_out_shape = make_tensor_shape(
-            TENSOR_MAX_DIMS,
+            DATA_TENSOR_DIMS,
             this_batch_size,
             tensor_shape_get_dim(&dataset->data_shape, TENSOR_CHANNEL_DIM),
             tensor_shape_get_dim(&dataset->data_shape, TENSOR_HEIGHT_DIM),

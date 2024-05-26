@@ -20,3 +20,6 @@ void tensor_scaled_add(tensor_t* v, const tensor_t* w, float f);
 
 /* v += sum(w) */
 void tensor_sum(tensor_t* v, const tensor_t* w);
+
+/* v += sum(w, axis=axis)*/
+void tensor_sum_axis(tensor_t* v, const tensor_t* w, int axis);

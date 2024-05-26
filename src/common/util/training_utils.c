@@ -29,7 +29,7 @@ static tensor_shape_t input_shape_from_dataset(dataset_t dataset, size_t batch_s
 {
     const tensor_shape_t* data_shape = dataset_get_shape(dataset);
 
-    tensor_shape_t input_shape = make_tensor_shape(TENSOR_MAX_DIMS,
+    tensor_shape_t input_shape = make_tensor_shape(DATA_TENSOR_DIMS,
         batch_size,
         tensor_shape_get_dim(data_shape, TENSOR_CHANNEL_DIM),
         tensor_shape_get_dim(data_shape, TENSOR_HEIGHT_DIM),

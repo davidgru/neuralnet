@@ -71,6 +71,7 @@ static uint32_t conv_layer_init(
     conv_layer->device = device;
 
     tensor_shape_t weights_shape = {
+        .ndims = 4,
         .dims[CONV_WEIGHT_OUTPUT_CHANNEL_DIM] = output_shape->dims[TENSOR_CHANNEL_DIM],
         .dims[CONV_WEIGHT_INPUT_CHANNEL_DIM] = input_shape->dims[TENSOR_CHANNEL_DIM],
         .dims[CONV_WEIGHT_HEIGHT_DIM] = conv_create_info->filter_height,
@@ -80,10 +81,8 @@ static uint32_t conv_layer_init(
     tensor_allocate_device(&conv_layer->d_weights, &weights_shape, device);
 
     tensor_shape_t bias_shape = {
+        .ndims = 1,
         .dims[0] = conv_create_info->output_channels,
-        .dims[1] = 0,
-        .dims[2] = 0,
-        .dims[3] = 0,
     };
     tensor_allocate_device(&conv_layer->bias, &bias_shape, device);
     tensor_allocate_device(&conv_layer->d_bias, &bias_shape, device);
@@ -271,13 +270,14 @@ static uint32_t conv_layer_calc_output_shape(
     convolutional_layer_create_info_t* conv_create_info =
         (convolutional_layer_create_info_t*)create_info;
 
-    out_output_shape->dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
-    out_output_shape->dims[TENSOR_CHANNEL_DIM] = conv_create_info->output_channels;
-    out_output_shape->dims[TENSOR_HEIGHT_DIM] = conv_output_size(
-        input_shape->dims[TENSOR_HEIGHT_DIM], conv_create_info->filter_height,
-        conv_create_info->stride_y, 1, conv_create_info->padding_y);
-    out_output_shape->dims[TENSOR_WIDTH_DIM] = conv_output_size(input_shape->dims[TENSOR_WIDTH_DIM],
-        conv_create_info->filter_width, conv_create_info->stride_x, 1, conv_create_info->padding_x);
+    *out_output_shape = make_tensor_shape(DATA_TENSOR_DIMS,
+        input_shape->dims[TENSOR_BATCH_DIM],
+        conv_create_info->output_channels,
+        conv_output_size(input_shape->dims[TENSOR_HEIGHT_DIM], conv_create_info->filter_height,
+            conv_create_info->stride_y, 1, conv_create_info->padding_y),
+        conv_output_size(input_shape->dims[TENSOR_WIDTH_DIM], conv_create_info->filter_width,
+            conv_create_info->stride_x, 1, conv_create_info->padding_x)
+    );
     return 0;
 }
 

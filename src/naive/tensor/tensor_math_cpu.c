@@ -1,6 +1,7 @@
 #include "tensor/tensor_math_internal.h"
 
 #include "util/ai_math.h"
+#include "tensor/tensor_impl.h"
 
 
 void tensor_scale_cpu(tensor_t* v, float f)
@@ -47,4 +48,16 @@ void tensor_sum_cpu(tensor_t* v, const tensor_t* w)
     const float* w_data = tensor_get_data_const(w);
     size_t n = tensor_get_size(w);
     *v_data += Sum(w_data, n);
+}
+
+void tensor_sum_axis_cpu(tensor_t* v, const tensor_t* w, size_t outer_stride, size_t outer_len, size_t axis_len, size_t inner_stride)
+{
+    for (size_t i = 0; i < outer_len; i++) {
+        for (int k = 0; k < inner_stride; k++) {
+            v->data[i * inner_stride + k] = 0;
+            for (int j = 0; j < axis_len; j++) {
+                v->data[i * inner_stride + k] += w->data[i * outer_stride + j * inner_stride + k];
+            }
+        }
+    }
 }

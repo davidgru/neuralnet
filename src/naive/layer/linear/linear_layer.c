@@ -80,22 +80,19 @@ static uint32_t linear_layer_init(
     /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
         future. */
     tensor_shape_t weights_shape = {
+        .ndims = 2,
         .dims[LINEAR_WEIGHTS_OUTPUT_DIM] = output_shape->dims[TENSOR_CHANNEL_DIM],
         .dims[LINEAR_WEIGHTS_INPUT_DIM] = input_shape->dims[TENSOR_CHANNEL_DIM]
             * input_shape->dims[TENSOR_HEIGHT_DIM]
             * input_shape->dims[TENSOR_WIDTH_DIM],
-        .dims[2] = 0,
-        .dims[3] = 0,
     };
     tensor_allocate_device(&linear_layer->weights, &weights_shape, device);
     tensor_allocate_device(&linear_layer->d_weights, &weights_shape, device);
 
     tensor_shape_t bias_shape = {
-        .dims[0] = linear_create_info->output_size,
-        .dims[1] = 0,
-        .dims[2] = 0,
-        .dims[3] = 0,
-    };
+        .ndims = 1,
+        .dims[0] = linear_create_info->output_size
+    };        
     tensor_allocate_device(&linear_layer->bias, &bias_shape, device);
     tensor_allocate_device(&linear_layer->d_bias, &bias_shape, device);
 
@@ -255,11 +252,11 @@ static uint32_t linear_layer_calc_output_shape(
 
     /* For now implicitly flatten input. Might be benefical to implement an flatten layer in
         future. */
-    out_output_shape->dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
-    out_output_shape->dims[TENSOR_CHANNEL_DIM] = linear_create_info->output_size;
-    out_output_shape->dims[TENSOR_HEIGHT_DIM] = 1;
-    out_output_shape->dims[TENSOR_WIDTH_DIM] = 1;    
-
+    *out_output_shape = make_tensor_shape(DATA_TENSOR_DIMS,
+        input_shape->dims[TENSOR_BATCH_DIM],
+        linear_create_info->output_size,
+        1, 1
+    );
     return 0;
 }
 

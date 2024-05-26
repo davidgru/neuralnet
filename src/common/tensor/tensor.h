@@ -6,9 +6,10 @@
 
 
 /* Maximum amount of dimensions a tensor can have */
-#define TENSOR_MAX_DIMS 4
+#define TENSOR_MAX_DIMS 8
 
 /* Semantic meaning of dimensions in case of input tensor */
+#define DATA_TENSOR_DIMS 4
 #define TENSOR_BATCH_DIM 0
 #define TENSOR_CHANNEL_DIM 1
 #define TENSOR_HEIGHT_DIM 2

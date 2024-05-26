@@ -20,6 +20,7 @@ tensor_shape_t make_tensor_shape(size_t ndims, ...)
     for (size_t i = 0; i < ndims; i++) {
         shape.dims[i] = va_arg(args, size_t);
     }
+    shape.ndims = ndims;
 
     va_end(args);
     return shape;
@@ -40,7 +41,7 @@ void destroy_tensor_shape(tensor_shape_t* shape)
 
 size_t tensor_shape_get_depth_dim(const tensor_shape_t* shape)
 {
-    return TENSOR_MAX_DIMS;
+    return shape->ndims;
 }
 
 
@@ -53,7 +54,10 @@ size_t tensor_shape_get_dim(const tensor_shape_t* shape, size_t dim)
 size_t tensor_size_from_shape(const tensor_shape_t* shape)
 {
     size_t size = 0;
-    for (size_t i = 0; i < TENSOR_MAX_DIMS; i++) {
+    if (shape->ndims > TENSOR_MAX_DIMS) {
+        LOG_ERROR("Invalid tensor dims\n");
+    }
+    for (size_t i = 0; i < shape->ndims; i++) {
         if (shape->dims[i] != 0) {
             if (size == 0) {
                 size = shape->dims[i];
