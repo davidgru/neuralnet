@@ -123,12 +123,10 @@ static uint32_t pooling_layer_calc_output_shape(
 {
     pooling_layer_create_info_t* pooling_create_info = (pooling_layer_create_info_t*)create_info;
 
-    out_output_shape->dims[TENSOR_BATCH_DIM] = input_shape->dims[TENSOR_BATCH_DIM];
-    out_output_shape->dims[TENSOR_CHANNEL_DIM] = input_shape->dims[TENSOR_CHANNEL_DIM];
-    out_output_shape->dims[TENSOR_HEIGHT_DIM] = input_shape->dims[TENSOR_HEIGHT_DIM]
-        / pooling_create_info->kernel_width;
-    out_output_shape->dims[TENSOR_WIDTH_DIM] = input_shape->dims[TENSOR_WIDTH_DIM]
-        / pooling_create_info->kernel_width;
+    tensor_shape_t output_shape = *input_shape;
+    output_shape.dims[TENSOR_HEIGHT_DIM] /= pooling_create_info->kernel_width;
+    output_shape.dims[TENSOR_WIDTH_DIM] /= pooling_create_info->kernel_width;
+    *out_output_shape = output_shape;
 
     return 0;
 }

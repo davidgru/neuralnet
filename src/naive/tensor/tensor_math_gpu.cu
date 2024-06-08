@@ -45,6 +45,15 @@ void tensor_eltwise_scaled_add_kernel(float* v, const float* w, float f, int n)
 }
 
 __global__
+void tensor_momentum_update_kernel(float* v, const float* w, float momentum, int n)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        v[idx] = v[idx] * momentum + (1.0f - momentum) * w[idx];
+    }
+}
+
+__global__
 void tensor_eltwise_mul_kernel(float* v, const float* w, int n)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -210,6 +219,38 @@ void tensor_sum_axis_kernel(const float* in_data, float* out_data, int num_reduc
 }
 
 
+__global__
+void tensor_variance_axis_kernel(const float* in_data, const float* mean, float* out_data, int num_reduce, int reduce_ndim, int outer_stride, int inner_stride)
+{
+    extern __shared__ float sdata[];
+    const int k = blockIdx.x * blockDim.x + threadIdx.x;
+    const int i = blockIdx.y * blockDim.y + threadIdx.y;
+    const int j = blockIdx.z * blockDim.z + threadIdx.z;
+
+    const int xz_dim = blockDim.x * blockDim.z;
+
+    if (j < reduce_ndim && k < inner_stride && k < outer_stride && i < num_reduce) {
+        float f = in_data[i * outer_stride + j * inner_stride + k] - mean[i * inner_stride + k];
+        sdata[threadIdx.y * xz_dim + threadIdx.z * blockDim.x + threadIdx.x] = f * f;
+    } else {
+        sdata[threadIdx.y * xz_dim + threadIdx.z * blockDim.x + threadIdx.x] = 0.0f;    
+    }
+    __syncthreads();
+
+    for (int s = blockDim.z / 2; s > 0; s >>= 1) {
+        if (threadIdx.z < s) {
+            sdata[threadIdx.y * xz_dim + threadIdx.z * blockDim.x + threadIdx.x]
+                += sdata[threadIdx.y * xz_dim + (threadIdx.z + s) * blockDim.x + threadIdx.x];
+        }
+        __syncthreads();
+    }
+
+    if ((threadIdx.z == 0) && (j < reduce_ndim) && (k < inner_stride) && (i < num_reduce)) {
+        out_data[(i * gridDim.z + blockIdx.z) * inner_stride + k] = sdata[threadIdx.y * xz_dim + threadIdx.x];
+    };
+}
+
+
 void tensor_sum_axis_gpu(tensor_t* v, const tensor_t* w, size_t outer_stride,
     size_t outer_len, size_t axis_len, size_t inner_stride)
 {
@@ -266,6 +307,65 @@ void tensor_sum_axis_gpu(tensor_t* v, const tensor_t* w, size_t outer_stride,
 }
 
 
+void tensor_variance_axis_gpu(tensor_t* v, const tensor_t* w, const tensor_t* mean,
+    size_t outer_stride, size_t outer_len, size_t axis_len, size_t inner_stride)
+{
+    float* v_data = tensor_get_data(v);
+    const float* w_data = tensor_get_data_const(w);
+    const float* mean_data = tensor_get_data_const(mean);
+
+    const cuda_props_t* props = get_cuda_props();
+    unsigned int total_tpb = props->default_block_size_1d.x;
+    unsigned int threads_z = min(64, next_pow2(axis_len));
+    unsigned int threads_x = min(total_tpb / threads_z, next_pow2(inner_stride));
+    unsigned int threads_y = total_tpb / (threads_x * threads_z);
+    dim3 threads = { threads_x, threads_y, threads_z };
+    dim3 blocks = {
+        cuda_calc_num_blocks(inner_stride, threads.x),
+        cuda_calc_num_blocks(outer_len, threads.y),
+        cuda_calc_num_blocks(axis_len, threads.z)
+    };
+    unsigned int shared_size = threads_x * threads_y * threads_z * sizeof(float);
+    
+    // first call incorporates the mean, remaining calls sum reduce
+    if (blocks.z == 1) {
+        tensor_variance_axis_kernel<<<blocks, threads, shared_size>>>(w_data, mean_data,
+            v_data, outer_len, axis_len, outer_stride, inner_stride);
+        CUDA_CHECK_LAST_ERROR();
+    } else {
+        float* tmp_data = NULL;
+        size_t tmp_size = blocks.z * outer_len * inner_stride;
+        cudaMalloc(&tmp_data, 2 * tmp_size * sizeof(float));
+        tensor_variance_axis_kernel<<<blocks, threads, shared_size>>>(w_data, mean_data,
+            tmp_data, outer_len, axis_len, outer_stride, inner_stride);
+        CUDA_CHECK_LAST_ERROR();
+    
+        size_t new_in_dims = blocks.z;
+        blocks.z = cuda_calc_num_blocks(new_in_dims, threads.z);
+        outer_stride = inner_stride * new_in_dims;
+
+        size_t it = 0;
+        while(blocks.z > 1) {
+            tensor_sum_axis_kernel<<<blocks, threads, shared_size>>>(
+                &tmp_data[(it & 1) * tmp_size], &tmp_data[(it ^ 1) * tmp_size],
+                outer_len, new_in_dims, outer_stride, inner_stride);
+            CUDA_CHECK_LAST_ERROR();
+            new_in_dims = blocks.z;
+            blocks.z = cuda_calc_num_blocks(new_in_dims, threads.z);
+            outer_stride = inner_stride * new_in_dims;
+            it++;
+        }
+
+        tensor_sum_axis_kernel<<<blocks, threads, shared_size>>>(
+            &tmp_data[(it & 1) * tmp_size], v_data,
+            outer_len, new_in_dims, outer_stride, inner_stride);
+        CUDA_CHECK_LAST_ERROR();
+        cudaFree(tmp_data);
+    }
+    tensor_scale(v, 1.0f / axis_len);
+}
+
+
 static constexpr int curand_num_threads = 1024;
 static constexpr int seed = 42;
 static bool curand_initialized = false;
@@ -307,4 +407,20 @@ void tensor_random_mask_gpu(tensor_t* v, float ratio)
     const size_t size = tensor_get_size(v);
     float* data = tensor_get_data(v);
     random_mask_kernel<<<num_blocks, num_threads>>>(data, curand_num_threads, size, ratio);
+}
+
+void tensor_momentum_update_gpu(tensor_t* v, const tensor_t* w, float momentum)
+{
+    float* v_data = tensor_get_data(v);
+    const float* w_data = tensor_get_data_const(w);
+    unsigned int n = tensor_get_size(v);
+
+    const cuda_props_t* props = get_cuda_props();
+    const dim3 block_size = props->default_block_size_1d;
+    const dim3 block_dim = {
+        cuda_calc_num_blocks(n, block_size.x)
+    };
+
+    tensor_momentum_update_kernel<<<block_dim, block_size>>>(v_data, w_data, momentum, n);
+    CUDA_CHECK_LAST_ERROR();
 }
