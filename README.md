@@ -1,6 +1,6 @@
 # Neuralnet
 Library for training neural networks implemented in C. Includes two backends:
-* naive implementation where all primitives are implemented from scratch
+* naive cpu and gpu (cuda) implementation where all primitives are implemented from scratch
 * [Intel oneDNN](https://github.com/oneapi-src/oneDNN) backend (only cpu)
 
 Features:
@@ -28,6 +28,11 @@ Naive backend can be configured to use AVX2 to vectorize matrix products and vec
 ```bash
 make TARGET=examples/mlp BACKEND=naive USE_AVX=1 run
 ```
+To use cuda gpu implementation run with
+```bash
+make TARGET=examples/mlp BACKEND=naive USE_GPU=1 run
+```
+
 
 ## How to use oneDNN backend
 Requires [Intel oneDNN](https://github.com/oneapi-src/oneDNN) to be installed as a shared library. A [script](scripts/install-onednn.sh) is provided which compiles the specific revision of oneDNN used for development from source.
