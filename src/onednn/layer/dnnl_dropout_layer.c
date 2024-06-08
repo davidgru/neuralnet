@@ -9,7 +9,7 @@
 
 #include "context_impl.h"
 
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 #include "log.h"
 #include "core/layer_impl.h"
 #include "layer/dropout_layer.h"
@@ -36,7 +36,8 @@ static uint32_t dropout_layer_init(
     layer_context_t* context,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
+    const tensor_shape_t* output_shape,
+    device_t device
 )
 {
     dropout_layer_t* layer = context;

@@ -9,7 +9,7 @@ typedef uint32_t (*layer_init_func_t)(
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
     const tensor_shape_t* output_shape,
-    device_t device,
+    device_t device
 );
 
 

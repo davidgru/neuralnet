@@ -6,7 +6,7 @@
 
 #include "util/dnnl_util.h"
 
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 
 
 struct layer_s {
@@ -43,7 +43,7 @@ uint32_t layer_create(
     memset((*layer)->context, 0, (*layer)->impl->layer_context_size);
 
     if ((*layer)->impl->init_func((*layer)->context, create_info, input_shape,
-                                    &(*layer)->output_shape) != 0) {
+                                    &(*layer)->output_shape, device) != 0) {
         free((*layer)->context);
         free(*layer);
         return 1;

@@ -6,7 +6,7 @@
 
 #include "dnnl.h"
 
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 
 
 typedef struct {

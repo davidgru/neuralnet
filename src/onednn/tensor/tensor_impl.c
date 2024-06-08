@@ -3,7 +3,7 @@
 
 #include "log.h"
 
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 #include "context_impl.h"
 
 
@@ -80,6 +80,13 @@ size_t tensor_size_from_shape(const tensor_shape_t* shape)
 {
     return dnnl_memory_desc_get_size(shape->desc) / dnnl_data_type_size(dnnl_f32);
 }
+
+
+size_t tensor_get_size(const tensor_t* tensor)
+{
+    return tensor_size_from_shape(&tensor->shape);
+}
+
 
 
 uint32_t tensor_allocate(tensor_t* tensor, const tensor_shape_t* shape)

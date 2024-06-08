@@ -83,7 +83,8 @@ static uint32_t linear_layer_init(
     layer_context_t* context,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
+    const tensor_shape_t* output_shape,
+    device_t device
 )
 {
     linear_layer_t* layer = context;

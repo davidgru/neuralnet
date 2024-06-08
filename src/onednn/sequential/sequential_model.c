@@ -1,7 +1,7 @@
 #include <malloc.h>
 #include <string.h>
 
-#include "tensor_impl.h"
+#include "tensor/tensor_impl.h"
 
 #include "sequential/sequential_model.h"
 
@@ -17,7 +17,8 @@ static uint32_t sequential_model_init(
     layer_context_t* context,
     const layer_create_info_t* create_info,
     const tensor_shape_t* input_shape,
-    const tensor_shape_t* output_shape
+    const tensor_shape_t* output_shape,
+    device_t device
 )
 {
     sequential_model_t* model = (sequential_model_t*)context;
@@ -40,7 +41,7 @@ static uint32_t sequential_model_init(
         const layer_impl_t* layer_impl = desc->entries[i].layer_impl;
         const layer_create_info_t* create_info = desc->entries[i].create_info._const;
         layer_create(&model->layers[i], layer_impl, create_info, current_output_shape,
-            model_create_info->max_batch_size);
+            model_create_info->max_batch_size, device);
         current_output_shape = layer_get_output_shape(model->layers[i]);
     }
 
