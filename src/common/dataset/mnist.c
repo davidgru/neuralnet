@@ -243,7 +243,9 @@ static uint32_t validate_file_size(FILE* fp, size_t required_size)
 static uint32_t validate_image_header(FILE* fp, size_t image_sample_size)
 {
     file_header hdr;
-    fread(&hdr, 1, 16, fp);
+    size_t ret;
+
+    ret = fread(&hdr, 1, 16, fp);
     hdr.magic_number = flip(hdr.magic_number);
     hdr.number_of_items = flip(hdr.number_of_items);
     hdr.number_of_rows = flip(hdr.number_of_rows);
@@ -255,7 +257,9 @@ static uint32_t validate_image_header(FILE* fp, size_t image_sample_size)
 static uint32_t validate_label_header(FILE* fp, size_t label_sample_size)
 {
     file_header hdr;
-    fread(&hdr, 1, 8, fp);
+    size_t ret;
+
+    ret = fread(&hdr, 1, 8, fp);
     hdr.magic_number = flip(hdr.magic_number);
     hdr.number_of_items = flip(hdr.number_of_items);
     return !(hdr.magic_number == LABEL_MAGIC && hdr.number_of_items == label_sample_size);
@@ -267,12 +271,13 @@ static uint32_t read_images(FILE* fp, float* dest, size_t image_sample_size, siz
     const size_t image_width = IMAGE_WIDTH + 2 * padding;
     const size_t image_height = IMAGE_HEIGHT + 2 * padding;
     const size_t image_size = image_width * image_height;
+    size_t ret;
 
     fseek(fp, 16, SEEK_SET);
     uint8_t* temp_buffer = (uint8_t*)malloc(IMAGE_SIZE * image_sample_size);
     if (!temp_buffer)
         return 1;
-    fread(temp_buffer, 1, IMAGE_SIZE * image_sample_size, fp);
+    ret = fread(temp_buffer, 1, IMAGE_SIZE * image_sample_size, fp);
     memset(dest, 0, image_sample_size * image_size * sizeof(float));
     for (size_t i = 0; i < image_sample_size; i++)
         for (size_t j = 0; j < IMAGE_HEIGHT; j++)
@@ -303,11 +308,12 @@ error:
 static uint32_t read_label_file(uint8_t* dest, char* file_path, const char* file_name, size_t file_path_size, size_t file_name_size, size_t required_file_size, size_t sample_size)
 {
     FILE* fp = open_file(file_path, file_name, file_path_size, file_name_size);
+    size_t ret;
     if (!fp)
         return 1;
     if (validate_file_size(fp, required_file_size) || validate_label_header(fp, sample_size))
         goto error;
-    fread(dest, 1, sample_size, fp);
+    ret = fread(dest, 1, sample_size, fp);
     fclose(fp);
     return 0;
 error:

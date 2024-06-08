@@ -240,7 +240,7 @@ uint32_t model_desc_dump(model_desc_t* desc)
         else if (current_info->layer_impl == &convolutional_layer_impl){
             const convolutional_layer_create_info_t* conv_create_info = 
                 (const convolutional_layer_create_info_t*)current_info->create_info._const;
-            printf("* conv\t\t(filters: %d, kernel: (%zu,%zu), stride: (%zu,%zu)" 
+            printf("* conv\t\t(filters: %ld, kernel: (%zu,%zu), stride: (%zu,%zu)" 
                 ", padding: (%zu,%zu,%zu,%zu))\n", conv_create_info->output_channels,
                 conv_create_info->filter_height, conv_create_info->filter_width,
                 conv_create_info->stride_y, conv_create_info->stride_x, conv_create_info->padding_y,
