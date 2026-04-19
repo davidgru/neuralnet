@@ -1,7 +1,3 @@
-CC := gcc
-ifeq ($(USE_GPU),1)
-CUCC := nvcc
-endif
 
 # Select backend files based on selected backend
 # Supported values: naive, onednn
@@ -27,6 +23,14 @@ LOG_LEVEL ?= 3
 # Set to 1 to enable gdb support
 DEBUG ?= 0
 
+CC := gcc
+ifeq ($(USE_GPU),1)
+CUCC := nvcc
+endif
+
+ifeq ($(USE_AVX),1)
+CXX := g++
+endif
 
 ifeq ($(DEBUG),1)
 ifeq ($(USE_AVX),1)
@@ -36,24 +40,30 @@ endif
 
 
 CFLAGS :=
-CUFLAGS :=
+CUFLAGS := -arch=sm_61
+CXFLAGS :=
 ifdef LOG_LEVEL
 CFLAGS += -DLOG_LEVEL=$(LOG_LEVEL)
 CUFLAGS += -DLOG_LEVEL=$(LOG_LEVEL)
+CXFLAGS += -DLOG_LEVEL=$(LOG_LEVEL)
 endif
 ifeq ($(USE_AVX),1)
-CFLAGS += -march=haswell -DUSE_AVX
+CFLAGS += -march=native -DUSE_AVX
+CXFLAGS += -march=native -DUSE_AVX
 endif
 ifeq ($(USE_GPU),1)
 CFLAGS += -DUSE_GPU
 CUFLAGS += -DUSE_GPU
+CXFLAGS += -DUSE_GPU
 endif
 ifeq ($(DEBUG),1)
 CFLAGS += -g -DDEBUG
 CUFLAGS += -g -DDEBUG
+CXFLAGS += -g -DDEBUG
 else
 CFLAGS += -O3 -Ofast
 CUFLAGS += -O3
+CXFLAGS += -O3 -funroll-loops
 endif
 
 
@@ -93,9 +103,14 @@ else
 $(error Only naive and onednn implementation available.)
 endif
 
+ifeq ($(USE_AVX),1)
+SRC += $(shell find $(SOURCEDIR)/naive -name '*.cpp')
+endif
+
 
 # Object files are placed in same directory as src files, just with different file extension
 OBJ := $(SRC:.c=.o)
+OBJ := $(OBJ:.cpp=.o)
 ifeq ($(USE_GPU),1)
 OBJ := $(OBJ:.cu=.o)
 endif

@@ -16,6 +16,11 @@ ifeq ($(USE_GPU),1)
 	$(CUCC) $(INCLUDE) $(CUFLAGS) -c $< -o $@
 endif
 
+ifeq ($(USE_AVX),1)
+%.o: %.cpp
+	$(CXX) $(INCLUDE) $(CXFLAGS) -c $< -o $@
+endif
+
 
 clean:
 	@$(RM) -rv $(TARGET) $(OBJ)
