@@ -178,12 +178,12 @@ static uint32_t conv_layer_forward(
     if (conv_layer->device == device_cpu) {
         convolution_forward_cpu(input, &conv_layer->weights, &conv_layer->bias, out_output,
             conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
-            conv_layer->padding_x, 1, 1, 0, 0, false);
+            conv_layer->padding_x, 1, 1);
     } else {
 #if defined(USE_GPU)
         convolution_forward_gpu(input, &conv_layer->weights, &conv_layer->bias, out_output,
             conv_layer->stride_y, conv_layer->stride_x, conv_layer->padding_y,
-            conv_layer->padding_x, 1, 1, 0, 0, false);
+            conv_layer->padding_x, 1, 1);
 #endif
     }
 }

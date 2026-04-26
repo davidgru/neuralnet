@@ -33,6 +33,7 @@ struct avx2_ops<float> {
     
     static reg set1(float v) { return _mm256_set1_ps(v); }
     static reg fmadd(reg a, reg b, reg c) { return _mm256_fmadd_ps(a, b, c); };
+    static reg add(reg a, reg b) { return _mm256_add_ps(a, b); };
 };
 
 template<>
@@ -60,6 +61,7 @@ struct avx2_ops<double> {
     
     static reg set1(double v) { return _mm256_set1_pd(v); }
     static reg fmadd(reg a, reg b, reg c) { return _mm256_fmadd_pd(a, b, c); };
+    static reg add(reg a, reg b) { return _mm256_add_pd(a, b); };
 };
 
 template<typename T>
@@ -91,6 +93,7 @@ struct avx2_ops_i32 {
     static reg fmadd(reg a, reg b, reg c) {
         return _mm256_add_epi32(c, _mm256_mullo_epi32(a, b));
     };
+    static reg add(reg a, reg b) { return _mm256_add_epi32(a, b); };
 };
 
 template<>
@@ -128,6 +131,7 @@ struct avx2_ops_i16 {
     static reg fmadd(reg a, reg b, reg c) {
         return _mm256_add_epi16(c, _mm256_mullo_epi16(a, b));
     };
+    static reg add(reg a, reg b) { return _mm256_add_epi16(a, b); };
 };
 
 template<>

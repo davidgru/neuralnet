@@ -6,7 +6,7 @@
 
 #include "matrix.hpp"
 #include "packing.hpp"
-#include "avx2_ops.hpp"
+#include "../common/avx2_ops.hpp"
 #include "kernel.hpp"
 
 template<bool EnableBlocking, size_t MC, size_t NC, size_t KC>
@@ -110,10 +110,9 @@ static inline void gemm_packed(
     static constexpr size_t MC = BlockingPolicy::mc;
     static constexpr size_t NC = BlockingPolicy::nc;
     static constexpr size_t KC = BlockingPolicy::kc;
-    static constexpr size_t NR = Kernel::NR;
 
     PackingContext_A<T, MC, KC, PackingPolicy::pack_A, LayoutA> apc;
-    PackingContext_B<T, KC, NC, NR, PackingPolicy::pack_B, LayoutB> bpc;
+    PackingContext_B<T, KC, NC, Kernel::NR, PackingPolicy::pack_B, LayoutB> bpc;
 
     for (size_t k0 = 0; k0 < K; k0 += KC)
     for (size_t n0 = 0; n0 < N; n0 += NC)
@@ -198,14 +197,4 @@ static inline void gemm(
                       && std::is_same_v<LayoutB, row_major_t>);
         gemm_inner<T, Kernel>(A, B, C, K, N, N, M, N, K);
     }
-}
-
-template<typename T, typename BlockingPolicy, typename PackingPolicy,
-    size_t MR, typename LayoutA = row_major_t, typename LayoutB = row_major_t>
-static void gemm_avx2(
-    const T* __restrict A, const T* __restrict B, T* __restrict C,
-    size_t M, size_t N, size_t K)
-{
-    using Kernel = kernel::avx2<T, MR, PackingPolicy::pack_B>;
-    gemm<T, Kernel, BlockingPolicy, PackingPolicy, LayoutA, LayoutB>(A, B, C, M, N, K);
 }

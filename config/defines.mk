@@ -69,6 +69,9 @@ endif
 
 # math library
 LDFLAGS := -lm
+ifeq ($(USE_AVX),1)
+LDFLAGS += -lstdc++
+endif
 
 
 SOURCEDIR := src

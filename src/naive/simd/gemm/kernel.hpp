@@ -1,6 +1,6 @@
 #pragma once
 
-#include "avx2_ops.hpp"
+#include "../common/avx2_ops.hpp"
 
 namespace kernel {
 

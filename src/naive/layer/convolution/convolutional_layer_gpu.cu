@@ -1,9 +1,11 @@
-#include "_cuda.h"
+#include <stdlib.h>
 
+#include "_cuda.h"
 #include "convolutional_layer_internal.h"
 extern "C" {
 #include "tensor/tensor_math.h"
 }
+
 
 
 __global__
@@ -186,8 +188,7 @@ void conv2d_gpu(const float* input, const float* kernel, float* output, int32_t 
 
 void convolution_forward_gpu(const tensor_t* input, const tensor_t* filter, const tensor_t* bias,
     tensor_t* output, int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x,
-    int32_t dilation_y, int32_t dilation_x, int32_t skip_output_y, int32_t skip_output_x,
-    int32_t flip_kernel)
+    int32_t dilation_y, int32_t dilation_x)
 {
     const unsigned int num_threads = tensor_batch_size(output) * tensor_channels(output)
         * tensor_height(output) * tensor_width(output);
@@ -201,8 +202,84 @@ void convolution_forward_gpu(const tensor_t* input, const tensor_t* filter, cons
     convolution_forward_kernel<<<block_dim, block_size>>>(input->data, filter->data, bias->data, output->data,
         tensor_batch_size(input), tensor_channels(output), tensor_channels(input), tensor_height(input),
         tensor_width(input), _filter_height(filter), _filter_width(filter), tensor_height(output), tensor_width(output),
+        stride_y, stride_x, padding_y, padding_x, dilation_y, dilation_x, 0, 0, 0);
+    CUDA_CHECK_LAST_ERROR();
+}
+
+
+__global__
+void convolution_forward_parallel_kernel(const float* input, const float* filter, const float* bias, float* output,
+    int batch_size, int output_channels, int input_channels, int input_height, int input_width,
+    int filter_height, int filter_width, int output_height, int output_width, int stride_y, int stride_x,
+    int padding_y, int padding_x, int dilation_y, int dilation_x, int skip_output_y, int skip_output_x,
+    int flip_kernel)
+{
+    int batch_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int column = batch_idx % output_width; batch_idx /= output_width;
+    const int row = batch_idx % output_height; batch_idx /= output_height;
+    const int oc_idx = batch_idx % output_channels; batch_idx /= output_channels;
+    const int ic_idx = batch_idx % input_channels; batch_idx /= input_channels;
+
+    const int input_row = (row + skip_output_y) * stride_y - padding_y;
+    const int input_column = (column + skip_output_x) * stride_x - padding_x;
+
+    input += (batch_idx * input_channels + ic_idx) * input_height * input_width;
+    filter += (oc_idx * input_channels + ic_idx) * filter_height * filter_width;
+    output += ((batch_idx * output_channels + oc_idx) * input_channels + ic_idx)
+                * output_height * output_width;
+
+    if (batch_idx < batch_size) {
+        float sum = 0.0f;
+        for (int kr = 0; kr < filter_height; kr++) {
+            for (int kc = 0; kc < filter_width; kc++) {
+                const int data_rk = input_row + kr * dilation_y;
+                const int data_ck = input_column + kc * dilation_x;
+                const int kernel_idx = flip_kernel ?
+                    ((filter_height - kr - 1) * filter_width + (filter_width - kc - 1)) :
+                    (kr * filter_width + kc);
+                if (data_rk >= 0 && data_rk < input_height && data_ck >= 0 && data_ck < input_width) {
+                    sum += input[data_rk * input_width + data_ck] * filter[kernel_idx];
+                }
+            }
+        }
+        output[row * output_width + column] = sum; // + bias[oc_idx];
+    }
+}
+
+void convolution_forward_gpu_2(const tensor_t* input, const tensor_t* filter, const tensor_t* bias,
+    tensor_t* output, int32_t stride_y, int32_t stride_x, int32_t padding_y, int32_t padding_x,
+    int32_t dilation_y, int32_t dilation_x, int32_t skip_output_y, int32_t skip_output_x,
+    int32_t flip_kernel)
+{
+    const cuda_props_t* props = get_cuda_props();
+    const unsigned int total_threads = tensor_batch_size(input) * tensor_channels(output) * tensor_channels(input)
+                                        * tensor_height(output) * tensor_width(output);
+    const unsigned int block_size = props->default_block_size_1d.x;
+    const unsigned int grid_size = cuda_calc_num_blocks(total_threads, block_size);
+
+    /* allocate temporary memory for parallel convolution of each input feature map */
+    tensor_t tmp;
+    tensor_shape_t tmp_shape = make_tensor_shape(5,
+        tensor_batch_size(input),
+        tensor_channels(output),
+        tensor_channels(input),
+        tensor_height(output),
+        tensor_width(output)
+    );
+    tensor_allocate_device(&tmp, &tmp_shape, device_gpu);
+
+    convolution_forward_parallel_kernel<<<grid_size, block_size>>>(input->data, filter->data, bias->data, tmp.data,
+        tensor_batch_size(input), tensor_channels(output), tensor_channels(input), tensor_height(input),
+        tensor_width(input), _filter_height(filter), _filter_width(filter), tensor_height(output), tensor_width(output),
         stride_y, stride_x, padding_y, padding_x, dilation_y, dilation_x, skip_output_y, skip_output_x, flip_kernel);
     CUDA_CHECK_LAST_ERROR();
+
+    /* sum along input channel axis */
+    tensor_sum_axis(output, &tmp, 2);
+
+    /* TODO: add bias */
+
+    tensor_destory(&tmp);
 }
 
 
