@@ -43,7 +43,7 @@ static inline void vec_scalar_add(
         ops::template store<Aligned_A>(&A[i], v);
     }
     for (; i < N; ++i) {
-        A[i] = b;
+        A[i] += b;
     }
 }
 
