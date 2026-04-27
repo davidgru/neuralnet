@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+float vec_sum(const float* A,  size_t N);
+
 void vec_add(float* A, const float* B, size_t N);
 void vec_scalar_add(float* A, float b, size_t N);
 

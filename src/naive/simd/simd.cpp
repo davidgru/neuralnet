@@ -26,6 +26,11 @@ static inline void gemm_impl(
         LayoutA, LayoutB>(A, B, C, M, N, K);
 }
 
+float vec_sum(const float* A,  size_t N)
+{
+    return vec_sum<float, 64>(A, N);
+}
+
 void vec_add(float* A, const float* B, size_t N)
 {
     vec_add<float>(A, B, N);

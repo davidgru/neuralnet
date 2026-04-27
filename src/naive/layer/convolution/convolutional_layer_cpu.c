@@ -86,27 +86,6 @@ void convolution_backward_data_cpu(const tensor_t* prev_grad, const tensor_t* fi
          padding_y, padding_x);
 
     free(w_p);
-
-
-    // for (size_t n = 0; n < tensor_batch_size(prev_grad); n++) {
-    //     for (size_t i = 0; i < tensor_channels(grad); i++) {
-    //         float* _dx = dx + n * tensor_per_batch_size(grad) + i * tensor_per_channel_size(grad);
-    //         for (size_t j = 0; j < tensor_channels(prev_grad); j++) {
-    //             const float* _dy = dy + n * tensor_per_batch_size(prev_grad) + j * tensor_per_channel_size(prev_grad);
-    //             const float* _w = w + j + _filter_size(filter) + i * _filter_height(filter) * _filter_width(filter);
-    //             /* dx = conv2d(w, flip(dy),
-    //                         dilation: (stride_y,stride_x),
-    //                         padding: (output_height-1,output_width-1))
-    //                 = conv2d(dy, flip(w),
-    //                         dilation: (stride_y, stride_x),
-    //                         padding: (filter_height-1,filter_width-1)) */
-    //             conv2d_cpu(_dy, _w, _dx, tensor_height(prev_grad), tensor_width(prev_grad), _filter_height(filter), _filter_width(filter),
-    //                     1, 1, _filter_height(filter) - 1, _filter_width(filter) - 1, stride_y,
-    //                     stride_x, padding_y, padding_x,
-    //                     true);
-    //         }
-    //     }
-    // }
 }
 
 void convolution_backward_weights_cpu(const tensor_t* input, const tensor_t* prev_grad, tensor_t* d_weights,
@@ -119,7 +98,7 @@ void convolution_backward_weights_cpu(const tensor_t* input, const tensor_t* pre
     //        dilation: (fw_stride_y, fw_stride_x))
 
     // Use re-label trick to use a single conv primitive for backward
-    // weights over whole batch
+    // weights over whole batch.
     //
     // 1. permute x and dy:
     //      x:  NxICxIHxIW => ICxNxIHxIW
@@ -170,26 +149,21 @@ void convolution_backward_weights_cpu(const tensor_t* input, const tensor_t* pre
     free(dy_p);
     free(dw_p);
 
-    /* backward bias */
-    for (size_t n = 0; n < tensor_batch_size(prev_grad); n++) {
-        const float* _dy = prev_grad->data + n * tensor_per_batch_size(prev_grad);
-        for (size_t i = 0; i < tensor_channels(prev_grad); i++) {
-            const tensor_t out_channel_grad = {
-                .shape = make_tensor_shape(1, tensor_per_channel_size(prev_grad)),
-                .data = _dy + i * tensor_per_channel_size(prev_grad),
-                .device = device_cpu
-            };
-            tensor_t db_tensor = {
-                .shape = make_tensor_shape(1, 1),
-                .data = d_bias->data + i,
-                .device = device_cpu
-            };
-            tensor_sum(&db_tensor, &out_channel_grad);
-        }
+    // backward bias
+    for (size_t n = 0; n < tensor_batch_size(prev_grad); ++n)
+    for (size_t c = 0; c < tensor_channels(prev_grad); ++c)
+    {
+        d_bias->data[c] += vec_sum(
+            &prev_grad->data[
+                n * tensor_per_batch_size(prev_grad)
+              + c * tensor_per_channel_size(prev_grad)
+            ],
+            tensor_per_channel_size(prev_grad)
+        );
     }
 }
 
-#else
+#else // Naive CPU implementation
 
 void conv2d_cpu(const float* input, const float* kernel, float* output, int32_t input_height,
     int32_t input_width, int32_t kernel_height, int32_t kernel_width, int32_t stride_y,

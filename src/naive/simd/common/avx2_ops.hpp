@@ -14,7 +14,7 @@ struct avx2_ops<float> {
     using lanes = std::integral_constant<size_t, 8>;
 
     template<bool aligned = false>
-    static reg load(const float* p) {
+    static inline reg load(const float* p) {
         if constexpr (aligned) {
             return _mm256_load_ps(p);
         } else {
@@ -23,7 +23,7 @@ struct avx2_ops<float> {
     }
 
     template<bool aligned = false>
-    static void store(float* p, reg v) {
+    static inline void store(float* p, reg v) {
         if constexpr (aligned) {
             _mm256_store_ps(p, v);
         } else {
@@ -31,9 +31,18 @@ struct avx2_ops<float> {
         }
     }
     
-    static reg set1(float v) { return _mm256_set1_ps(v); }
-    static reg fmadd(reg a, reg b, reg c) { return _mm256_fmadd_ps(a, b, c); };
-    static reg add(reg a, reg b) { return _mm256_add_ps(a, b); };
+    static inline reg zero() { return _mm256_setzero_ps(); }
+    static inline reg set1(float v) { return _mm256_set1_ps(v); }
+    static inline reg fmadd(reg a, reg b, reg c) { return _mm256_fmadd_ps(a, b, c); };
+    static inline reg add(reg a, reg b) { return _mm256_add_ps(a, b); };
+    static inline float hadd(reg v) {
+        __m128 low = _mm256_extractf128_ps(v, 0);
+        __m128 high = _mm256_extractf128_ps(v, 1);
+        __m128 sum = _mm_add_ps(low, high);
+        sum = _mm_hadd_ps(sum, sum);
+        sum = _mm_hadd_ps(sum, sum);
+        return _mm_cvtss_f32(sum);
+    }
 };
 
 template<>
@@ -42,7 +51,7 @@ struct avx2_ops<double> {
     using lanes = std::integral_constant<size_t, 4>;
 
     template<bool aligned = false>
-    static reg load(const double* p) {
+    static inline reg load(const double* p) {
         if constexpr (aligned) {
             return _mm256_load_pd(p);
         } else {
@@ -51,7 +60,7 @@ struct avx2_ops<double> {
     }
 
     template<bool aligned = false>
-    static void store(double* p, reg v) {
+    static inline void store(double* p, reg v) {
         if constexpr (aligned) {
             _mm256_store_pd(p, v);
         } else {
@@ -59,9 +68,17 @@ struct avx2_ops<double> {
         }
     }
     
-    static reg set1(double v) { return _mm256_set1_pd(v); }
-    static reg fmadd(reg a, reg b, reg c) { return _mm256_fmadd_pd(a, b, c); };
-    static reg add(reg a, reg b) { return _mm256_add_pd(a, b); };
+    static inline reg zero() { return _mm256_setzero_pd(); }
+    static inline reg set1(double v) { return _mm256_set1_pd(v); }
+    static inline reg fmadd(reg a, reg b, reg c) { return _mm256_fmadd_pd(a, b, c); };
+    static inline reg add(reg a, reg b) { return _mm256_add_pd(a, b); };
+    static inline double hadd(reg v) {
+        __m128d low = _mm256_extractf128_pd(v, 0);
+        __m128d high = _mm256_extractf128_pd(v, 1);
+        __m128d sum = _mm_add_pd(low, high);
+        sum = _mm_hadd_pd(sum, sum);
+        return _mm_cvtsd_f64(sum);
+    }
 };
 
 template<typename T>
@@ -72,7 +89,7 @@ struct avx2_ops_i32 {
     using lanes = std::integral_constant<size_t, 8>;
 
     template<bool aligned = false>
-    static reg load(const T* p) {
+    static inline reg load(const T* p) {
         if constexpr (aligned) {
             return _mm256_load_si256(reinterpret_cast<const __m256i*>(p));;
         } else {
@@ -81,7 +98,7 @@ struct avx2_ops_i32 {
     }
 
     template<bool aligned = false>
-    static void store(T* p, reg v) {
+    static inline void store(T* p, reg v) {
         if constexpr (aligned) {
             _mm256_store_si256(reinterpret_cast<__m256i*>(p), v);;
         } else {
@@ -89,11 +106,20 @@ struct avx2_ops_i32 {
         }
     }
     
-    static reg set1(T v) { return _mm256_set1_epi32(v); }
-    static reg fmadd(reg a, reg b, reg c) {
+    static inline reg zero() { return _mm256_setzero_si256(); }
+    static inline reg set1(T v) { return _mm256_set1_epi32(v); }
+    static inline reg fmadd(reg a, reg b, reg c) {
         return _mm256_add_epi32(c, _mm256_mullo_epi32(a, b));
     };
     static reg add(reg a, reg b) { return _mm256_add_epi32(a, b); };
+    static inline T hadd(reg v) {
+        __m128i low = _mm256_extracti128_si256(v, 0);
+        __m128i high = _mm256_extracti128_si256(v, 1);
+        __m128i sum = _mm_add_epi32(low, high);
+        sum = _mm_hadd_epi32(sum, sum);
+        sum = _mm_hadd_epi32(sum, sum);
+        return _mm_cvtsi128_si32(sum);
+    }
 };
 
 template<>
@@ -110,7 +136,7 @@ struct avx2_ops_i16 {
     using lanes = std::integral_constant<size_t, 16>;
 
     template<bool aligned = false>
-    static reg load(const T* p) {
+    static inline reg load(const T* p) {
         if constexpr (aligned) {
             return _mm256_load_si256(reinterpret_cast<const __m256i*>(p));;
         } else {
@@ -119,7 +145,7 @@ struct avx2_ops_i16 {
     }
 
     template<bool aligned = false>
-    static void store(T* p, reg v) {
+    static inline void store(T* p, reg v) {
         if constexpr (aligned) {
             _mm256_store_si256(reinterpret_cast<__m256i*>(p), v);;
         } else {
@@ -127,11 +153,21 @@ struct avx2_ops_i16 {
         }
     }
 
-    static reg set1(T v) { return _mm256_set1_epi16(v); }
-    static reg fmadd(reg a, reg b, reg c) {
+    static inline reg zero() { return _mm256_setzero_si256(); }
+    static inline reg set1(T v) { return _mm256_set1_epi16(v); }
+    static inline reg fmadd(reg a, reg b, reg c) {
         return _mm256_add_epi16(c, _mm256_mullo_epi16(a, b));
     };
-    static reg add(reg a, reg b) { return _mm256_add_epi16(a, b); };
+    static inline reg add(reg a, reg b) { return _mm256_add_epi16(a, b); };
+    static inline T hadd(reg v) {
+        __m128i low = _mm256_extracti128_si256(v, 0);
+        __m128i high = _mm256_extracti128_si256(v, 1);
+        __m128i sum = _mm_add_epi16(low, high);
+        sum = _mm_add_epi16(sum, _mm_srli_si128(sum, 8));
+        sum = _mm_add_epi16(sum, _mm_srli_si128(sum, 4));
+        sum = _mm_add_epi16(sum, _mm_srli_si128(sum, 2));
+        return static_cast<T>(_mm_extract_epi16(sum, 0));
+    }
 };
 
 template<>
