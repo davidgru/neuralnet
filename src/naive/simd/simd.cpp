@@ -26,6 +26,11 @@ static inline void gemm_impl(
         LayoutA, LayoutB>(A, B, C, M, N, K);
 }
 
+void vec_add(float* A, const float* B, size_t N)
+{
+    vec_add<float>(A, B, N);
+}
+
 void vec_scalar_add(float* A, float b, size_t N)
 {
     vec_scalar_add<float>(A, b, N);

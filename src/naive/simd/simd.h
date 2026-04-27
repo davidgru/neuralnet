@@ -6,6 +6,7 @@
 extern "C" {
 #endif
 
+void vec_add(float* A, const float* B, size_t N);
 void vec_scalar_add(float* A, float b, size_t N);
 
 void gemm(

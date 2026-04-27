@@ -20,8 +20,8 @@ static inline void swap_N_C(
     for (size_t n = 0; n < N; ++n)
     {
         vec_copy<T>(
-            &Y[n * (C * H * W) + c * (H * W)],
-            &X[c * (N * H * W) + n * (H * W)],
+            &Y[c * (N * H * W) + n * (H * W)],
+            &X[n * (C * H * W) + c * (H * W)],
             H * W
         );
     }
@@ -57,7 +57,7 @@ void conv(
     GEMM(F, M, Y, OC, (N * OH * OW), (IC * KH * KW));
 
     // Y': OCx(N*OH*OW) => Y: NxOCxOHxOW (reshape)
-    swap_N_C(Y, M, N, OC, OH, OW);
+    swap_N_C(Y, M, OC, N, OH, OW);
     vec_copy(Y, M, N * OC * OH * OW);
 
     delete[] M;
